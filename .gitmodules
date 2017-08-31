@@ -1,0 +1,6 @@
+[submodule "external/bih"]
+	path = external/bih
+	url = git@github.com:flow123d/bih.git
+[submodule "external/matlab-intersections"]
+	path = external/matlab-intersections
+	url = git@github.com:jirikopal/Intersections.git
