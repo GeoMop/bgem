@@ -14,3 +14,14 @@ of small degree (especially quadratic).
 
 Requirements
 ------------
+
+* g++ 4.x or newer
+* cmake 3.x
+
+In order to install BIH package locally for development just run the 'bih_install.sh' script.
+
+Theory
+------
+[Patrikalakis-Maekawa-Cho](http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/mathe.html)
+
+    
