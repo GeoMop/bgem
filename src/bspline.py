@@ -3,9 +3,12 @@ Module with classes representing various B-spline and NURMS curves and surfaces.
 These classes provide just basic functionality:
 - storing the data
 - evaluation of XYZ for UV
-- derivatives
 In future:
+- evaluation and xy<->uv functions accepting np.arrays,
 - serialization and deserialization using JSONdata - must make it an installable module
+- use de Boor algorithm for evaluation of curves and surfaces
+- evaluation of derivatives
+- implement degree increasing and knot insertion
 """
 
 """
@@ -109,6 +112,7 @@ class SplineBasis:
         knots[-degree - 1:] = knot_range[1]
         return cls(degree, knots)
 
+
     @classmethod
     def make_from_packed_knots(cls, degree, knots):
         full_knots = [ q for q, mult in knots for i in range(mult)  ]
@@ -136,6 +140,7 @@ class SplineBasis:
         self.domain_size = self.domain[1] - self.domain[0]
         # Number of basis functions.
 
+
     def pack_knots(self):
         last, mult = self.knots[0], 0
         packed_knots = []
@@ -146,6 +151,7 @@ class SplineBasis:
                 packed_knots.append( (last, mult) )
                 last, mult = q, 1
         return packed_knots
+
 
     def find_knot_interval(self, t):
         """
@@ -241,6 +247,17 @@ class SplineBasis:
             return 1.0
         return self._basis(self.degree, i_base, t)
 
+    def make_linear_poles(self):
+        """
+        Return poles of basis functions to get a f(x) = x.
+        :return:
+        """
+        poles= [ 0.0 ]
+        for i in range(self.size-1):
+            pp = poles[-1] + (self.knots[i + self.degree + 1] - self.knots[i  + 1]) / float(self.degree)
+            poles.append(pp)
+        return poles
+
 
 
 class Curve:
@@ -266,14 +283,14 @@ class Curve:
     """
     def __init__(self, basis, poles, rational = False):
         self.basis = basis
-        dim = len(poles[0]) - rational
-        check_matrix(poles, [self.basis.size, dim + rational], scalar_types )
+        self.dim = len(poles[0]) - rational
+        check_matrix(poles, [self.basis.size, self.dim + rational], scalar_types )
 
         self.poles=np.array(poles)  # N x D
         self.rational=rational
         if rational:
-            self._weights = poles[:, dim]
-            self._poles = (poles[:, 0:dim].T * self._weights ).T
+            self._weights = poles[:, self.dim]
+            self._poles = (poles[:, 0:self.dim].T * self._weights ).T
 
 
     def eval(self, t):
@@ -332,13 +349,13 @@ class Surface:
 
         self.u_basis, self.v_basis = basis
         self.rational = rational
-        dim = len(poles[0][0]) - rational
-        check_matrix(poles, [self.u_basis.size, self.v_basis.size, dim + rational], scalar_types )
+        self.dim = len(poles[0][0]) - rational
+        check_matrix(poles, [self.u_basis.size, self.v_basis.size, self.dim + rational], scalar_types )
         self.poles=np.array(poles)
-        assert self.poles.shape == (self.u_basis.size, self.v_basis.size, dim + rational)
+        assert self.poles.shape == (self.u_basis.size, self.v_basis.size, self.dim + rational)
         if rational:
-            self._weights = poles[:, :, dim]
-            self._poles = (poles[:,:,0:dim].T * self._weights.T ).T
+            self._weights = poles[:, :, self.dim]
+            self._poles = (poles[:,:,0:self.dim].T * self._weights.T ).T
 
     def eval(self, u, v):
         iu = self.u_basis.find_knot_interval(u)
@@ -372,329 +389,105 @@ class Z_Surface:
     - We need conversion to full 3D surface for the BREP output
     - Optimization: simplified Bspline evaluation just for the singel coordinate
     """
+    def __init__(self, xy_quad, z_surface):
+        """
+        Construct a surface given by the  1d surface for the Z coordinate and XY quadrilateral
+        for the bilinear UV -> XY mapping.
+        :param xy_quad: np array N x 2
+            Four or three points, determining bilinear or linear mapping, respectively.
+            Four points giving XY coordinates for the uv corners: (0,0), (0,1), (1,0), (1,1)
+            Three points giving XY coordinates for the uv corners: (0,0), (0,1), (1,0)
+        :param z_surface: !D Surface object.
+        """
+        assert z_surface.dim == 1
+        self.z_surface = z_surface
+        self.u_basis = z_surface.u_basis
+        self.v_basis = z_surface.v_basis
+        self.dim = 3
 
-    def eval_xy(self, xy_points):
-        pass
+        if len(xy_quad) == 3:
+            # linear case
+            self.xy_shift = xy_quad[0]
+            v_vec = xy_quad[1] - xy_quad[0]
+            u_vec = xy_quad[2] - xy_quad[0]
+            self.mat_uv_to_xy = np.column_stack((u_vec, v_vec))
+            self.mat_xy_to_uv = la.inv(self.mat_uv_to_xy)
 
+            self.xy_to_uv = self._linear_xy_to_uv
+            self.uv_to_xy = self._linear_uv_to_xy
 
+        elif len(xy_quad) == 4:
+            # bilinear case
+            self.quad = xy_quad
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Cache used of knot vector (computation of differences)
-KVN_CACHE = {}
-SB_CACHE = {}
-
-
-
-def spline_base_vec(knot_vec, t_param, order, sparse=False):
-    """
-    This function compute normalized blending function aka base function of B-Spline curve or surface.
-    :param knot_vec:
-    :param t_param:
-    :param order: (0: function value, 1: derivative function value)
-    :param sparse:
-    :return:
-    """
-
-
-    idx = find_index(knot_vec, t_param)
-    n_basf = len(knot_vec) - 3
-
-    # Create sparse matrix
-    if sparse is True:
-        basis_values = np.zeros(3)
-    else:
-        basis_values = np.zeros(n_basf)
-
-    tk1 = knot_vec[idx + 1]
-    tk2 = knot_vec[idx + 2]
-    tk3 = knot_vec[idx + 3]
-    tk4 = knot_vec[idx + 4]
-
-    d31 = tk3 - tk1
-    d32 = tk3 - tk2
-    d42 = tk4 - tk2
-
-    dt1 = t_param - tk1
-    dt2 = t_param - tk2
-    d3t = tk3 - t_param
-    d4t = tk4 - t_param
-
-    d31_d32 = d31 * d32
-    d42_d32 = d42 * d32
-
-    # basis function values
-    if order == 0:
-        if sparse is True:
-            basis_values[0] = (d3t * d3t) / d31_d32
-            basis_values[1] = ((dt1 * d3t) / d31_d32) + ((dt2 * d4t) / d42_d32)
-            basis_values[2] = (dt2 * dt2) / d42_d32
+            self.xy_to_uv = self._bilinear_xy_to_uv
+            self.uv_to_xy = self._bilinear_uv_to_xy
 
         else:
-            basis_values[idx] = (d3t * d3t) / d31_d32
-            basis_values[idx + 1] = ((dt1 * d3t) / d31_d32) + ((dt2 * d4t) / d42_d32)
-            basis_values[idx + 2] = (dt2 * dt2) / d42_d32
+            assert False, "Three or four points must be given."
 
-    # basis function derivatives
-    elif order == 1:
-        if sparse is True:
-            basis_values[0] = -2 * d3t / d31_d32
-            basis_values[1] = (d3t - dt1) / d31_d32 + (d4t - dt2) / d42_d32
-            basis_values[2] = 2 * dt2 / d42_d32
-        else:
-            basis_values[idx] = -2*d3t / d31_d32
-            basis_values[idx + 1] = (d3t - dt1) / d31_d32 + (d4t - dt2) / d42_d32
-            basis_values[idx + 2] = 2 * dt2 / d42_d32
+    def make_full_surface(self):
+        """
+        Return representation of the surface by the 3d Surface object.
+        Compute redundant XY poles.
+        :return: Surface.
+        """
+        basis = (self.z_surface.u_basis, self.z_surface.v_basis)
 
-    return basis_values, idx
+        u = basis[0].make_linear_poles()
+        v = basis[1].make_linear_poles()
+        V, U = np.meshgrid(v,u)
+        uv_poles = np.stack([U, V], axis=2)
+        xy_poles = np.apply_along_axis(lambda x: self.uv_to_xy(x[0], x[1]), 2, uv_poles)
+        poles = np.concatenate( (xy_poles, self.z_surface.poles), axis = 2 )
 
+        return Surface(basis, poles)
 
-def test_spline_base_vec(knots=np.array((0.0, 0.0, 0.0, 1/3.0, 2/3.0, 1.0, 1.0, 1.0)), sparse=False):
-    """
-    Test optimized version of spline base function
-    :param knots: numpy array of knots
-    :param sparse: is sparse matrix used
-    :return:
-    """
-
-    num = 100
-    n_basf = len(knots) - 3
-    y_coords = {}
-    for k in range(0, n_basf):
-        temp = {}
-        for i in range(0, num+1):
-            t_param = min(knots) + max(knots) * i / float(num)
-            if sparse is True:
-                temp[i] = spline_base_vec(knots, t_param, 0, sparse)[0].toarray()[0]
-            else:
-                temp[i] = spline_base_vec(knots, t_param, 0, sparse)[0]
-        y_coords[k] = temp
-
-    diff_x = (max(knots) - min(knots)) / num
-    x_coord = [min(knots) + diff_x*i for i in range(0, num+1)]
-
-    for temp in y_coords.values():
-        plt.plot(x_coord, temp.values())
-    plt.show()
+    def _linear_uv_to_xy(self, u, v):
+        #assert uv_points.shape[0] == 2, "Size: {}".format(uv_points.shape)
+        uv_points = np.array([u, v])
+        return self.mat_uv_to_xy.dot(uv_points) + self.xy_shift
 
 
+    def _bilinear_uv_to_xy(self, u, v):
+        weights = np.array([ (1-u)*(1-v), (1-u)*v, u*(1-v), u*v ])
+        return self.quad.T.dot( weights )
+
+    def _linear_xy_to_uv(self, x, y):
+        # assert xy_points.shape[0] == 2
+        xy_points = np.array([x,y])
+        return self.mat_xy_to_uv.dot((xy_points - self.xy_shift))
 
 
-def spline_base(knot_vec, basis_fnc_idx, t_param):
-    """
-    Evaluate a second order bases function in 't_param'.
-    This function compute normalized blending function aka base function of B-Spline curve or surface.
-    This function implement some optimization.
-    :param knot_vec: knot vector
-    :param basis_fnc_idx: index of basis function
-    :param t_param: parameter t in interval <0, 1>
-    :return: value of basis function
-    """
-
-    # When basis function has zero value at given interval, then return 0
-    if t_param < knot_vec[basis_fnc_idx] or knot_vec[basis_fnc_idx+3] < t_param:
-        return 0.0
-
-    try:
-        value = SB_CACHE[(tuple(knot_vec), basis_fnc_idx, t_param)]
-    except KeyError:
-        try:
-            kvn = KVN_CACHE[tuple(knot_vec)]
-        except KeyError:
-            knot_vec_len = len(knot_vec)
-            kvn = [0] * knot_vec_len
-            i = 0
-            while i < knot_vec_len - 1:
-                if knot_vec[i] - knot_vec[i+1] != 0:
-                    kvn[i] = 1.0
-                i += 1
-            KVN_CACHE[tuple(knot_vec)] = kvn
-        tks = [knot_vec[basis_fnc_idx + k] for k in range(0, 4)]
-
-        value = 0.0
-        if knot_vec[basis_fnc_idx] <= t_param <= knot_vec[basis_fnc_idx+1] and kvn[basis_fnc_idx] != 0:
-            value = (t_param - tks[0])**2 / ((tks[2] - tks[0]) * (tks[1] - tks[0]))
-        elif knot_vec[basis_fnc_idx+1] <= t_param <= knot_vec[basis_fnc_idx+2] and kvn[basis_fnc_idx+1] != 0:
-            value = ((t_param - tks[0]) * (tks[2] - t_param)) / ((tks[2] - tks[0]) * (tks[2] - tks[1])) + \
-                   ((t_param - tks[1]) * (tks[3] - t_param)) / ((tks[3] - tks[1]) * (tks[2] - tks[1]))
-        elif knot_vec[basis_fnc_idx+2] <= t_param <= knot_vec[basis_fnc_idx+3] and kvn[basis_fnc_idx+2] != 0:
-            value = (tks[3] - t_param)**2 / ((tks[3] - tks[1]) * (tks[3] - tks[2]))
-        SB_CACHE[(tuple(knot_vec), basis_fnc_idx, t_param)] = value
-
-    return value
+    def _bilinear_xy_to_uv(self, x, y):
+        assert False, "Not implemented yet."
 
 
-KNOT_VEC_CACHE = {}
+    def eval(self, u, v):
+        z = self.z_surface.eval(u, v)
+        x, y = self.uv_to_xy(u, v)
+        return np.array( [x, y, z] )
 
-
-def spline_surface(poles, u_param, v_param, u_knots, v_knots, u_mults, v_mults):
-    """
-    Compute coordinate of one point at B-Surface (u and v degree is 2)
-    :param poles: matrix of "poles"
-    :param u_param: X coordinate in range <0, 1>
-    :param v_param: Y coordinate in range <0, 1>
-    :param u_knots: list of u knots
-    :param v_knots: list of v knots
-    :param u_mults: list of u multiplicities
-    :param v_mults: list of v multiplicities
-    :return: tuple of (x, y, z) coordinate of B-Spline surface
-    """
-
-    # "Decompress" knot vectors using multiplicities
-    # e.g
-    # u_knots: (0.0, 0.5, 1.0) u_mults: (3, 1, 3) will be converted to
-    # _u_knot: (0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0)
-    _u_knots = []
-    _v_knots = []
-    try:
-        _u_knots = KNOT_VEC_CACHE[(u_knots, u_mults)]
-    except KeyError:
-        for idx, mult in enumerate(u_mults):
-            _u_knots.extend([u_knots[idx]] * mult)
-        KNOT_VEC_CACHE[(u_knots, u_mults)] = _u_knots
-    try:
-        _v_knots = KNOT_VEC_CACHE[(v_knots, v_mults)]
-    except KeyError:
-        for idx, mult in enumerate(v_mults):
-            _v_knots.extend([v_knots[idx]] * mult)
-        KNOT_VEC_CACHE[(v_knots, v_mults)] = _v_knots
-
-    u_n_basf = len(_u_knots) - 3
-    v_n_basf = len(_v_knots) - 3
-
-    uf_mat = [0.0] * u_n_basf
-    vf_mat = [0.0] * v_n_basf
-
-    # Pre-compute base values of functions
-    for k in range(0, u_n_basf):
-        uf_mat[k] = spline_base(_u_knots, k, u_param)
-    for k in range(0, v_n_basf):
-        vf_mat[k] = spline_base(_v_knots, k, v_param)
-
-    x_coord, y_coord, z_coord = 0.0, 0.0, 0.0
-
-    # Compute point at B-Spline surface
-    for i in range(0, u_n_basf):
-        for j in range(0, v_n_basf):
-            base_i_j = uf_mat[i] * vf_mat[j]
-            x_coord += poles[i][j][0] * base_i_j
-            y_coord += poles[i][j][1] * base_i_j
-            z_coord += poles[i][j][2] * base_i_j
-
-    return x_coord, y_coord, z_coord
+    def eval_xy(self, x, y):
+        u, v  = self.xy_to_uv(x, y)
+        z = self.z_surface.eval(u, v)
+        return np.array([x, y, z])
 
 
 
 
 
-def transform_points(quad, terrain_data):
-    """
-    Function computes corresponding (u,v) for (x,y)
-    :param terrain_data: matrix of 3D terrain data, N rows, 3 cols
-    :param quad: points defining quadrangle area (array) 2 rows 4 cols, 
-    :return: transformed and cropped terrain points
-    """
 
-    # if quad points are given counter clock wise, this is outer normal in XY plane
-    mat_n = np.empty_like(quad)
-    
-    mat_n[:, 0] = quad[:, 0] - quad[:, 3]
-    nt = mat_n[0, 0]
-    mat_n[0, 0] = -mat_n[1, 0]
-    mat_n[1, 0] = nt
-    mat_n[:, 0] = mat_n[:, 0] / la.norm(mat_n[:, 0])
 
-    for i in range(1, 4):
-        mat_n[:, i] = quad[:, i] - quad[:, i-1]
-        nt = mat_n[0, i]
-        mat_n[0, i] = -mat_n[1, i]
-        mat_n[1, i] = nt
-        mat_n[:, i] = mat_n[:, i] / la.norm(mat_n[:, i])
 
-    terrain_len = len(terrain_data)
 
-    # Compute local coordinates and drop all points outside quadraangle
-    param_terrain = np.empty_like(terrain_data)
-    # indexing
-    d0 = (terrain_data[:, 0:2] - quad[:, 0].transpose())
-    d2 = (terrain_data[:, 0:2] - quad[:, 2].transpose())
-    d3 = (terrain_data[:, 0:2] - quad[:, 3].transpose())
-    d0_n0 = d0 * mat_n[:, 0]
-    d0_n1 = d0 * mat_n[:, 1]
-    d2_n2 = d2 * mat_n[:, 2]
-    d3_n3 = d3 * mat_n[:, 3]
-    u = np.divide(d0_n0, d0_n0 + d2_n2)
-    v = np.divide(d0_n1, d0_n1 + d3_n3)
 
-    h = -1
-    for j in range(0,terrain_len):
-        if (u[j] >= 0.0) and (u[j] <= 1.0) and (v[j] >= 0.0) and (v[j] <= 1.0):
-            h += 1
-            param_terrain[h, 0] = u[j]
-            param_terrain[h, 1] = v[j]
-            param_terrain[h, 2] = terrain_data[j, 2]
 
-    param_terrain.resize(h+1, 3)
 
-    uv = np.reshape(param_terrain[:, 0:2], 2*h+2).transpose()
 
-    a = quad[:, 3] - quad[:, 2]
-    b = quad[:, 0] - quad[:, 1]
-    c = quad[:, 1] - quad[:, 2]
-    d = quad[:, 0] - quad[:, 3]
 
-    ldiag = np.zeros([2 * h + 1, 1])
-    diag = np.zeros([2 * h + 2, 1])
-    udiag = np.zeros([2 * h + 1, 1])
 
-    # fixed point Newton iteration
-    for i in range(0, 1):  # 1->5
-        for j in range(0, h+1):
-            mat_j = compute_jacobi(uv[2 * j, 0], uv[2 * j + 1, 0], a, b, c, d, -1)
-            ldiag[2 * j, 0] = mat_j[1, 0]
-            diag[2 * j, 0] = mat_j[0, 0]
-            diag[2 * j + 1, 0] = mat_j[1, 1]
-            udiag[2 * j, 0] = mat_j[0, 1]
 
-        mat_jg = scipy.sparse.diags([ldiag[:, 0], diag[:, 0], udiag[:, 0]], [-1, 0, 1], format="csr")
-        uv = uv - mat_jg.dot(uv)
 
-    uv = uv.reshape([h + 1, 2])
-
-    # Tresholding of the refined coordinates
-    for j in range(0, h+1):
-        if uv[j, 0] < 0:
-            uv[:, 0] = 0
-        elif uv[j, 0] > 1:
-            uv[j, 0] = 1
-        elif uv[j, 1] < 0:
-            uv[:, 1] = 0
-        elif uv[j, 1] > 1:
-            uv[j, 1] = 1
-
-    param_terrain[:, 0:2] = uv
-
-    return param_terrain
 
 

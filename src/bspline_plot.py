@@ -82,3 +82,6 @@ def plot_surface_poles_3d(surface, fig_ax, **kwargs):
     """
     x_poles, y_poles, z_poles = surface.poles[:, :, 0:3].reshape(-1, 3).T          # remove weights and flatten nu, nv
     return fig_ax.scatter(x_poles, y_poles, z_poles, color='red', **kwargs)
+
+
+

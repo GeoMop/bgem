@@ -59,6 +59,18 @@ class TestSplineBasis:
         assert eq_basis.eval(2, 1.0) == 0.0
 
 
+    def test_linear_poles(self):
+        eq_basis = bs.SplineBasis.make_equidistant(2, 4)
+        poles = eq_basis.make_linear_poles()
+
+        t_vec = np.linspace(0.0, 1.0, 21)
+        x_vec = []
+        for t in t_vec:
+            b_vals = np.array([ eq_basis.eval(i, t) for i in range(eq_basis.size) ])
+            x = np.dot(b_vals, poles)
+            assert np.abs( x - t ) < 1e-15
+
+
 class TestCurve:
 
     def plot_4p(self):
@@ -75,20 +87,29 @@ class TestCurve:
         #self.plot_4p()
         pass
 
+    # TODO: test rational curves, e.g. circle
+
+
+
+
+
+
+
+def make_function_grid(fn, nu, nv):
+    X_grid = np.linspace(0, 1.0, nu)
+    Y_grid = np.linspace(0, 1.0, nv)
+    Y, X = np.meshgrid(Y_grid, X_grid)
+
+    points_uv = np.stack([X.ravel(), Y.ravel()], 1)
+    Z = np.apply_along_axis(fn, 1, points_uv)
+    points = np.stack([X.ravel(), Y.ravel(), Z], 1)
+
+    return points.reshape( (nu, nv, 3) )
+
+
+
 
 class TestSurface:
-
-
-    def make_function_grid(self, fn, nu, nv):
-        X_grid = np.linspace(0, 1.0, nu)
-        Y_grid = np.linspace(0, 1.0, nv)
-        Y, X = np.meshgrid(Y_grid, X_grid)
-
-        points_uv = np.stack([X.ravel(), Y.ravel()], 1)
-        Z = np.apply_along_axis(fn, 1, points_uv)
-        points = np.stack([X.ravel(), Y.ravel(), Z], 1)
-
-        return points.reshape( (nu, nv, 3) )
 
     def plot_extrude(self):
         fig = plt.figure()
@@ -113,7 +134,7 @@ class TestSurface:
         fig = plt.figure()
         ax = fig.gca(projection='3d')
 
-        poles = self.make_function_grid(function, 4, 5)
+        poles = make_function_grid(function, 4, 5)
         u_basis = bs.SplineBasis.make_equidistant(2, 2)
         v_basis = bs.SplineBasis.make_equidistant(2, 3)
         surface_func = bs.Surface( (u_basis, v_basis), poles)
@@ -126,8 +147,43 @@ class TestSurface:
         from mpl_toolkits.mplot3d import Axes3D
         import matplotlib.pyplot as plt
 
-        self.plot_extrude()
-        self.plot_function()
+        #self.plot_extrude()
+        #self.plot_function()
+
+
+        # TODO: test rational surfaces, e.g. sphere
 
 
 
+class TestZ_Surface:
+
+
+
+
+    def plot_function_uv(self):
+        # function surface
+        def function(x):
+            return math.sin(x[0]*4) * math.cos(x[1]*4)
+
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+
+        poles = make_function_grid(function, 4, 5)
+        u_basis = bs.SplineBasis.make_equidistant(2, 2)
+        v_basis = bs.SplineBasis.make_equidistant(2, 3)
+        surface_func = bs.Surface( (u_basis, v_basis), poles[:,:, [2] ])
+
+        quad = np.array( [ [0, 0], [0, 0.5], [1, 0.1],  [1.1, 1.1] ]  )
+        #quad = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+        z_surf = bs.Z_Surface(quad, surface_func)
+        full_surf = z_surf.make_full_surface()
+
+        bs_plot.plot_surface_3d(z_surf, ax)
+        bs_plot.plot_surface_3d(full_surf, ax, color='red')
+        #bs_plot.plot_surface_poles_3d(surface_func, ax)
+
+        plt.show()
+
+    def test_eval_uv(self):
+        self.plot_function_uv()
+        pass
