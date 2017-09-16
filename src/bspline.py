@@ -306,7 +306,13 @@ class Curve:
         else:
             return  np.inner(t_base_vec, self.poles[it: it + dt, :].T)
 
-
+    def eval_array(self, t_points):
+        """
+        Evaluate in array of t-points.
+        :param t_points: array N x float
+        :return: Numpy array N x D, D is dimension of the curve.
+        """
+        return np.array( [ self.eval(t) for t in t_points] )
 
 
 
@@ -378,6 +384,13 @@ class Surface:
             #print("val: {}".format(value.shape))
             return np.inner( value, v_base_vec)
 
+    def eval_array(self, uv_points):
+        """
+        Evaluate in array of t-points.
+        :param uv_points: numpy array N x [u, v]
+        :return: Numpy array N x D, D is dimension of the curve.
+        """
+        return np.array( [ self.eval(u, v) for u, v in uv_points] )
 
 
 
@@ -404,6 +417,9 @@ class Z_Surface:
         self.u_basis = z_surface.u_basis
         self.v_basis = z_surface.v_basis
         self.dim = 3
+
+        self.z_scale = 1.0
+        self.z_shift = 0.0
 
         if len(xy_quad) == 3:
             # linear case
@@ -437,48 +453,259 @@ class Z_Surface:
         u = basis[0].make_linear_poles()
         v = basis[1].make_linear_poles()
         V, U = np.meshgrid(v,u)
-        uv_poles = np.stack([U, V], axis=2)
-        xy_poles = np.apply_along_axis(lambda x: self.uv_to_xy(x[0], x[1]), 2, uv_poles)
+        uv_poles_vec = np.stack([U.ravel(), V.ravel()], axis=1)
+        xy_poles = self.uv_to_xy(uv_poles_vec).reshape(U.shape[0], U.shape[1], 2)
         poles = np.concatenate( (xy_poles, self.z_surface.poles), axis = 2 )
 
         return Surface(basis, poles)
 
-    def _linear_uv_to_xy(self, u, v):
-        #assert uv_points.shape[0] == 2, "Size: {}".format(uv_points.shape)
-        uv_points = np.array([u, v])
-        return self.mat_uv_to_xy.dot(uv_points) + self.xy_shift
+
+    def transform(self, xy_mat, z_mat):
+        """
+        Transform the surface by arbitrary XY linear transform and Z linear transform.
+        :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
+        :param z_shift: [ z_scale, z_shift]
+        :return: None
+        """
+        assert xy_mat.shape == (2, 3)
+        assert z_mat.shape == (2, )
+        self.mat_uv_to_xy = xy_mat[0:2,0:2].dot( self.mat_uv_to_xy )
+        self.xy_shift = xy_mat[0:2,0:2].dot( self.xy_shift ) + xy_mat[0:2, 2]
+        self.mat_xy_to_uv = la.inv(self.mat_uv_to_xy)
+
+        self.z_scale *= z_mat[0]
+        self.z_shift = z_mat[0] * self.z_shift + z_mat[1]
 
 
-    def _bilinear_uv_to_xy(self, u, v):
-        weights = np.array([ (1-u)*(1-v), (1-u)*v, u*(1-v), u*v ])
-        return self.quad.T.dot( weights )
 
-    def _linear_xy_to_uv(self, x, y):
+    """
+    def uv_to_xy(self, uv_points):
+
+    Abstract method. Converts array of uv points to array of xy points.
+    :param uv_points: numpy array N x [u,v]
+    :return: numpy array N x [x,y]
+    """
+    def _linear_uv_to_xy(self, uv_points):
+        assert uv_points.shape[0] == 2, "Size: {}".format(uv_points.shape)
+        return (self.mat_uv_to_xy.dot(uv_points).T + self.xy_shift).T
+
+
+    def _bilinear_uv_to_xy(self, uv_points):
+        xy_list = []
+        for u,v in uv_points:
+            weights = np.array([ (1-u)*(1-v), (1-u)*v, u*(1-v), u*v ])
+            xy_list.append( self.quad.T.dot(weights) )
+        return np.array(xy_list)
+
+    """
+    def xy_to_uv(self, xy_points):
+
+    Abstract method. Converts array of xy points to array of uv points.
+    :param xy_points: numpy array N x [x,y]
+    :return: numpy array N x [u,v]
+    """
+    def _linear_xy_to_uv(self, xy_points):
         # assert xy_points.shape[0] == 2
-        xy_points = np.array([x,y])
-        return self.mat_xy_to_uv.dot((xy_points - self.xy_shift))
+        assert xy_points.shape[0] == 2
+        return self.mat_xy_to_uv.dot((xy_points.T - self.xy_shift).T)
 
 
-    def _bilinear_xy_to_uv(self, x, y):
+    def _bilinear_xy_to_uv(self, xy_points):
         assert False, "Not implemented yet."
 
 
     def eval(self, u, v):
         z = self.z_surface.eval(u, v)
-        x, y = self.uv_to_xy(u, v)
+        uv_points = np.array([[u, v]])
+        x, y = self.uv_to_xy( uv_points )[0]
         return np.array( [x, y, z] )
 
-    def eval_xy(self, x, y):
-        u, v  = self.xy_to_uv(x, y)
-        z = self.z_surface.eval(u, v)
-        return np.array([x, y, z])
+
+    def eval_array(self, uv_points):
+        z_points = self.z_surface.eval_array(uv_points)
+        xy_points = self.uv_to_xy(uv_points)
+        return np.concatenate( (xy_points, z_points), axis = 1)
 
 
 
+    def eval_xy_array(self, xy_points):
+        uv_points  = self.xy_to_uv(xy_points)
+        z_points = self.z_surface.eval_array(uv_points)
+        return np.concatenate( (xy_points, z_points), axis = 1)
+
+    def z_eval_array(self, uv_points):
+        z_points = self.z_surface.eval_array(uv_points)
+        return z_points
+
+    def z_eval_xy_array(self, uv_points):
+        uv_points = self.xy_to_uv(xy_points)
+        z_points = self.z_surface.eval_array(uv_points)
+        return z_points
+
+class InvalidGridExc(Exception):
+    pass
+
+
+class GridSurface:
+    """
+    Surface given as bilinear interpolation of a regular grid of points.
+    TODO: This can be viewed as a degree 1 Z-function B-spline. Make it a common class for any degree??
+    """
+    step_tolerance = 1e-10
+
+    def __init__(self):
+        """
+        Initialize point grid from numpy array.
+        :param grid: NxMx3 numpy array of NxM grid of #D coordinates
+        """
+        self.grid=None
+        self.mat_xy_to_uv=None
+        self.mat_uv_to_xy=None
+        self.shift=None
+        self.shape = (0,0)
+        self.uv_step = (0,0)
+
+
+    def load(self, filename):
+        """
+        Load the grid surface from file
+        :param filename:
+        :return:
+        """
+        point_seq = np.loadtxt(filename)
+        assert min(point_seq.shape) > 1
+        self.init_from_seq(point_seq.T)
+
+
+    def init_from_seq(self, point_seq):
+        """
+        Get 2d transform matrix 2 rows 3 cols to map a grid of XY points to unit square
+        :param point_seq: numpy array N x 2
+        :return:
+        """
+
+        assert point_seq.shape[0] == 3
+        n_points = point_seq.shape[1]
+        point_seq_xy = point_seq[0:2,:]
+
+        vtx_00 = point_seq_xy[0:2, 0]
+        vtx_du = point_seq_xy[0:2, 1]
+
+        u_step = vtx_du - vtx_00
+        for i in range(2, n_points):
+            step = point_seq_xy[:,i] - point_seq_xy[:,i-1]
+            if la.norm(u_step - step) > self.step_tolerance:
+                break
+
+        vtx_dv = point_seq_xy[:,i]
+        v_step = vtx_dv - vtx_00
+
+        nu = i
+        nv = int(n_points / nu)
+        if not n_points == nu*nv:
+            raise InvalidGridExc("Not a M*N grid.")
+
+        # check total range of the grid
+        vtx_10 = point_seq_xy[:, nu-1]
+        vtx_01 = point_seq_xy[:, -nu]
+        vtx_11 = point_seq_xy[:, -1]
+        u_range_0 = vtx_10 - vtx_00
+        u_range_1 = vtx_11 - vtx_01
+        v_range_0 = vtx_01 - vtx_00
+        v_range_1 = vtx_11 - vtx_10
+
+        if not la.norm(u_range_0 - u_range_1) < self.step_tolerance or \
+            not la.norm(v_range_0 - v_range_1) < self.step_tolerance:
+            raise InvalidGridExc("Grid XY envelope is not a parallelogram.")
+
+        u_step = u_range_0 / (nu-1)
+        v_step = v_range_0 / (nv-1)
+
+        # check regularity of the grid
+        for i in range(nu*nv):
+            pred_x = i - 1
+            pred_y = i - nu
+            if i%nu == 0:
+                pred_x= -1
+            if pred_x > 0 and not la.norm(point_seq_xy[:, i] - point_seq_xy[:, pred_x] - u_step) < 2*self.step_tolerance:
+                raise InvalidGridExc("Irregular grid in X direction, point %d"%i)
+            if pred_y > 0 and not la.norm(point_seq_xy[:, i] - point_seq_xy[:, pred_y] - v_step) < 2*self.step_tolerance:
+                raise InvalidGridExc("Irregular grid in Y direction, point %d"%i)
+
+        quad = np.stack([vtx_00, vtx_01, vtx_10], axis = 0)
+        u_basis = SplineBasis.make_equidistant(1, nu-1)
+        v_basis = SplineBasis.make_equidistant(1, nv-1)
+
+        self.grid = point_seq[2, :].reshape(nv, nu)
+        poles_z = np.transpose( point_seq[2, :].reshape(nv, nu, 1), axes = [1, 0, 2] )
+        self.z_surface = Z_Surface(quad, Surface((u_basis, v_basis), poles_z) )
+
+        self.shape = (nu, nv)
+        self.uv_step = (1.0 / float(nu - 1), 1.0 / float(nv - 1))
+
+
+    def get_xy_envelope(self):
+        """
+        Returns the envelope of the surface domain in XY plane as a quadrilateral polygon.
+        :return: Polygon as a array of the XY points in conunter clockwise direction.
+        """
+        return self.uv_to_xy(np.array([[0,0], [1,0], [1,1], [0,1]]).T)
 
 
 
+    def xy_to_uv(self, xy_points):
+        """
+        :param xy_points: numpy matrix 2 rows N cols
+        :return: matrix of UV coordinates
+        """
+        return self.z_surface.xy_to_uv(xy_points)
 
+
+    def uv_to_xy(self, uv_points):
+        """
+        :param xy_points: numpy matrix 2 rows N cols
+        :return: matrix of UV coordinates
+        """
+        return self.z_surface.uv_to_xy(uv_points)
+
+
+    def eval_array(self, uv_points):
+        return self.z_surface.eval_array(uv_points)
+
+
+    def z_eval_xy_array(self, xy_points):
+        """
+        Return np array of z-values. Optimized version.
+        :param points: np array N x 2 of XY cooridinates
+        :return: array of Z values
+        """
+        assert xy_points.shape[0] == 2, "Size: {}".format(xy_points.shape)
+        uv_points = self.z_surface.xy_to_uv(xy_points)
+        return self.z_eval_array(uv_points)
+
+
+    def z_eval_array(self, uv_points):
+        """
+        Return np array of z-values. Optimized version.
+        :param points: np array N x 2 of XY cooridinates
+        :return: array of Z values
+        """
+
+        assert uv_points.shape[0] == 2
+
+        result = np.zeros(uv_points.shape[1])
+        for i, uv in enumerate(uv_points.T):
+            iuv = np.floor(uv / self.uv_step)
+            iu = max(0, min(self.shape[0] - 2, int(iuv[0])))
+            iv = max(0, min(self.shape[1] - 2, int(iuv[1])))
+            iuv = np.array([iu, iv])
+
+            uv_loc = uv / self.uv_step - iuv
+            u_loc = np.array([1 - uv_loc[0], uv_loc[0]])
+            v_loc = np.array([1 - uv_loc[1], uv_loc[1]])
+            Z_mat = self.grid[iv: (iv + 2), iu: (iu + 2)]
+            result[i] = self.z_surface.z_scale*(v_loc.dot(Z_mat).dot(u_loc)) + self.z_surface.z_shift
+        return result
 
 
 

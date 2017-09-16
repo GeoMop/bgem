@@ -60,9 +60,9 @@ def plot_surface_3d(surface, fig_ax, n_points=(100, 100), **kwargs):
     v_coord = np.linspace(v_basis.domain[0], v_basis.domain[1], n_points[1])
 
     U, V = np.meshgrid(u_coord, v_coord)
-    points = np.vstack( [U.ravel(), V.ravel()] )
+    points = np.stack( [U.ravel(), V.ravel()], axis = 1 )
 
-    xyz = np.array([surface.eval(point[0], point[1]) for point in points.T ])
+    xyz = surface.eval_array(points)
     X, Y, Z = xyz.T
 
     X = X.reshape(U.shape)

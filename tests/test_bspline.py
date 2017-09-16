@@ -64,7 +64,6 @@ class TestSplineBasis:
         poles = eq_basis.make_linear_poles()
 
         t_vec = np.linspace(0.0, 1.0, 21)
-        x_vec = []
         for t in t_vec:
             b_vals = np.array([ eq_basis.eval(i, t) for i in range(eq_basis.size) ])
             x = np.dot(b_vals, poles)
@@ -96,6 +95,13 @@ class TestCurve:
 
 
 def make_function_grid(fn, nu, nv):
+    """
+    Make a grid of points on a graph of the function.
+    :param fn: fn( [x, y] ) -> z
+    :param nu: n-points in u-direction
+    :param nv: n-points in v-direction
+    :return: array of points: nu x nv x 3
+    """
     X_grid = np.linspace(0, 1.0, nu)
     Y_grid = np.linspace(0, 1.0, nv)
     Y, X = np.meshgrid(Y_grid, X_grid)
@@ -157,7 +163,7 @@ class TestSurface:
 
 class TestZ_Surface:
 
-
+    # TODO: Compute max norm of the difference of two surfaces and assert that it is cose to zero.
 
 
     def plot_function_uv(self):
@@ -185,5 +191,65 @@ class TestZ_Surface:
         plt.show()
 
     def test_eval_uv(self):
-        self.plot_function_uv()
+        #self.plot_function_uv()
         pass
+
+
+
+class TestPointGrid:
+
+    @staticmethod
+    def function(x):
+        return math.sin(x[0]) * math.cos(x[1])
+
+
+    def make_point_grid(self):
+        nu, nv = 5,6
+        grid = make_function_grid(TestPointGrid.function, 5, 6).reshape(nu*nv, 3)
+        surf = bs.GridSurface()
+        surf.init_from_seq(grid.T)
+        return surf
+
+    def check_surface(self, surf, xy_mat, xy_shift, z_mat):
+        """
+        TODO: Make this a general function - evaluate a surface on a grid, use it also in other tests
+        to compare evaluation on the grid to the original function. Can be done after we have approximations.
+        """
+
+        nu, nv = 30, 40
+        # surface on unit square
+        U = np.linspace(0.0, 1.0, nu)
+        V = np.linspace(0.0, 1.0, nv)
+        U_grid, V_grid = np.meshgrid(U,V)
+
+        UV = np.vstack([U_grid.ravel(), V_grid.ravel()])
+        XY = xy_mat.dot(UV).T + xy_shift
+        Z_grid = surf.z_eval_xy_array(XY.T)
+        eps = 0.0
+        hx = 1.0 / surf.shape[0]
+        hy = 1.0 / surf.shape[1]
+        tol = 0.5* ( hx*hx + 2*hx*hy + hy*hy)
+        for xy, z_approx in zip(UV.T, Z_grid):
+            z_func = z_mat[0]*self.function(xy) + z_mat[1]
+            eps = max(eps, math.fabs( z_approx - z_func))
+            assert math.fabs( z_approx - z_func) < tol
+        print("Max norm: ", eps, "Tol: ", tol)
+
+    def test_grid_surface(self):
+        xy_mat = np.array([ [1.0, 0.0], [0.0, 1.0] ])
+        xy_shift = np.array([0.0, 0.0 ])
+        z_shift = np.array([1.0, 0.0])
+        surface = self.make_point_grid()
+
+        self.check_surface(surface, xy_mat, xy_shift, z_shift)
+
+        # transformed surface
+        xy_mat = np.array([ [3.0, -3.0], [2.0, 2.0] ]) / math.sqrt(2)
+        xy_shift = np.array([[-2.0, 5.0 ]])
+        z_shift = np.array([1.0, 1.3])
+
+        surface = self.make_point_grid()
+        surface.z_surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), z_shift)
+        self.check_surface(surface, xy_mat, xy_shift, z_shift)
+
+
