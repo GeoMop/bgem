@@ -11,13 +11,21 @@ class TestSplineBasis:
         eq_basis = bs.SplineBasis.make_equidistant(2, 100)
         assert eq_basis.find_knot_interval(0.0) == 0
         assert eq_basis.find_knot_interval(0.001) == 0
-        assert eq_basis.find_knot_interval(0.01) == 0
+        assert eq_basis.find_knot_interval(0.01) == 1
         assert eq_basis.find_knot_interval(0.011) == 1
         assert eq_basis.find_knot_interval(0.5001) == 50
         assert eq_basis.find_knot_interval(1.0 - 0.011) == 98
-        assert eq_basis.find_knot_interval(1.0 - 0.01) == 98
+        assert eq_basis.find_knot_interval(1.0 - 0.01) == 99
         assert eq_basis.find_knot_interval(1.0 - 0.001) == 99
         assert eq_basis.find_knot_interval(1.0) == 99
+
+        knots = np.array([0, 0, 0, 0.1880192, 0.24545785, 0.51219762, 0.82239001, 1., 1. , 1.])
+        basis = bs.SplineBasis(2, knots)
+        for interval in range(2, 7):
+            xx = np.linspace(knots[interval], knots[interval+1], 10)
+            for j, x in enumerate(xx[:-1]):
+                i_found = basis.find_knot_interval(x)
+                assert i_found == interval - 2, "i_found: {} i: {} j: {} x: {} ".format(i_found, interval-2, j, x)
 
     def plot_basis(self, degree):
         eq_basis = bs.SplineBasis.make_equidistant(degree, 4)
@@ -36,6 +44,18 @@ class TestSplineBasis:
         #self.plot_basis(1)
         #self.plot_basis(2)
         #self.plot_basis(3)
+
+        knots = np.array([0, 0, 0, 0.1880192, 0.24545785, 0.51219762, 0.82239001, 1., 1. , 1.])
+        basis = bs.SplineBasis(2, knots)
+        n_points = 100
+        x_coord = np.linspace(basis.domain[0], basis.domain[1], n_points)
+
+        for i_base in range(basis.size):
+            y_coord = [ basis.eval(i_base, x) for x in x_coord ]
+            plt.plot(x_coord, y_coord)
+
+        plt.show()
+
 
         eq_basis = bs.SplineBasis.make_equidistant(0, 2)
         assert eq_basis.eval(0, 0.0) == 1.0

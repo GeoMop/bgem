@@ -160,7 +160,7 @@ class SplineBasis:
     def find_knot_interval(self, t):
         """
         Find the first non-empty knot interval containing the value 't'.
-        i.e. knots[i] <= t <= knots[i+1], where  knots[i] < knots[i+1]
+        i.e. knots[i] <= t < knots[i+1], where  knots[i] < knots[i+1]
         Returns I = i  - degree, which is the index of the first basis function
         nonzero in 't'.
 
@@ -168,35 +168,9 @@ class SplineBasis:
         :return: I
         """
         assert self.knots[0] <= t <= self.knots[-1]
+        idx = np.searchsorted(self.knots, [t], side='right')[0] - 1 - self.degree
+        return min(idx, self.n_intervals - 1)   # deals with t == self.knots[-1]
 
-        """
-        This function try to find index for given t_param in knot_vec that
-        is covered by all (3) base functions.
-        :param self.knots:
-        :param t:
-        :return:
-        """
-
-        # get range without multiplicities
-        mn = self.knots_idx_range[0]
-        mx = self.knots_idx_range[1]
-        diff = mx - mn
-
-        while diff > 1:
-            # estimate for equidistant knots
-            t_01 = (t - self.knots[mn]) / self.domain_size
-            est = int(t_01 * diff + mn)
-            if t > self.knots[est]:
-                if mn == est :
-                    break
-                mn = est
-            else:
-                if mx == est:
-                    mn = mx
-                    break
-                mx = est
-            diff = mx - mn
-        return min(mn, self.knots_idx_range[1] - 1) - self.degree
 
     def _basis(self, deg, idx, t):
         """
