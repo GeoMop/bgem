@@ -20,12 +20,9 @@ class TestSplineBasis:
         assert eq_basis.find_knot_interval(1.0) == 99
 
     def plot_basis(self, degree):
-
         eq_basis = bs.SplineBasis.make_equidistant(degree, 4)
-
         n_points = 401
-        dx = (eq_basis.domain[1] - eq_basis.domain[0]) / (n_points -1)
-        x_coord = [eq_basis.domain[0] + dx * i for i in range(n_points)]
+        x_coord = np.linspace(eq_basis.domain[0], eq_basis.domain[1], n_points)
 
         for i_base in range(eq_basis.size):
             y_coord = [ eq_basis.eval(i_base, x) for x in x_coord ]
@@ -70,6 +67,85 @@ class TestSplineBasis:
             assert np.abs( x - t ) < 1e-15
 
 
+
+    def check_eval_vec(self, basis, i, t):
+        vec = basis.eval_base_vector(i, t)
+        for j in range(basis.degree + 1):
+            assert vec[j] == basis.eval(i + j, t)
+
+    def plot_basis_vec(self, basis):
+        n_points = 401
+        x_coord = np.linspace(basis.domain[0], basis.domain[1], n_points)
+
+        y_coords = np.zeros( (basis.size, x_coord.shape[0]) )
+        for i, x in enumerate(x_coord):
+            idx = basis.find_knot_interval(x)
+            y_coords[idx : idx + basis.degree + 1, i] = basis.eval_base_vector(idx, x)
+
+        for i_base in range(basis.size):
+            plt.plot(x_coord, y_coords[i_base, :])
+
+        plt.show()
+
+
+    def test_eval_base_vec(self):
+        basis = bs.SplineBasis.make_equidistant(2, 4)
+        # self.plot_basis_vec(basis)
+        self.check_eval_vec(basis, 0, 0.1)
+        self.check_eval_vec(basis, 1, 0.3)
+        self.check_eval_vec(basis, 2, 0.6)
+        self.check_eval_vec(basis, 3, 0.8)
+        self.check_eval_vec(basis, 3, 1.0)
+
+
+        basis = bs.SplineBasis.make_equidistant(3, 4)
+        # self.plot_basis_vec(basis)
+        self.check_eval_vec(basis, 0, 0.1)
+        self.check_eval_vec(basis, 1, 0.3)
+        self.check_eval_vec(basis, 2, 0.6)
+        self.check_eval_vec(basis, 3, 0.8)
+        self.check_eval_vec(basis, 3, 1.0)
+
+
+
+    def check_diff_vec(self, basis, i, t):
+        vec = basis.eval_diff_base_vector(i, t)
+        for j in range(basis.degree + 1):
+            assert np.abs(vec[j] - basis.eval_diff(i + j, t)) < 1e-15
+
+    def plot_basis_diff(self, basis):
+        n_points = 401
+        x_coord = np.linspace(basis.domain[0], basis.domain[1], n_points)
+
+        y_coords = np.zeros( (basis.size, x_coord.shape[0]) )
+        for i, x in enumerate(x_coord):
+            idx = basis.find_knot_interval(x)
+            y_coords[idx : idx + basis.degree + 1, i] = basis.eval_diff_base_vector(idx, x)
+
+        for i_base in range(basis.size):
+            plt.plot(x_coord, y_coords[i_base, :])
+
+        plt.show()
+
+
+    def test_eval_diff_base_vec(self):
+        basis = bs.SplineBasis.make_equidistant(2, 4)
+        # self.plot_basis_diff(basis)
+        self.check_diff_vec(basis, 0, 0.1)
+        self.check_diff_vec(basis, 1, 0.3)
+        self.check_diff_vec(basis, 2, 0.6)
+        self.check_diff_vec(basis, 3, 0.8)
+        self.check_diff_vec(basis, 3, 1.0)
+
+        basis = bs.SplineBasis.make_equidistant(3, 4)
+        # self.plot_basis_diff(basis)
+        self.check_diff_vec(basis, 0, 0.1)
+        self.check_diff_vec(basis, 1, 0.3)
+        self.check_diff_vec(basis, 2, 0.6)
+        self.check_diff_vec(basis, 3, 0.8)
+        self.check_diff_vec(basis, 3, 1.0)
+
+
 class TestCurve:
 
     def plot_4p(self):
@@ -83,7 +159,7 @@ class TestCurve:
         plt.show()
 
     def test_evaluate(self):
-        #self.plot_4p()
+        # self.plot_4p()
         pass
 
     # TODO: test rational curves, e.g. circle
@@ -91,26 +167,6 @@ class TestCurve:
 
 
 
-
-
-
-def make_function_grid(fn, nu, nv):
-    """
-    Make a grid of points on a graph of the function.
-    :param fn: fn( [x, y] ) -> z
-    :param nu: n-points in u-direction
-    :param nv: n-points in v-direction
-    :return: array of points: nu x nv x 3
-    """
-    X_grid = np.linspace(0, 1.0, nu)
-    Y_grid = np.linspace(0, 1.0, nv)
-    Y, X = np.meshgrid(Y_grid, X_grid)
-
-    points_uv = np.stack([X.ravel(), Y.ravel()], 1)
-    Z = np.apply_along_axis(fn, 1, points_uv)
-    points = np.stack([X.ravel(), Y.ravel(), Z], 1)
-
-    return points.reshape( (nu, nv, 3) )
 
 
 
@@ -140,7 +196,7 @@ class TestSurface:
         fig = plt.figure()
         ax = fig.gca(projection='3d')
 
-        poles = make_function_grid(function, 4, 5)
+        poles = bs.make_function_grid(function, 4, 5)
         u_basis = bs.SplineBasis.make_equidistant(2, 2)
         v_basis = bs.SplineBasis.make_equidistant(2, 3)
         surface_func = bs.Surface( (u_basis, v_basis), poles)
@@ -153,8 +209,8 @@ class TestSurface:
         from mpl_toolkits.mplot3d import Axes3D
         import matplotlib.pyplot as plt
 
-        #self.plot_extrude()
-        #self.plot_function()
+        # self.plot_extrude()
+        # self.plot_function()
 
 
         # TODO: test rational surfaces, e.g. sphere
@@ -174,7 +230,7 @@ class TestZ_Surface:
         fig = plt.figure()
         ax = fig.gca(projection='3d')
 
-        poles = make_function_grid(function, 4, 5)
+        poles = bs.make_function_grid(function, 4, 5)
         u_basis = bs.SplineBasis.make_equidistant(2, 2)
         v_basis = bs.SplineBasis.make_equidistant(2, 3)
         surface_func = bs.Surface( (u_basis, v_basis), poles[:,:, [2] ])
@@ -205,7 +261,7 @@ class TestPointGrid:
 
     def make_point_grid(self):
         nu, nv = 5,6
-        grid = make_function_grid(TestPointGrid.function, 5, 6).reshape(nu*nv, 3)
+        grid = bs.make_function_grid(TestPointGrid.function, 5, 6).reshape(nu*nv, 3)
         surf = bs.GridSurface()
         surf.init_from_seq(grid.T)
         return surf
@@ -224,13 +280,15 @@ class TestPointGrid:
 
         UV = np.vstack([U_grid.ravel(), V_grid.ravel()])
         XY = xy_mat.dot(UV).T + xy_shift
-        Z_grid = surf.z_eval_xy_array(XY.T)
+        Z_grid = surf.z_eval_xy_array(XY)
         eps = 0.0
         hx = 1.0 / surf.shape[0]
         hy = 1.0 / surf.shape[1]
         tol = 0.5* ( hx*hx + 2*hx*hy + hy*hy)
-        for xy, z_approx in zip(UV.T, Z_grid):
-            z_func = z_mat[0]*self.function(xy) + z_mat[1]
+
+        uvz = np.concatenate( (UV.T, Z_grid[:, None]), axis = 1)
+        for u, v, z_approx in uvz:
+            z_func = z_mat[0]*self.function([u,v]) + z_mat[1]
             eps = max(eps, math.fabs( z_approx - z_func))
             assert math.fabs( z_approx - z_func) < tol
         print("Max norm: ", eps, "Tol: ", tol)
