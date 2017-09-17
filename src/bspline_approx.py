@@ -9,6 +9,7 @@ import time
 #import numpy.linalg
 import scipy.sparse
 import scipy.sparse.linalg
+import scipy.interpolate
 
             
 """
@@ -94,7 +95,7 @@ def line_3d(vtxs):
 
 
 
-def from_grid(grid_surface, nuv, **kwargs):
+def surface_from_grid(grid_surface, nuv, **kwargs):
     """
     Make a Z_Surface of degree 2 as an approximation of the GridSurface.
     :param grid_surface: grid surface to approximate
@@ -105,6 +106,20 @@ def from_grid(grid_surface, nuv, **kwargs):
     return  approx.get_approximation()
 
 
+def curve_from_grid(points, **kwargs):
+    """
+    Make a Curve (of degree 3) as an approximation of a sequence of points.
+    :param points - N x D array, D is dimension
+    :param nt Prescribed number of poles of the resulting spline.
+    :return: Curve object.
+    """
+    deg = kwargs.get('degree', 3)
+    tol = kwargs.get('tol', 0.01)
+    tck = scipy.interpolate.splprep(points.T, k=deg, s=tol)[0]
+    knots, poles, degree  = tck
+    basis = bs.SplineBasis(degree, knots)
+    curve = bs.Curve(basis, np.array(poles).T)
+    return curve
 
 
 
