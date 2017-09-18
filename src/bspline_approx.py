@@ -35,7 +35,8 @@ def plane_surface(vtxs):
 
 def bilinear_surface(vtxs):
     """
-    Returns B-spline surface of a bilinear surface given by 4 corner points.
+    Returns B-spline surface of a bilinear surface given by 4 corner points:
+    uv coords:
     We retun also list of UV coordinates of the given points.
     :param vtxs: List of tuples (X,Y,Z)
     :return: ( Surface, vtxs_uv )
@@ -51,7 +52,7 @@ def bilinear_surface(vtxs):
                 [mid(0,1), mid(0,1,2,3), mid(2,3)],
                 [vtxs[1], mid(1,2), vtxs[2]]
                 ]
-    knots = [(0.0, 3), (1.0, 3)]
+    knots = 3 * [0.0] + 3 * [1.0]
     basis = bs.SplineBasis(2, knots)
     surface = bs.Surface((basis, basis), poles)
     vtxs_uv = [ (0, 0), (1, 0), (1, 1), (0, 1) ]
@@ -60,38 +61,20 @@ def bilinear_surface(vtxs):
 
 
 
-def _line_data(vtxs, overhang=0.0):
+def line(vtxs):
     '''
-    :param vtxs: List of tuples (X,Y) or (X,Y,Z)
-    :return:
+    Return B-spline approximation of a line from two points
+    :param vtxs: [ X0, X1 ], Xn are point coordinates in arbitrary dimension D
+    :return: Curve2D
     '''
     assert len(vtxs) == 2
     vtxs = np.array(vtxs)
     mid = np.mean(vtxs, axis=0)
     poles = [ vtxs[0],  mid, vtxs[1] ]
-    knots = [(0.0+overhang, 3), (1.0-overhang, 3)]
+    knots = 3*[0.0] + 3*[1.0]
     basis = bs.SplineBasis(2, knots)
-    return (basis, poles)
+    return bs.Curve(basis, poles)
 
-
-
-def line_2d(vtxs):
-    """
-    Return B-spline approximation of line from two 2d points
-    :param vtxs: [ (X0, Y0), (X1, Y1) ]
-    :return: Curve2D
-    """
-    return bs.Curve( *_line_data(vtxs))
-
-
-
-def line_3d(vtxs):
-    """
-    Return B-spline approximation of line from two 3d points
-    :param vtxs: [ (X0, Y0, Z0), (X1, Y1, Z0) ]
-    :return: Curve2D
-    """
-    return bs.Curve(*_line_data(vtxs))
 
 
 
@@ -115,7 +98,9 @@ def curve_from_grid(points, **kwargs):
     """
     deg = kwargs.get('degree', 3)
     tol = kwargs.get('tol', 0.01)
-    tck = scipy.interpolate.splprep(points.T, k=deg, s=tol)[0]
+    weights = np.ones(points.shape[0])
+    weights[0] = weights[-1] = 1000.0
+    tck = scipy.interpolate.splprep(points.T, k=deg, s=tol, w = weights)[0]
     knots, poles, degree  = tck
     basis = bs.SplineBasis(degree, knots)
     curve = bs.Curve(basis, np.array(poles).T)
@@ -154,6 +139,7 @@ class _SurfaceApprox:
         :param filter_thresh: threshold of filter
         :return: B-Spline patch
         """
+
 
         print('Transforming points to parametric space ...')
         start_time = time.time()
