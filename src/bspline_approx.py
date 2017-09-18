@@ -24,12 +24,10 @@ def plane_surface(vtxs):
     :return: ( Surface, vtxs_uv )
     """
     assert len(vtxs) == 3, "n vtx: {}".format(len(vtxs))
-    vtxs.append( (0,0,0) )
     vtxs = np.array(vtxs)
     vv = vtxs[1] + vtxs[2] - vtxs[0]
     vtx4 = [ vtxs[0], vtxs[1], vv, vtxs[2]]
-    (surf, vtxs_uv) = bilinear_surface(vtx4)
-    return (surf, [ vtxs_uv[0], vtxs_uv[1], vtxs_uv[3] ])
+    return bilinear_surface(vtx4)
 
 
 
@@ -55,8 +53,8 @@ def bilinear_surface(vtxs):
     knots = 3 * [0.0] + 3 * [1.0]
     basis = bs.SplineBasis(2, knots)
     surface = bs.Surface((basis, basis), poles)
-    vtxs_uv = [ (0, 0), (1, 0), (1, 1), (0, 1) ]
-    return (surface, vtxs_uv)
+    #vtxs_uv = [ (0, 0), (1, 0), (1, 1), (0, 1) ]
+    return surface
 
 
 
