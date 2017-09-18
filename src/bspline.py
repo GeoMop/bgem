@@ -518,6 +518,10 @@ class Z_Surface:
         else:
             assert False, "Three or four points must be given."
 
+        #TODO: remove this, after fixing GridSurface z_eval
+        self.z_scale =1.0
+        self.z_shift = 1.0
+
     def make_full_surface(self):
         """
         Return representation of the surface by the 3d Surface object.
@@ -555,6 +559,10 @@ class Z_Surface:
         # apply z-transfrom directly to the poles
         self.z_surface.poles *= z_mat[0]
         self.z_surface.poles += z_mat[1]
+
+        #TODO: remove this, after fixing GridSurface z_eval
+        self.z_scale *= z_mat[0]
+        self.z_shift = self.z_shift*z_mat[0] + z_mat[1]
 
 
 

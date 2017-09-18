@@ -16,7 +16,7 @@ import scipy.interpolate
 Approximation methods for B/splines of degree 2.
 
 """
-def plane_surface(vtxs):
+def plane_surface(vtxs, overhang=0.0):
     """
     Returns B-spline surface of a plane given by 3 points.
     We retun also list of UV coordinates of the given points.
@@ -28,12 +28,11 @@ def plane_surface(vtxs):
     vtxs = np.array(vtxs)
     vv = vtxs[1] + vtxs[2] - vtxs[0]
     vtx4 = [ vtxs[0], vtxs[1], vv, vtxs[2]]
-    (surf, vtxs_uv) = bilinear_surface(vtx4)
-    return (surf, [ vtxs_uv[0], vtxs_uv[1], vtxs_uv[3] ])
+    return bilinear_surface(vtx4, overhang)
 
 
 
-def bilinear_surface(vtxs):
+def bilinear_surface(vtxs, overhang=0.0):
     """
     Returns B-spline surface of a bilinear surface given by 4 corner points:
     uv coords:
@@ -43,6 +42,12 @@ def bilinear_surface(vtxs):
     """
     assert len(vtxs) == 4, "n vtx: {}".format(len(vtxs))
     vtxs = np.array(vtxs)
+    if overhang > 0.0:
+        inv_oh = overhang / (1.0 - 2.0 * overhang )
+        dv = np.roll(vtxs, -1) - vtxs
+        dv *= inv_oh
+        vtxs +=  np.roll(dv, 1) - dv
+
     def mid(*idx):
         return np.mean( vtxs[list(idx)], axis=0)
 
@@ -55,13 +60,13 @@ def bilinear_surface(vtxs):
     knots = 3 * [0.0] + 3 * [1.0]
     basis = bs.SplineBasis(2, knots)
     surface = bs.Surface((basis, basis), poles)
-    vtxs_uv = [ (0, 0), (1, 0), (1, 1), (0, 1) ]
-    return (surface, vtxs_uv)
+    #vtxs_uv = [ (0, 0), (1, 0), (1, 1), (0, 1) ]
+    return surface
 
 
 
 
-def line(vtxs):
+def line(vtxs, overhang = 0.0):
     '''
     Return B-spline approximation of a line from two points
     :param vtxs: [ X0, X1 ], Xn are point coordinates in arbitrary dimension D
@@ -69,6 +74,11 @@ def line(vtxs):
     '''
     assert len(vtxs) == 2
     vtxs = np.array(vtxs)
+    if overhang > 0.0:
+        inv_oh = overhang / (1.0 - 2.0 * overhang)
+        dv = inv_oh*(vtxs[1] - vtxs[0])
+        vtxs[0] -= dv
+        vtxs[1] += dv
     mid = np.mean(vtxs, axis=0)
     poles = [ vtxs[0],  mid, vtxs[1] ]
     knots = 3*[0.0] + 3*[1.0]
@@ -102,8 +112,11 @@ def curve_from_grid(points, **kwargs):
     weights[0] = weights[-1] = 1000.0
     tck = scipy.interpolate.splprep(points.T, k=deg, s=tol, w = weights)[0]
     knots, poles, degree  = tck
+    curve_poles=np.array(poles).T
+    curve_poles[0] = points[0]
+    curve_poles[-1] = points[-1]
     basis = bs.SplineBasis(degree, knots)
-    curve = bs.Curve(basis, np.array(poles).T)
+    curve = bs.Curve(basis, curve_poles)
     return curve
 
 
