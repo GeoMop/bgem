@@ -132,7 +132,7 @@ class SplineBasis:
         for i in range(self.degree):
             assert knots[i] == knots[i+1]
             assert knots[-i-1] == knots[-i-2]
-        self.knots = knots
+        self.knots = np.array(knots)
 
         self.size = len(self.knots) - self.degree -1
         self.knots_idx_range = [self.degree, len(self.knots) - self.degree - 1]
@@ -154,6 +154,7 @@ class SplineBasis:
             else:
                 packed_knots.append( (last, mult) )
                 last, mult = q, 1
+        packed_knots.append((last,mult))
         return packed_knots
 
 
@@ -167,9 +168,11 @@ class SplineBasis:
         :param t:  float, must be within knots limits.
         :return: I
         """
-        assert self.knots[0] <= t <= self.knots[-1]
-        idx = np.searchsorted(self.knots, [t], side='right')[0] - 1 - self.degree
-        return min(idx, self.n_intervals - 1)   # deals with t == self.knots[-1]
+        idx = np.searchsorted(self.knots[self.degree: -self.degree -1], [t], side='right')[0] - 1
+        if idx < 0 or idx > self.n_intervals - 1:
+            print("Warning: evaluation out of spline domain; t: {} min: {} max: {}".format(t, self.knots[0], self.knots[-1]))
+
+        return max(min(idx, self.n_intervals - 1), 0)   # deals with t == self.knots[-1]
 
 
     def _basis(self, deg, idx, t):
@@ -386,6 +389,8 @@ class Curve:
         """
         return np.array( [ self.eval(t) for t in t_points] )
 
+    def aabb(self):
+        return (np.amin(self.poles, axis=0), np.amax(self.poles, axis=0))
 
 
 class Surface:
@@ -462,6 +467,7 @@ class Surface:
         :param uv_points: numpy array N x [u, v]
         :return: Numpy array N x D, D is dimension of the curve.
         """
+        assert uv_points.shape[1] == 2
         return np.array( [ self.eval(u, v) for u, v in uv_points] )
 
 
@@ -490,10 +496,8 @@ class Z_Surface:
         self.v_basis = z_surface.v_basis
         self.dim = 3
 
-        self.z_scale = 1.0
-        self.z_shift = 0.0
-
-        if len(xy_quad) == 3:
+        if len(xy_quad) == 3 or \
+           np.allclose(xy_quad[3], xy_quad[0] + xy_quad[2] - xy_quad[1]):
             # linear case
             self.xy_shift = xy_quad[1]
             v_vec = xy_quad[0] - xy_quad[1]
@@ -541,12 +545,16 @@ class Z_Surface:
         """
         assert xy_mat.shape == (2, 3)
         assert z_mat.shape == (2, )
+
+
+
         self.mat_uv_to_xy = xy_mat[0:2,0:2].dot( self.mat_uv_to_xy )
         self.xy_shift = xy_mat[0:2,0:2].dot( self.xy_shift ) + xy_mat[0:2, 2]
         self.mat_xy_to_uv = la.inv(self.mat_uv_to_xy)
 
-        self.z_scale *= z_mat[0]
-        self.z_shift = z_mat[0] * self.z_shift + z_mat[1]
+        # apply z-transfrom directly to the poles
+        self.z_surface.poles *= z_mat[0]
+        self.z_surface.poles += z_mat[1]
 
 
 
@@ -596,6 +604,7 @@ class Z_Surface:
 
 
     def eval_array(self, uv_points):
+        assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
         xy_points = self.uv_to_xy(uv_points)
         return np.concatenate( (xy_points, z_points), axis = 1)
@@ -608,6 +617,7 @@ class Z_Surface:
         return np.concatenate( (xy_points, z_points), axis = 1)
 
     def z_eval_array(self, uv_points):
+        assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
         return z_points.reshape(-1)
 
@@ -623,8 +633,8 @@ class InvalidGridExc(Exception):
 class GridSurface:
     """
     Surface given as bilinear interpolation of a regular grid of points.
-    TODO: This can be viewed as a degree 1 Z-function B-spline. Make it a common class for any degree??
     """
+    # TODO: calling transform lose mapping between original point grid and unit square, approximation can not be performed
     step_tolerance = 1e-10
 
     def __init__(self):
@@ -707,7 +717,7 @@ class GridSurface:
                 raise InvalidGridExc("Irregular grid in Y direction, point %d"%i)
 
         #self.uv_to_xy(np.array([[0, 1], [0, 0], [1, 0], [1, 1]]).T)
-        self.quad = np.stack([vtx_01, vtx_00, vtx_10, vtx_11], axis = 0)
+        self.quad = quad = np.stack([vtx_01, vtx_00, vtx_10, vtx_11], axis = 0)
         # Envelope quad - polygon, oriented counter clockwise.
 
         self.grid_z = point_seq[2, :].reshape(nv, nu)
@@ -725,11 +735,18 @@ class GridSurface:
         u_basis = SplineBasis.make_equidistant(1, nu-1)
         v_basis = SplineBasis.make_equidistant(1, nv-1)
         poles_z = np.transpose( point_seq[2, :].reshape(nv, nu, 1), axes = [1, 0, 2] )
-        self.z_surface = Z_Surface(self.quad[0:3], Surface((u_basis, v_basis), poles_z) )
+        self.z_surface = Z_Surface(quad[0:3], Surface((u_basis, v_basis), poles_z) )
         # related bilinear Z-surface, all evaluations just call this object.
+        self.check_map()
 
+    def check_map(self):
+        # check that xy_to_uv works fine
+        uv_quad = self.xy_to_uv(self.quad)
+        print( uv_quad )
+        assert np.allclose( uv_quad, np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
-
+    def transform(self, xy_mat, z_mat):
+        self.z_surface.transform(xy_mat, z_mat)
 
 
     def xy_to_uv(self, xy_points):
