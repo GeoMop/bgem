@@ -24,7 +24,6 @@ def plane_surface(vtxs, overhang=0.0):
     :return: ( Surface, vtxs_uv )
     """
     assert len(vtxs) == 3, "n vtx: {}".format(len(vtxs))
-    vtxs.append( (0,0,0) )
     vtxs = np.array(vtxs)
     vv = vtxs[1] + vtxs[2] - vtxs[0]
     vtx4 = [ vtxs[0], vtxs[1], vv, vtxs[2]]
