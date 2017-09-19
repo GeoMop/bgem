@@ -42,10 +42,9 @@ def bilinear_surface(vtxs, overhang=0.0):
     assert len(vtxs) == 4, "n vtx: {}".format(len(vtxs))
     vtxs = np.array(vtxs)
     if overhang > 0.0:
-        inv_oh = overhang / (1.0 - 2.0 * overhang )
-        dv = np.roll(vtxs, -1) - vtxs
-        dv *= inv_oh
-        vtxs +=  np.roll(dv, 1) - dv
+        dv = np.roll(vtxs, -1, axis=0) - vtxs
+        dv *= overhang
+        vtxs +=  np.roll(dv, 1, axis=0) - dv
 
     def mid(*idx):
         return np.mean( vtxs[list(idx)], axis=0)
@@ -56,7 +55,7 @@ def bilinear_surface(vtxs, overhang=0.0):
                 [mid(0,1), mid(0,1,2,3), mid(2,3)],
                 [vtxs[1], mid(1,2), vtxs[2]]
                 ]
-    knots = 3 * [0.0] + 3 * [1.0]
+    knots = 3 * [0.0 - overhang] + 3 * [1.0 + overhang]
     basis = bs.SplineBasis(2, knots)
     surface = bs.Surface((basis, basis), poles)
     #vtxs_uv = [ (0, 0), (1, 0), (1, 1), (0, 1) ]
@@ -74,13 +73,12 @@ def line(vtxs, overhang = 0.0):
     assert len(vtxs) == 2
     vtxs = np.array(vtxs)
     if overhang > 0.0:
-        inv_oh = overhang / (1.0 - 2.0 * overhang)
-        dv = inv_oh*(vtxs[1] - vtxs[0])
+        dv = overhang*(vtxs[1] - vtxs[0])
         vtxs[0] -= dv
         vtxs[1] += dv
     mid = np.mean(vtxs, axis=0)
     poles = [ vtxs[0],  mid, vtxs[1] ]
-    knots = 3*[0.0] + 3*[1.0]
+    knots = 3*[0.0 - overhang] + 3*[1.0 + overhang]
     basis = bs.SplineBasis(2, knots)
     return bs.Curve(basis, poles)
 
