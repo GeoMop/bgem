@@ -53,7 +53,7 @@ class TestSurfaceApprox:
 
 class TestCurveApprox:
 
-    def test_approx_2d(self):
+    def plot_approx_2d(self):
         x_vec = np.linspace(1.1, 3.0, 100)
         y_vec = np.array([ np.sin(10*x) for x in x_vec ])
         points = np.stack( (x_vec, y_vec), axis=1)
@@ -62,6 +62,11 @@ class TestCurveApprox:
         bs_plot.plot_curve_2d(curve, 1000)
         bs_plot.plot_curve_poles_2d(curve)
 
+        plt.show()
 
         #plt.plot(x_vec, y_vec, color='green')
         #plt.show()
+
+    def test_approx_2d(self):
+        # self.plot_approx_2d()
+        pass

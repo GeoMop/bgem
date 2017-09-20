@@ -314,6 +314,25 @@ class TestPointGrid:
         surf = bs.GridSurface(grid)
         return surf
 
+
+    def plot_check_surface(self, XYZ_grid_eval, XYZ_surf_eval, XYZ_func_eval):
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        ax.plot_surface(XYZ_grid_eval[:, :, 0], XYZ_grid_eval[:, :, 1], XYZ_grid_eval[:, :, 2], color='blue')
+        ax.plot_surface(XYZ_surf_eval[:, :, 0], XYZ_surf_eval[:, :, 1], XYZ_surf_eval[:, :, 2], color='red')
+        ax.plot_surface(XYZ_func_eval[:, :, 0], XYZ_func_eval[:, :, 1], XYZ_func_eval[:, :, 2], color='green')
+        plt.show()
+
+    def grid_cmp(self, a, b, tol):
+        a_z = a[:, :, 2].ravel()
+        b_z = b[:, :, 2].ravel()
+        eps = 0.0
+        for i, (za, zb) in enumerate(zip(a_z, b_z)):
+            diff = np.abs( za - zb)
+            eps = max(eps, diff)
+            assert diff < tol, " |a({}) - b({})| > tol({}), idx: {}".format(za, zb, tol, i)
+        print("Max norm: ", eps, "Tol: ", tol)
+
     def check_surface(self, surf, xy_mat, xy_shift, z_mat):
         """
         TODO: Make this a general function - evaluate a surface on a grid, use it also in other tests
@@ -324,25 +343,27 @@ class TestPointGrid:
         # surface on unit square
         U = np.linspace(0.0, 1.0, nu)
         V = np.linspace(0.0, 1.0, nv)
-        U_grid, V_grid = np.meshgrid(U,V)
+        V_grid, U_grid = np.meshgrid(V,U)
 
-        UV = np.vstack([U_grid.ravel(), V_grid.ravel()])
-        XY = xy_mat.dot(UV).T + xy_shift
-        Z_grid = surf.z_eval_xy_array(XY)
+        UV = np.stack( [U_grid.ravel(), V_grid.ravel()], axis = 1 )
+        XY = xy_mat.dot(UV.T).T + xy_shift
+        Z = surf.z_eval_xy_array(XY)
+        XYZ_grid_eval = np.concatenate( (XY, Z[:, None]) , axis = 1).reshape(nu, nv, 3)
+
+        XYZ_surf_eval = surf.eval_array(UV).reshape(nu, nv, 3)
+
+        z_func_eval = np.array([ z_mat[0]*TestPointGrid.function([u,v]) + z_mat[1]  for u, v in UV ])
+        XYZ_func_eval = np.concatenate( (XY, z_func_eval[:, None]), axis =1 ).reshape(nu, nv, 3)
+
+        #self.plot_check_surface(XYZ_grid_eval, XYZ_surf_eval, XYZ_func_eval)
+
         eps = 0.0
         hx = 1.0 / surf.shape[0]
         hy = 1.0 / surf.shape[1]
-        tol = 0.5* ( hx*hx + 2*hx*hy + hy*hy)
+        tol = 2.0 * 0.5* ( hx*hx + 2*hx*hy + hy*hy)
 
-        uvz = np.concatenate( (UV.T, Z_grid[:, None]), axis = 1)
-        for u, v, z_approx in uvz:
-            z_func = z_mat[0]*TestPointGrid.function([u,v]) + z_mat[1]
-            eps = max(eps, math.fabs( z_approx - z_func))
-            assert np.isclose(z_approx,  z_func, atol = tol)
-
-            x, y, z = surf.eval_array(np.array([[u,v]]))[0]
-            assert np.isclose(z_approx, z, atol=tol)
-        print("Max norm: ", eps, "Tol: ", tol)
+        self.grid_cmp(XYZ_func_eval, XYZ_grid_eval, tol)
+        self.grid_cmp(XYZ_func_eval, XYZ_surf_eval, tol)
 
     def test_grid_surface(self):
         xy_mat = np.array([ [1.0, 0.0], [0.0, 1.0] ])
@@ -350,7 +371,11 @@ class TestPointGrid:
         z_shift = np.array([1.0, 0.0])
         surface = self.make_point_grid()
 
-        self.check_surface(surface, xy_mat, xy_shift, z_shift)
+        # fig = plt.figure()
+        # ax = fig.gca(projection='3d')
+        # bs_plot.plot_grid_surface_3d(surface, ax)
+        # plt.show()
+        # self.check_surface(surface, xy_mat, xy_shift, z_shift)
 
         # transformed surface
         xy_mat = np.array([ [3.0, -3.0], [2.0, 2.0] ]) / math.sqrt(2)
@@ -358,7 +383,7 @@ class TestPointGrid:
         z_shift = np.array([1.0, 1.3])
 
         surface = self.make_point_grid()
-        surface.z_surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), z_shift)
+        surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), z_shift)
         self.check_surface(surface, xy_mat, xy_shift, z_shift)
 
 

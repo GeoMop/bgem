@@ -23,8 +23,9 @@ def plot_curve_2d(curve, n_points=100, **kwargs):
     coords = [curve.eval(t) for t in t_coord]
     x_coord, y_coord = zip(*coords)
 
+    poles = kwargs.pop('poles', False)
     img = plt.plot(x_coord, y_coord, **kwargs)
-    if kwargs.get('poles', False):
+    if poles:
         plot_curve_poles_2d(curve)
 
     return img
@@ -39,6 +40,7 @@ def plot_curve_poles_2d(curve, **kwargs):
     """
     x_poles, y_poles = curve.poles.T[0:2, :]    # remove weights
     return plt.plot(x_poles, y_poles, 'bo', color='red', **kwargs)
+
 
 
 def plot_surface_3d(surface, fig_ax, n_points=(100, 100), **kwargs):
@@ -75,11 +77,50 @@ def plot_surface_3d(surface, fig_ax, n_points=(100, 100), **kwargs):
     Z = Z.reshape(U.shape)
 
     # Plot the surface.
+    poles = kwargs.pop('poles', False)
+
     img = fig_ax.plot_surface(X, Y,  Z, **kwargs)
-    if kwargs.get('poles', False):
+    if poles:
         plot_curve_poles_2d(surface)
     return img
 
+
+
+def plot_grid_surface_3d(surface, fig_ax, n_points=(100, 100), **kwargs):
+    """
+    Plot a surface in 3d.
+    Usage:
+        from mpl_toolkits.mplot3d import Axes3D
+        import matplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        plot_surface_3d(surface, ax)
+        plt.show()
+
+    :param surface: Parametric surface in 3d.
+    :param fig_ax: Axes object:
+    :param n_points: (nu, nv), nu*nv - number of evaluation point
+    :param kwargs: surface_plot additional options
+    :return: The plot object.
+    """
+
+    u_coord = np.linspace(0, 1.0, n_points[0])
+    v_coord = np.linspace(0, 1.0, n_points[1])
+
+    U, V = np.meshgrid(u_coord, v_coord)
+    points = np.stack( [U.ravel(), V.ravel()], axis = 1 )
+
+    xyz = surface.eval_array(points)
+    X, Y, Z = xyz.T
+
+    X = X.reshape(U.shape)
+    Y = Y.reshape(U.shape)
+    Z = Z.reshape(U.shape)
+
+    #Z = surface.z_eval_array(points).reshape(U.shape)
+    # Plot the surface.
+    img = fig_ax.plot_surface(U, V,  Z, **kwargs)
+    return img
 
 
 def plot_surface_poles_3d(surface, fig_ax, **kwargs):

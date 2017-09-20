@@ -902,8 +902,8 @@ class GridSurface:
         self.quad = self.z_surface.uv_to_xy( np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
         # transform z_scale
-        self.z_scale = 1.0
-        self.z_shift = 0.0
+        self.z_scale *= z_mat[0]
+        self.z_shift = z_mat[0]*self.z_shift + z_mat[1]
 
 
     def xy_to_uv(self, xy_points):
@@ -923,7 +923,10 @@ class GridSurface:
 
 
     def eval_array(self, uv_points):
-        return self.z_surface.eval_array(uv_points)
+        xyz = self.z_surface.eval_array(uv_points)
+        xyz[:, 2] *= self.z_scale
+        xyz[:, 2] += self.z_shift
+        return xyz
 
 
     def z_eval_xy_array(self, xy_points):
@@ -957,7 +960,7 @@ class GridSurface:
             u_loc = np.array([1 - uv_loc[0], uv_loc[0]])
             v_loc = np.array([1 - uv_loc[1], uv_loc[1]])
             Z_mat = self.grid_uvz[iu: (iu + 2), iv: (iv + 2), 2]
-            result[i] = self.z_scale*(v_loc.dot(Z_mat).dot(u_loc)) + self.z_shift
+            result[i] = self.z_scale*(u_loc.dot(Z_mat).dot(v_loc)) + self.z_shift
         return result
 
 
