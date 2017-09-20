@@ -360,7 +360,7 @@ class TestPointGrid:
         eps = 0.0
         hx = 1.0 / surf.shape[0]
         hy = 1.0 / surf.shape[1]
-        tol = 2.0 * 0.5* ( hx*hx + 2*hx*hy + hy*hy)
+        tol = 0.5* ( hx*hx + 2*hx*hy + hy*hy)
 
         self.grid_cmp(XYZ_func_eval, XYZ_grid_eval, tol)
         self.grid_cmp(XYZ_func_eval, XYZ_surf_eval, tol)
@@ -381,9 +381,12 @@ class TestPointGrid:
         xy_mat = np.array([ [3.0, -3.0], [2.0, 2.0] ]) / math.sqrt(2)
         xy_shift = np.array([[-2.0, 5.0 ]])
         z_shift = np.array([1.0, 1.3])
+        new_quad = np.array([ [0, 1.0], [0,0], [1, 0], [1, 1]])
+        new_quad = new_quad.dot(xy_mat[:2,:2].T) + xy_shift
 
         surface = self.make_point_grid()
         surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), z_shift)
+        assert np.all(surface.quad == new_quad), "surf: {} ref: {}".format(surface.quad, new_quad)
         self.check_surface(surface, xy_mat, xy_shift, z_shift)
 
 

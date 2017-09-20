@@ -144,11 +144,11 @@ class _SurfaceApprox:
 
 
 
-    def __init__(self, grid_surface, nuv, **kwargs):
+    def __init__(self, grid_surface, nuv=None, **kwargs):
+        self.degree = np.array((2, 2))
         self.grid_surf = grid_surface
-        self.u_basis = bs.SplineBasis.make_equidistant(2, nuv[0])
-        self.v_basis = bs.SplineBasis.make_equidistant(2, nuv[1])
-        self.regularization_weight = kwargs.get('reg_weight', 1.0)
+        self.nuv = nuv
+        self.regularization_weight = kwargs.get('reg_weight', 0.001)
 
     def get_approximation(self):
         if not hasattr(self, 'z_surf'):
@@ -172,27 +172,52 @@ class _SurfaceApprox:
 
         print('Transforming points to parametric space ...')
         start_time = time.time()
-        points = self.grid_surf.points_xyz
-        points_uv = self.grid_surf.xy_to_uv( points[:, 0:2] )
 
+        points_uvz = self.grid_surf.grid_uvz.reshape(-1, 3)
+        points_uv = points_uvz[:, 0:2]
 
         # remove points far from unit square
         eps = 1.0e-15
         cut_min = np.array( [ -eps, -eps ])
         cut_max = np.array( [ 1+eps, 1+eps ])
-
         in_idx = np.all(np.logical_and(cut_min < points_uv,  points_uv <= cut_max), axis=1)
         points_uv = points_uv[in_idx]
-        points_z = points[in_idx, 2][:,None]
+        self.points_z = points_uvz[in_idx, 2][:,None]
+        print("Number of points out of the grid domain: {}".format(len(points_uv) - np.sum(in_idx)))
 
         # snap to unit square
         points_uv = np.maximum(points_uv, np.array([0.0, 0.0]))
-        points_uv = np.minimum(points_uv, np.array([1.0, 1.0]))
+        self.points_uv = np.minimum(points_uv, np.array([1.0, 1.0]))
 
+        # determine number of knots
+        assert len(self.points_uv) == len(self.points_z)
+        n_points = len(self.points_uv)
 
-        self.grid_uvz = np.concatenate((points_uv, points_z), axis=1)
+        grid_shape = np.asarray(self.grid_surf.shape, dtype=int)
+        if self.nuv == None:
+            nuv = np.floor_divide( grid_shape / 3 )
+        else:
+            nuv = np.floor(np.array(self.nuv))
+        nuv = np.minimum( nuv, grid_shape - self.degree - 2)
+        size_u, size_v  = nuv + self.degree
+
+        # try to make number of unknowns less then number of remaining points
+        # +1 to improve determination
+        if (size_u + 1) * (size_v + 1) > n_points:
+            sv = np.floor(np.sqrt( n_points * size_v / size_u ))
+            su = np.floor(sv * size_u / size_v)
+            nuv = np.array( [su, sv] ) - self.degree
+        nuv = nuv.astype(int)
+        if nuv[0] < 1 or nuv[1] < 1:
+            raise Exception("Two few points, {}, to make approximation, degree: {}".format(n_points, self.degree))
+
+        print("Using {} x {} B-spline approximation.".format(nuv[0], nuv[1]))
+        self.u_basis = bs.SplineBasis.make_equidistant(2, nuv[0])
+        self.v_basis = bs.SplineBasis.make_equidistant(2, nuv[1])
+
         end_time = time.time()
         print('Computed in {0} seconds.'.format(end_time - start_time))
+
 
         # Own computation of approximation
         print('Creating B matrix ...')
@@ -215,35 +240,45 @@ class _SurfaceApprox:
         print('Computed in {0} seconds.'.format(end_time - start_time))
 
 
+        print('Computing A and B svds approximation ...')
+        start_time = time.time()
+
         bb_norm = scipy.sparse.linalg.svds(bb_mat, k=1, ncv=10, tol=1e-4, which='LM', v0=None,
                                            maxiter=300, return_singular_vectors=False)
         a_norm = scipy.sparse.linalg.svds(a_mat, k=1, ncv=10, tol=1e-4, which='LM', v0=None,
                                           maxiter=300, return_singular_vectors=False)
         c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
 
-        g_vec = self.grid_uvz[:, 2]
+        g_vec = self.points_z
         b_vec = b_mat.transpose() * g_vec
+        end_time = time.time()
+        print('Computed in {0} seconds.'.format(end_time - start_time))
 
 
         print('Computing Z coordinates ...')
         start_time = time.time()
         z_vec = scipy.sparse.linalg.spsolve(c_mat, b_vec)
+        assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
+
         print(type(z_vec))
         end_time = time.time()
         print('Computed in {0} seconds.'.format(end_time - start_time))
 
 
-        # print('Computing differences ...')
-        # start_time = time.time()
-        # diff = (numpy.matrix(b_mat * z_vec).transpose() - g_vec).tolist()
-        # diff = [item[0] for item in diff]
-        # end_time = time.time()
-        # print('Computed in {0} seconds.'.format(end_time - start_time))
+        print('Computing differences ...')
+        start_time = time.time()
+        diff = np.abs(b_mat * z_vec - g_vec)
+        max_diff = np.max(diff)
+        print("Approximation error (max norm): {}".format(max_diff) )
+        end_time = time.time()
+        print('Computed in {0} seconds.'.format(end_time - start_time))
 
         # Construct Z-Surface
-        poles_z = z_vec.reshape(self.u_basis.size, self.v_basis.size, 1)
-        surface_z = bs.Surface((self.u_basis, self.v_basis), poles_z)
-        z_surf = bs.Z_Surface(self.grid_surf.quad, surface_z)
+        poles_z = z_vec.reshape(self.v_basis.size, self.u_basis.size).T
+        poles_z *= self.grid_surf.z_scale
+        poles_z += self.grid_surf.z_shift
+        surface_z = bs.Surface((self.u_basis, self.v_basis), poles_z[:,:,None])
+        z_surf = bs.Z_Surface(self.grid_surf.quad[0:3], surface_z)
 
         return z_surf
 
@@ -261,7 +296,7 @@ class _SurfaceApprox:
         """
         u_n_basf = self.u_basis.size
         v_n_basf = self.v_basis.size
-        n_points = self.grid_uvz.shape[0]
+        n_points = self.points_uv.shape[0]
 
         n_uv_loc_nz =  (self.u_basis.degree +  1) * (self.v_basis.degree +  1)
         row = np.zeros(n_points * n_uv_loc_nz)
@@ -273,16 +308,19 @@ class _SurfaceApprox:
         interval = np.empty((n_points, 2))
 
         for idx in range(0, n_points):
-            u, v = self.grid_uvz[idx, 0:2]
+            u, v = self.points_uv[idx, 0:2]
             iu = self.u_basis.find_knot_interval(u)
-            iv = self.u_basis.find_knot_interval(v)
+            iv = self.v_basis.find_knot_interval(v)
             u_base_vec = self.u_basis.eval_base_vector(iu, u)
-            v_base_vec = self.u_basis.eval_base_vector(iv, v)
+            v_base_vec = self.v_basis.eval_base_vector(iv, v)
             # Hard-coded Kronecker product (problem based)
             for n in range(0, 3):
                 data[nnz_b + 3 * n:nnz_b + 3 * (n + 1)] = v_base_vec[n] * u_base_vec
                 for m in range(0, 3):
-                    col[nnz_b + (3 * n) + m] = (iv + n) * u_n_basf + iu + m
+                    col_item = (iv + n) * u_n_basf + iu + m
+                    print(idx, iu, iv, n, m, col_item)
+
+                    col[nnz_b + (3 * n) + m] = col_item
             row[nnz_b:nnz_b + 9] = idx
             nnz_b += 9
 
@@ -308,6 +346,7 @@ class _SurfaceApprox:
             for j in range(nq_points):
                 up = us + uil * self._q_points[j]
                 q_point[n] = up
+                # TODO: no need to find interval, idx = i
                 idx = basis.find_knot_interval(up)
                 u_base_vec = basis.eval_base_vector(idx, up)
                 u_base_vec_diff = basis.eval_diff_base_vector(idx, up)
