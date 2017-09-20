@@ -234,7 +234,7 @@ class _SurfaceApprox:
 
         print('Computing B^T B matrix ...')
         start_time = time.time()
-        bb_mat = b_mat.transpose() * b_mat
+        bb_mat = b_mat.transpose().dot(b_mat)
 
         end_time = time.time()
         print('Computed in {0} seconds.'.format(end_time - start_time))
@@ -249,8 +249,8 @@ class _SurfaceApprox:
                                           maxiter=300, return_singular_vectors=False)
         c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
 
-        g_vec = self.points_z
-        b_vec = b_mat.transpose() * g_vec
+        g_vec = self.points_z[:, 0]
+        b_vec = b_mat.transpose().dot( g_vec )
         end_time = time.time()
         print('Computed in {0} seconds.'.format(end_time - start_time))
 
@@ -267,7 +267,7 @@ class _SurfaceApprox:
 
         print('Computing differences ...')
         start_time = time.time()
-        diff = np.abs(b_mat * z_vec - g_vec)
+        diff = b_mat.dot(z_vec) - g_vec
         max_diff = np.max(diff)
         print("Approximation error (max norm): {}".format(max_diff) )
         end_time = time.time()
@@ -318,8 +318,6 @@ class _SurfaceApprox:
                 data[nnz_b + 3 * n:nnz_b + 3 * (n + 1)] = v_base_vec[n] * u_base_vec
                 for m in range(0, 3):
                     col_item = (iv + n) * u_n_basf + iu + m
-                    print(idx, iu, iv, n, m, col_item)
-
                     col[nnz_b + (3 * n) + m] = col_item
             row[nnz_b:nnz_b + 9] = idx
             nnz_b += 9
