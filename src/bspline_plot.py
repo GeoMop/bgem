@@ -22,7 +22,12 @@ def plot_curve_2d(curve, n_points=100, **kwargs):
 
     coords = [curve.eval(t) for t in t_coord]
     x_coord, y_coord = zip(*coords)
-    return plt.plot(x_coord, y_coord, **kwargs)
+
+    img = plt.plot(x_coord, y_coord, **kwargs)
+    if kwargs.get('poles', False):
+        plot_curve_poles_2d(curve)
+
+    return img
 
 
 def plot_curve_poles_2d(curve, **kwargs):
@@ -70,7 +75,11 @@ def plot_surface_3d(surface, fig_ax, n_points=(100, 100), **kwargs):
     Z = Z.reshape(U.shape)
 
     # Plot the surface.
-    return fig_ax.plot_surface(X, Y,  Z, **kwargs)
+    img = fig_ax.plot_surface(X, Y,  Z, **kwargs)
+    if kwargs.get('poles', False):
+        plot_curve_poles_2d(surface)
+    return img
+
 
 
 def plot_surface_poles_3d(surface, fig_ax, **kwargs):

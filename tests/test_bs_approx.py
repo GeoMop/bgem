@@ -39,13 +39,13 @@ class TestSurfaceApprox:
         self.plot_surf(z_surf)
 
     def plot_plane(self):
-        surf = bs_approx.plane_surface([ [0, 0, 0], [1,1,0], [0,0,1] ])
+        surf = bs_approx.plane_surface([ [0.0, 0, 0], [1.0, 0, 0], [0.0, 0, 1] ], overhang=0.1)
         self.plot_surf(surf)
 
     def test_surface_approx(self):
         #self.plot_approx_grid()
         #self.plot_approx_transformed_grid()
-        self.plot_plane()
+        #self.plot_plane()
         pass
 
 
@@ -63,5 +63,5 @@ class TestCurveApprox:
         bs_plot.plot_curve_poles_2d(curve)
 
 
-        plt.plot(x_vec, y_vec, color='green')
-        plt.show()
+        #plt.plot(x_vec, y_vec, color='green')
+        #plt.show()

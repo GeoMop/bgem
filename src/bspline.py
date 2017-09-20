@@ -1,20 +1,16 @@
 """
-Module with classes representing various B-spline and NURMS curves and surfaces.
+Module with classes representing various B-spline and NURBS curves and surfaces.
 These classes provide just basic functionality:
 - storing the data
 - evaluation of XYZ for UV
-In future:
 - evaluation and xy<->uv functions accepting np.arrays,
-- serialization and deserialization using JSONdata - must make it an installable module
-- use de Boor algorithm for evaluation of curves and surfaces
 - evaluation of derivatives
+In future:
+- use de Boor algorithm for evaluation of curves and surfaces
+- serialization and deserialization using JSONdata - must make it an installable module
 - implement degree increasing and knot insertion
 """
 
-"""
-This module tries to approximate 2.5D array of terrain points
-using B-Spline surface.
-"""
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,55 +21,55 @@ import numpy.linalg as la
 __author__ = 'Jan Brezina <jan.brezina@tul.cz>, Jiri Hnidek <jiri.hnidek@tul.cz>, Jiri Kopal <jiri.kopal@tul.cz>'
 
     
-class ParamError(Exception):
-    pass
-
-def check_matrix(mat, shape, values, idx=[]):
-    '''
-    Check shape and type of scalar, vector or matrix.
-    :param mat: Scalar, vector, or vector of vectors (i.e. matrix). Vector may be list or other iterable.
-    :param shape: List of dimensions: [] for scalar, [ n ] for vector, [n_rows, n_cols] for matrix.
-    If a value in this list is None, the dimension can be arbitrary. The shape list is set fo actual dimensions
-    of the matrix.
-    :param values: Type or tuple of  allowed types of elements of the matrix. E.g. ( int, float )
-    :param idx: Internal. Used to pass actual index in the matrix for possible error messages.
-    :return:
-    '''
-    try:
-        if len(shape) == 0:
-            if not isinstance(mat, values):
-                raise ParamError("Element at index {} of type {}, expected instance of {}.".format(idx, type(mat), values))
-        else:
-            if shape[0] is None:
-                shape[0] = len(mat)
-            l=None
-            if not hasattr(mat, '__len__'):
-                l=0
-            elif len(mat) != shape[0]:
-                l=len(mat)
-            if not l is None:
-                raise ParamError("Wrong len {} of element {}, should be  {}.".format(l, idx, shape[0]))
-            for i, item in enumerate(mat):
-                sub_shape = shape[1:]
-                check_matrix(item, sub_shape, values, idx = [i] + idx)
-                shape[1:] = sub_shape
-        return shape
-    except ParamError:
-        raise
-    except Exception as e:
-        raise ParamError(e)
-
-
-def check_knots(deg, knots, N):
-    total_multiplicity = 0
-    for knot, mult in knots:
-        # This condition must hold if we assume only (0,1) interval of curve or surface parameters.
-        #assert float(knot) >= 0.0 and float(knot) <= 1.0
-        total_multiplicity += mult
-    assert total_multiplicity == deg + N + 1
-
-
-scalar_types = (int, float, np.int64)
+# class ParamError(Exception):
+#     pass
+#
+# def check_matrix(mat, shape, values, idx=[]):
+#     '''
+#     Check shape and type of scalar, vector or matrix.
+#     :param mat: Scalar, vector, or vector of vectors (i.e. matrix). Vector may be list or other iterable.
+#     :param shape: List of dimensions: [] for scalar, [ n ] for vector, [n_rows, n_cols] for matrix.
+#     If a value in this list is None, the dimension can be arbitrary. The shape list is set fo actual dimensions
+#     of the matrix.
+#     :param values: Type or tuple of  allowed types of elements of the matrix. E.g. ( int, float )
+#     :param idx: Internal. Used to pass actual index in the matrix for possible error messages.
+#     :return:
+#     '''
+#     try:
+#         if len(shape) == 0:
+#             if not isinstance(mat, values):
+#                 raise ParamError("Element at index {} of type {}, expected instance of {}.".format(idx, type(mat), values))
+#         else:
+#             if shape[0] is None:
+#                 shape[0] = len(mat)
+#             l=None
+#             if not hasattr(mat, '__len__'):
+#                 l=0
+#             elif len(mat) != shape[0]:
+#                 l=len(mat)
+#             if not l is None:
+#                 raise ParamError("Wrong len {} of element {}, should be  {}.".format(l, idx, shape[0]))
+#             for i, item in enumerate(mat):
+#                 sub_shape = shape[1:]
+#                 check_matrix(item, sub_shape, values, idx = [i] + idx)
+#                 shape[1:] = sub_shape
+#         return shape
+#     except ParamError:
+#         raise
+#     except Exception as e:
+#         raise ParamError(e)
+#
+#
+# def check_knots(deg, knots, N):
+#     total_multiplicity = 0
+#     for knot, mult in knots:
+#         # This condition must hold if we assume only (0,1) interval of curve or surface parameters.
+#         #assert float(knot) >= 0.0 and float(knot) <= 1.0
+#         total_multiplicity += mult
+#     assert total_multiplicity == deg + N + 1
+#
+#
+# scalar_types = (int, float, np.int64)
 
 
 
@@ -100,9 +96,9 @@ class SplineBasis:
         Returns spline basis for an eqidistant knot vector
         having 'n_intervals' subintervals.
         :param degree: degree of the spline basis
-        :param n_intervals: length of vector
+        :param n_intervals: Number of subintervals.
         :param knot_range: support of the spline, min and max valid 't'
-        :return: np array of knots
+        :return: SplineBasis object.
         """
         n = n_intervals + 2 * degree + 1
         knots = np.array((knot_range[0],) * n)
@@ -115,37 +111,57 @@ class SplineBasis:
 
     @classmethod
     def make_from_packed_knots(cls, degree, knots):
+        """
+        Construct basis from the vector of packed knots.
+        :param degree: Degree of the basis.
+        :param knots: List of knots with their multiplicities, [ (knot, mult), ..]
+        :return: SplineBasis object.
+        """
         full_knots = [ q for q, mult in knots for i in range(mult)  ]
         return cls(degree, full_knots)
 
 
     def __init__(self, degree, knots):
         """
-        Constructor of the basis.
+        Constructor of the spline basis.
         :param degree: Degree of Bezier polynomials >=0.
         :param knots: Numpy array of the knots including multiplicities.
         """
         assert degree >=0
         self.degree = degree
 
-        # check free ends (and  full degree along the whole curve)
+        # check free ends
         for i in range(self.degree):
             assert knots[i] == knots[i+1]
             assert knots[-i-1] == knots[-i-2]
         self.knots = np.array(knots)
 
         self.size = len(self.knots) - self.degree -1
-        self.knots_idx_range = [self.degree, len(self.knots) - self.degree - 1]
-        self.domain = self.knots[self.knots_idx_range]
-        self.domain_size = self.domain[1] - self.domain[0]
-        self.n_intervals = self.size - self.degree
         # Number of basis functions.
 
+
+        self.knots_idx_range = [self.degree, len(self.knots) - self.degree - 1]
+        # Range of knot indices corrsponding to the basis domain.
+
+        self.domain = self.knots[self.knots_idx_range]
+        # Support domain of the spline.
+
+        self.domain_size = self.domain[1] - self.domain[0]
+        # Size of the domain.
+
+        self.n_intervals = self.size - self.degree
+        # Number of subintervals ( assuming multiplicities only on ends. )
+
+        # Set optimized functions for specific degrees.
         if self.degree == 2:
-            self.eval_base_vector = self._eval_base_vector_deg_2
-            self.eval_diff_base_vector = self._eval_diff_base_vector_deg_2
+            self.eval_base_vector = self._eval_vector_deg_2
+            self.eval_diff_base_vector = self._eval_diff_vector_deg_2
+
 
     def pack_knots(self):
+        """
+        :return: Packed knot vector, [ (knot, multiplicity), .. ]
+        """
         last, mult = self.knots[0], 0
         packed_knots = []
         for q in self.knots:
@@ -169,10 +185,8 @@ class SplineBasis:
         :return: I
         """
         idx = np.searchsorted(self.knots[self.degree: -self.degree -1], [t], side='right')[0] - 1
-        if idx < 0 or idx > self.n_intervals - 1:
-            print("Warning: evaluation out of spline domain; t: {} min: {} max: {}".format(t, self.knots[0], self.knots[-1]))
-
-        return max(min(idx, self.n_intervals - 1), 0)   # deals with t == self.knots[-1]
+        assert 0 <= idx <= self.n_intervals, "Evaluation out of spline domain; t: {} min: {} max: {}".format(t, self.knots[0], self.knots[-1])
+        return min(idx, self.n_intervals - 1)   # deals with t == self.knots[-1]
 
 
     def _basis(self, deg, idx, t):
@@ -250,7 +264,6 @@ class SplineBasis:
 
         return diff
 
-
     def make_linear_poles(self):
         """
         Return poles of basis functions to get a f(x) = x.
@@ -263,33 +276,51 @@ class SplineBasis:
         return poles
 
 
-    def eval_base_vector(self, i_base, t):
+    def eval_vector(self, i_base, t):
+        """
+        This function compute base function of B-Spline curve on given subinterval.
+        :param i_int: Interval in which 't' belongs. Three nonzero basis functions on this interval are evaluated.
+        :param t: Where to evaluate.
+        :return: Numpy array of three values.
+        """
         values = []
         for ib in range(i_base, i_base + self.degree + 1):
             values.append( self.eval(ib, t))
         return values
 
 
-    def eval_diff_base_vector(self, i_base, t):
+    def eval_diff_vector(self, i_base, t):
+        """
+        This function compute derivative of base function of B-Spline curve on given subinterval.
+        :param i_int: Interval in which 't' belongs. Derivatives of the 3 nonzero basis functions on this interval are evaluated.
+        :param t: Where to evaluate.
+        :return: Numpy array of three values.
+        """
         values = []
         for ib in range(i_base, i_base + self.degree + 1):
             values.append( self.eval_diff(ib, t))
         return values
 
 
-    def _eval_base_vector_deg_2(self, i_base, t):
+    """
+    Specializations.
+    TODO:
+    - Try usage of scipy evaluation, compare speed with optimized eval_vector and diff_eval_vector.
+    - Generalize optimized evaluation of eval_vector (If scipy is not faster), De Boor algortihm, Hoschek 4.3.3.
+    - Optimize eval and eval_diff - without recursion, based on combinatorGeneralize optimized evaluation of eval_vector (If scipy is not faster)
+    """
+    def _eval_vector_deg_2(self, i_int, t):
         """
-        This function compute normalized blending function aka base function of B-Spline curve or surface.
-        :param knot_vec:
-        :param t_param:
-        :param order: (0: function value, 1: derivative function value)
-        :param sparse:
-        :return:
+        This function compute base function of B-Spline curve on given subinterval.
+        :param i_int: Interval in which 't' belongs. Three nonzero basis functions on this interval are evaluated.
+        :param t: Where to evaluate.
+        :return: Numpy array of three values.
+        Note: Keep code redundancy with 'diff' as optimization.
         """
 
         basis_values = np.zeros(3)
 
-        tk1, tk2, tk3, tk4 = self.knots[i_base + 1 : i_base + 5]
+        tk1, tk2, tk3, tk4 = self.knots[i_int + 1 : i_int + 5]
 
         d31 = tk3 - tk1
         d32 = tk3 - tk2
@@ -310,11 +341,18 @@ class SplineBasis:
         return basis_values
 
 
-    def _eval_diff_base_vector_deg_2(self, i_base, t):
+    def _eval_diff_vector_deg_2(self, i_int, t):
+        """
+        This function compute derivative of base function of B-Spline curve on given subinterval.
+        :param i_int: Interval in which 't' belongs. Derivatives of the 3 nonzero basis functions on this interval are evaluated.
+        :param t: Where to evaluate.
+        :return: Numpy array of three values.
+        Note: Keep code redundancy with 'diff' as optimization.
+        """
 
         basis_values = np.zeros(3)
 
-        tk1, tk2, tk3, tk4 = self.knots[i_base + 1: i_base + 5]
+        tk1, tk2, tk3, tk4 = self.knots[i_int + 1: i_int + 5]
 
         d31 = tk3 - tk1
         d32 = tk3 - tk2
@@ -336,39 +374,60 @@ class SplineBasis:
 
 
 class Curve:
+    """
+    Defines a D-dim B-spline curve.
+    """
 
     @classmethod
     def make_raw(cls, poles, knots, rational=False, degree=2):
         """
         Construct a B-spline curve.
-        :param poles: List of poles (control points) ( X, Y, Z ) or weighted points (X,Y,Z, w). X,Y,Z,w are floats.
-                   Weighted points are used only for rational B-splines (i.e. nurbs)
-        :param knots: List of tuples (knot, multiplicity), where knot is float, t-parameter on the curve of the knot
-                   and multiplicity is positive int. Total number of knots, i.e. sum of their multiplicities, must be
-                   degree + N + 1, where N is number of poles.
+        :param poles: Numpy array N x (D+r) of poles (control points). N is number of poles, D is dimension of the curve, 'r' is 1 for rational curves.
+         For rational case, poles[:, D] are weights of the control points.
+        :param knots, degree: See SplineBasis.
         :param rational: True for rational B-spline, i.e. NURB. Use weighted poles.
         :param degree: Non-negative int
         """
         basis = SplineBasis(degree, knots)
         return cls(basis, poles, rational)
 
-    """
-    Defines a 3D (or (dim -D) curve as B-spline. We shall work only with B-splines of degree 2.
-    Corresponds to "B-spline Curve - <3D curve record 7>" from BREP format description.
-    """
     def __init__(self, basis, poles, rational = False):
-        self.basis = basis
-        self.dim = len(poles[0]) - rational
-        check_matrix(poles, [self.basis.size, self.dim + rational], scalar_types )
+        """
+        Construct a B-spline curve.
+        :param poles: Numpy array N x (D+r) of poles (control points). N is number of poles, D is dimension of the curve, 'r' is 1 for rational curves.
+         For rational case, poles[:, D] are weights of the control points.
+        :param basis: SplineBasis object.
+        :param rational: True for rational B-spline, i.e. NURB. Use weighted poles.
+        """
 
-        self.poles=np.array(poles)  # N x D
-        self.rational=rational
+        self.basis = basis
+        # Spline basis.
+
+        self.poles = np.array(poles, dtype=float)  # N x D
+        assert self.poles.shape[0] == self.basis.size
+        # Spline poles.
+
+        self.dim = len(poles[0]) - rational
+        # Dimension of the curve.
+
+        self.rational = rational
+        # Indicator of rational B-spline (NURBS).
+
         if rational:
+            # precomputations
             self._weights = poles[:, self.dim]
             self._poles = (poles[:, 0:self.dim].T * self._weights ).T
 
 
     def eval(self, t):
+        """
+        Evaluate a B-spline curve for paramater 't'.
+        :param t: Evaluation point.
+        :return: D-dimensional pnumpy array. D - is dimension given by dimension of poles.
+        TODO:
+        - use basis.eval_vector
+        - test evaluation for rational curves
+        """
 
         it = self.basis.find_knot_interval(t)
         dt = self.basis.degree + 1
@@ -390,12 +449,16 @@ class Curve:
         return np.array( [ self.eval(t) for t in t_points] )
 
     def aabb(self):
+        """
+        Return Axes Aligned Bounding Box of the poles, which should be also bounding box of the curve itself.
+        :return: ( min_corner, max_corner); Box corners are numpy arryas of dimension D.
+        """
         return (np.amin(self.poles, axis=0), np.amax(self.poles, axis=0))
 
 
 class Surface:
     """
-    Defines a B-spline surface.
+    Defines D-dim B-spline surface.
     """
 
     @classmethod
@@ -417,30 +480,41 @@ class Surface:
 
     def __init__(self, basis, poles, rational=False):
         """
-        Construct a B-spline in 3d space.
-        :param poles: Matrix (list of lists) of Nu times Nv poles (control points).
-                      Single pole is a points ( X, Y, Z ) or weighted point (X,Y,Z, w). X,Y,Z,w are floats.
-                      Weighted points are used only for rational B-splines (i.e. nurbs)
-        :param knots: Tuple (u_knots, v_knots). Both u_knots and v_knots are lists of tuples
-                      (knot, multiplicity), where knot is float, t-parameter on the curve of the knot
-                      and multiplicity is positive int. For both U and V knot vector the total number of knots,
-                      i.e. sum of their multiplicities, must be degree + N + 1, where N is number of poles.
-        :param rational: True for rational B-spline, i.e. NURB. Use weighted poles. BREP format have two independent flags
-                      for U and V parametr, but only choices 0,0 and 1,1 have sense.
-        :param degree: (u_degree, v_degree) Both positive ints.
+        Construct a B-spline surface.
+        :param poles: Numpy array Nu x Nv x (D+r) of poles (control points).
+            Nu and Nv are sizes of u_basis, v_basis respectively.
+            D is dimension of the surface, 'r' is 1 for rational surfaces.
+            For rational case, poles[:, :, D] are weights of the control points.
+        :param basis: (u_basis, v_basis) SplineBasis objects for U and V parameter axis.
+        :param rational: True for rational B-spline, i.e. NURB. Use weighted poles.
         """
-
         self.u_basis, self.v_basis = basis
-        self.rational = rational
+        # Surface basis for U and V axis.
+
         self.dim = len(poles[0][0]) - rational
-        check_matrix(poles, [self.u_basis.size, self.v_basis.size, self.dim + rational], scalar_types )
-        self.poles=np.array(poles)
+        # Surface dimension, D.
+
+        self.poles=np.array(poles, dtype=float)
+        # Surface poles matrix: Nu x Nv x (D+r)
         assert self.poles.shape == (self.u_basis.size, self.v_basis.size, self.dim + rational)
+
+        self.rational = rational
+        # Rational surface indicator.
         if rational:
+            # precomputations
             self._weights = poles[:, :, self.dim]
             self._poles = (poles[:,:,0:self.dim].T * self._weights.T ).T
 
     def eval(self, u, v):
+        """
+        Evaluate a B-spline surface for paramaters u,v.
+        :param u, v: Evaluation point.
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
+        TODO:
+        - use basis.eval_vector
+        - test evaluation for rational curves
+        """
+
         iu = self.u_basis.find_knot_interval(u)
         iv = self.v_basis.find_knot_interval(v)
         du = self.u_basis.degree + 1
@@ -463,9 +537,9 @@ class Surface:
 
     def eval_array(self, uv_points):
         """
-        Evaluate in array of t-points.
+        Evaluate in array of uv-points.
         :param uv_points: numpy array N x [u, v]
-        :return: Numpy array N x D, D is dimension of the curve.
+        :return: Numpy array N x D; D is dimension of the curve.
         """
         assert uv_points.shape[1] == 2
         return np.array( [ self.eval(u, v) for u, v in uv_points] )
@@ -474,53 +548,59 @@ class Surface:
 
 class Z_Surface:
     """
-    Simplified B-spline surface that use just linear or bilinear transform between XY  and UV.
-
-    TODO:
-    - We need conversion to full 3D surface for the BREP output
-    - Optimization: simplified Bspline evaluation just for the singel coordinate
+    Simplified B-spline surface that use just linear or bilinear transform between XY and UV.
     """
     def __init__(self, xy_quad, z_surface):
         """
-        Construct a surface given by the  1d surface for the Z coordinate and XY quadrilateral
-        for the bilinear UV -> XY mapping.
+        Construct a surface given by the 1d surface for the Z coordinate and XY quadrilateral
+        for the bilinear UV <-> XY mapping.
         :param xy_quad: np array N x 2
             Four or three points, determining bilinear or linear mapping, respectively.
             Four points giving XY coordinates for the uv corners: (0,1), (0,0), (1,0),  (1,1)
             Three points giving XY coordinates for the uv corners:  (0,1), (0,0), (1,0)
-        :param z_surface: !D Surface object.
+            Linear case is also detected for the four points.
+        :param z_surface: 1D Surface object.
         """
         assert z_surface.dim == 1
+        self.dim = 3
+        # Fixed surface dimension.
+
         self.z_surface = z_surface
+        # Underlaying 1d surface object for Z coord evaluation.
+
         self.u_basis = z_surface.u_basis
         self.v_basis = z_surface.v_basis
-        self.dim = 3
+        # Basis for UV directions.
 
-        if len(xy_quad) == 3 or \
-           np.allclose(xy_quad[3], xy_quad[0] + xy_quad[2] - xy_quad[1]):
+        # Build envelope quadrilateral polygon in XY plane.
+        self.quad = np.array(xy_quad, dtype=float)
+        assert self.quad.shape[0] in [3, 4], "Three or four points must be given."
+        assert self.quad.shape[1] == 2
+
+        v11 = self.quad[0] + self.quad[2] - self.quad[1]
+        if self.quad.shape[0] == 3:
+            self.quad = np.concatenate( (self.quad, v11[None, :]), axis = 0)
+
+        if np.allclose(self.quad[3], v11):
             # linear case
-            self.xy_shift = xy_quad[1]
-            v_vec = xy_quad[0] - xy_quad[1]
-            u_vec = xy_quad[2] - xy_quad[1]
-            self.mat_uv_to_xy = np.column_stack((u_vec, v_vec))
-            self.mat_xy_to_uv = la.inv(self.mat_uv_to_xy)
+            self._xy_shift = self.quad[1]
+            v_vec = self.quad[0] - self.quad[1]
+            u_vec = self.quad[2] - self.quad[1]
+            self._mat_uv_to_xy = np.column_stack((u_vec, v_vec))
+            self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
 
             self.xy_to_uv = self._linear_xy_to_uv
             self.uv_to_xy = self._linear_uv_to_xy
 
-        elif len(xy_quad) == 4:
+        else:
             # bilinear case
-            self.quad = xy_quad
-
             self.xy_to_uv = self._bilinear_xy_to_uv
             self.uv_to_xy = self._bilinear_uv_to_xy
 
-        else:
-            assert False, "Three or four points must be given."
 
         #TODO: remove this, after fixing GridSurface z_eval
-        self.z_scale =1.0
-        self.z_shift = 1.0
+        #self.z_scale =1.0
+        #self.z_shift = 1.0
 
     def make_full_surface(self):
         """
@@ -540,9 +620,9 @@ class Z_Surface:
         return Surface(basis, poles)
 
 
-    def transform(self, xy_mat, z_mat):
+    def transform(self, xy_mat, z_mat=np.array( [1.0, 0.0] ) ):
         """
-        Transform the surface by arbitrary XY linear transform and Z linear transform.
+        Transform the Z-surface by arbitrary XY linear transform and Z linear transform.
         :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
         :param z_shift: [ z_scale, z_shift]
         :return: None
@@ -550,19 +630,17 @@ class Z_Surface:
         assert xy_mat.shape == (2, 3)
         assert z_mat.shape == (2, )
 
-
-
-        self.mat_uv_to_xy = xy_mat[0:2,0:2].dot( self.mat_uv_to_xy )
-        self.xy_shift = xy_mat[0:2,0:2].dot( self.xy_shift ) + xy_mat[0:2, 2]
-        self.mat_xy_to_uv = la.inv(self.mat_uv_to_xy)
+        self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
+        self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
+        self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
 
         # apply z-transfrom directly to the poles
         self.z_surface.poles *= z_mat[0]
         self.z_surface.poles += z_mat[1]
 
         #TODO: remove this, after fixing GridSurface z_eval
-        self.z_scale *= z_mat[0]
-        self.z_shift = self.z_shift*z_mat[0] + z_mat[1]
+        #self.z_scale *= z_mat[0]
+        #self.z_shift = self.z_shift*z_mat[0] + z_mat[1]
 
 
 
@@ -575,7 +653,7 @@ class Z_Surface:
     """
     def _linear_uv_to_xy(self, uv_points):
         assert uv_points.shape[1] == 2, "Size: {}".format(uv_points.shape)
-        return ( np.dot(uv_points, self.mat_uv_to_xy.T) + self.xy_shift)
+        return ( np.dot(uv_points, self._mat_uv_to_xy.T) + self._xy_shift)
 
 
     def _bilinear_uv_to_xy(self, uv_points):
@@ -596,7 +674,7 @@ class Z_Surface:
     def _linear_xy_to_uv(self, xy_points):
         # assert xy_points.shape[0] == 2
         assert xy_points.shape[1] == 2
-        return  np.dot((xy_points - self.xy_shift), self.mat_xy_to_uv.T)
+        return  np.dot((xy_points - self._xy_shift), self._mat_xy_to_uv.T)
 
 
     def _bilinear_xy_to_uv(self, xy_points):
@@ -605,6 +683,11 @@ class Z_Surface:
 
 
     def eval(self, u, v):
+        """
+        Evaluate a B-spline surface for paramaters u,v.
+        :param u, v: Evaluation point.
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
+        """
         z = self.z_surface.eval(u, v)
         uv_points = np.array([[u, v]])
         x, y = self.uv_to_xy( uv_points )[0]
@@ -612,149 +695,215 @@ class Z_Surface:
 
 
     def eval_array(self, uv_points):
+        """
+        Evaluate a B-spline surface in array of UV points.
+        :param uv_points: numpy array N x [u, v]
+        :return: array N x D; D - is dimension given by dimension of poles.
+        """
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
         xy_points = self.uv_to_xy(uv_points)
         return np.concatenate( (xy_points, z_points), axis = 1)
 
 
-
     def eval_xy_array(self, xy_points):
+        """
+        Evaluate a B-spline surface in array of XY points.
+        :param xy_points: numpy array N x [x, y]
+        :return: array N x D; D - is dimension given by dimension of poles.
+        """
         uv_points  = self.xy_to_uv(xy_points)
         z_points = self.z_surface.eval_array(uv_points)
         return np.concatenate( (xy_points, z_points), axis = 1)
 
+
     def z_eval_array(self, uv_points):
+        """
+        Evaluate just Z coordinate for array of UV points.
+        :param uv_points: numpy array N x [u, v]
+        :return: array N x D; D - is dimension given by dimension of poles.
+        """
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
         return z_points.reshape(-1)
 
+
     def z_eval_xy_array(self, xy_points):
+        """
+        Evaluate just Z coordinate for array of XY points.
+        :param uv_points: numpy array N x [x, y]
+        :return: array N x D; D - is dimension given by dimension of poles.
+        """
         uv_points = self.xy_to_uv(xy_points)
         z_points = self.z_surface.eval_array(uv_points)
         return z_points.reshape(-1)
 
-class InvalidGridExc(Exception):
+
+
+
+class GridNotInShapeExc(Exception):
+    pass
+
+class IrregularGridExc(Exception):
     pass
 
 
 class GridSurface:
-    """
-    Surface given as bilinear interpolation of a regular grid of points.
-    """
-    # TODO: calling transform lose mapping between original point grid and unit square, approximation can not be performed
-    step_tolerance = 1e-10
-
-    def __init__(self):
-        """
-        Initialize point grid from numpy array.
-        :param grid: NxMx3 numpy array of NxM grid of #D coordinates
-        """
-        self.grid=None
-        self.mat_xy_to_uv=None
-        self.mat_uv_to_xy=None
-        self.shift=None
-        self.shape = (0,0)
-        self.uv_step = (0,0)
+    step_tolerance = 1e-5
+    # relative step_tolerance of 
 
 
+    @staticmethod
     def load(self, filename):
         """
         Load the grid surface from file
         :param filename:
-        :return:
+        :return: GridSurface object.
         """
         point_seq = np.loadtxt(filename)
         assert min(point_seq.shape) > 1
-        self.init_from_seq(point_seq.T)
+        GridSurface(point_seq.T)
 
+    """
+    Can load and check grid of XYZ points and construct a
+    Z-surface of degree 1 for them.
+    """
+    # TODO: calling transform lose mapping between original point grid and unit square, approximation can not be performed
+    
 
-    def init_from_seq(self, point_seq):
+    def __init__(self, point_seq, tolerance = 1e-6):
         """
-        Get 2d transform matrix 2 rows 3 cols to map a grid of XY points to unit square
-        :param point_seq: numpy array N x 2
-        :return:
+        Construct the GridSurface from sequence of points.
+        :param point_seq: N x 3 numpy array; organized as Nu x Nv grid.
+            Nu, Nv are detected automaticaly, both must be greater then 1.
+        :param step_tolerance: Tolerance between XY position given by envelope quad and actual point position. 
+            Relative to the length of maximal side of the envelope quad.          
         """
+        self.tolerance = tolerance
+        
+        assert point_seq.shape[1] == 3
+        n_points = point_seq.shape[0]
+        point_seq_xy = point_seq[:, 0:2]
 
-        assert point_seq.shape[0] == 3
-        n_points = point_seq.shape[1]
-        point_seq_xy = point_seq[0:2,:]
-
-        vtx_00 = point_seq_xy[0:2, 0]
-        vtx_du = point_seq_xy[0:2, 1]
-
-        u_step = vtx_du - vtx_00
-        for i in range(2, n_points):
-            step = point_seq_xy[:,i] - point_seq_xy[:,i-1]
-            if la.norm(u_step - step) > self.step_tolerance:
-                break
-
-        vtx_dv = point_seq_xy[:,i]
-        v_step = vtx_dv - vtx_00
-
-        nu = i
-        nv = int(n_points / nu)
-        if not n_points == nu*nv:
-            raise InvalidGridExc("Not a M*N grid.")
-
-        # check total range of the grid
-        vtx_10 = point_seq_xy[:, nu-1]
-        vtx_01 = point_seq_xy[:, -nu]
-        vtx_11 = point_seq_xy[:, -1]
-        u_range_0 = vtx_10 - vtx_00
-        u_range_1 = vtx_11 - vtx_01
-        v_range_0 = vtx_01 - vtx_00
-        v_range_1 = vtx_11 - vtx_10
-
-        if not la.norm(u_range_0 - u_range_1) < self.step_tolerance or \
-            not la.norm(v_range_0 - v_range_1) < self.step_tolerance:
-            raise InvalidGridExc("Grid XY envelope is not a parallelogram.")
-
-        u_step = u_range_0 / (nu-1)
-        v_step = v_range_0 / (nv-1)
-
-        # check regularity of the grid
-        for i in range(nu*nv):
-            pred_x = i - 1
-            pred_y = i - nu
-            if i%nu == 0:
-                pred_x= -1
-            if pred_x > 0 and not la.norm(point_seq_xy[:, i] - point_seq_xy[:, pred_x] - u_step) < 2*self.step_tolerance:
-                raise InvalidGridExc("Irregular grid in X direction, point %d"%i)
-            if pred_y > 0 and not la.norm(point_seq_xy[:, i] - point_seq_xy[:, pred_y] - v_step) < 2*self.step_tolerance:
-                raise InvalidGridExc("Irregular grid in Y direction, point %d"%i)
-
-        #self.uv_to_xy(np.array([[0, 1], [0, 0], [1, 0], [1, 1]]).T)
-        self.quad = quad = np.stack([vtx_01, vtx_00, vtx_10, vtx_11], axis = 0)
+        self.quad = None
         # Envelope quad - polygon, oriented counter clockwise.
 
-        self.grid_z = point_seq[2, :].reshape(nv, nu)
+        self.shape = None
+        # Number of points along axis: Nu x Nv
+
+        self._get_grid_corners(point_seq_xy)
+        self._check_grid_regularity(point_seq_xy)
+
+        self.z_scale = 1.0
+        self.z_shift = 0.0
+
+        # self._grid_z = point_seq[2, :].reshape(self.nv, self.nu)
         # grid of original Z values, format as matrix
 
-        self.shape = (nu, nv)
-        # Grid shape.
 
-        self.uv_step = (1.0 / float(nu - 1), 1.0 / float(nv - 1))
+        self._uv_step = (1.0 / float(self.shape[0] - 1), 1.0 / float(self.shape[1] - 1))
         # Grid step in u, v direction respectively.
 
-        self.points_xyz = point_seq.T
+        self._make_z_surface( point_seq)
+
+        self.points_xyz = point_seq
         # Original sequance of XYZ points
 
-        u_basis = SplineBasis.make_equidistant(1, nu-1)
-        v_basis = SplineBasis.make_equidistant(1, nv-1)
-        poles_z = np.transpose( point_seq[2, :].reshape(nv, nu, 1), axes = [1, 0, 2] )
-        self.z_surface = Z_Surface(quad[0:3], Surface((u_basis, v_basis), poles_z) )
-        # related bilinear Z-surface, all evaluations just call this object.
-        self.check_map()
+        self._check_map()
 
-    def check_map(self):
+
+    def _get_grid_corners(self, xy_points):
+        n_points = len(xy_points)
+        vtx_00 = xy_points[0, 0:2]
+        vtx_dv = xy_points[1, 0:2]
+
+        # detect grid shape
+        v_step = vtx_dv - vtx_00
+        step_tolerance = self.tolerance * la.norm(v_step, np.inf)
+        for i in range(2, n_points):
+            step = xy_points[i,:] - xy_points[i - 1, :]
+            if la.norm(v_step - step, np.inf) > step_tolerance:
+                break
+        else:
+            raise GridNotInShapeExc("End of the first row not detected.")
+        nv = i
+        nu = int(n_points / nv)
+        if not n_points == nu * nv:
+            raise GridNotInShapeExc("Not a Nu x Nv grid.")
+        self.shape = (nu, nv)
+
+        # make envelope quad
+        vtx_01 = xy_points[nv - 1, :]
+        vtx_10 = xy_points[-nv, :]
+        vtx_11 = xy_points[-1, :]
+        self.quad = np.array( [ vtx_01, vtx_00, vtx_10, vtx_11 ], dtype = float )
+
+        # check that quad is parallelogram.
+        diff = np.roll(self.quad, -1, axis = 0) - self.quad
+        if not la.norm(diff[0] + diff[2]) < self.tolerance * la.norm(diff[0]) or \
+            not la.norm(diff[1] + diff[3]) < self.step_tolerance * la.norm(diff[1]):
+            raise GridNotInShapeExc("Grid XY envelope is not a parallelogram.")
+
+        self._point_tol = np.max( la.norm(diff, axis = 1) )
+        self._u_step = diff[1] / (nu-1)      # v10 - v00
+        self._v_step = diff[2] / (nv-1)      # v11 - v10
+
+
+    def _check_grid_regularity(self, points_xy):
+        # check regularity of the grid
+        nu, nv = self.shape
+        for i in range(nu * nv):
+            pred_y = i - 1
+            pred_x = i - nv
+            if i%nv == 0:
+                pred_y = -1
+            if pred_x > 0 and not la.norm(points_xy[i, :] - points_xy[pred_x, :] - self._u_step) < self._point_tol:
+                raise IrregularGridExc("Irregular grid in X direction, point %d"%i)
+            if pred_y > 0 and not la.norm(points_xy[i, :] - points_xy[pred_y, :] - self._v_step) < self._point_tol:
+                raise IrregularGridExc("Irregular grid in Y direction, point %d"%i)
+
+    def _make_z_surface(self, points):
+        nu, nv = self.shape
+        u_basis = SplineBasis.make_equidistant(1, nu - 1)
+        v_basis = SplineBasis.make_equidistant(1, nv - 1)
+
+
+
+        poles_z = points[:, 2].reshape(nu, nv, 1)
+        self.z_surface = Z_Surface(self.quad[0:3], Surface((u_basis, v_basis), poles_z) )
+        uv_points = self.z_surface.xy_to_uv( points[:, 0:2] )
+        grid_uv = uv_points.reshape(nu, nv, 2)
+        self.grid_uvz = np.concatenate((grid_uv, poles_z), axis=2)
+
+        # related bilinear Z-surface, all evaluations just call this object.
+
+
+    def _check_map(self):
         # check that xy_to_uv works fine
         uv_quad = self.xy_to_uv(self.quad)
         print( uv_quad )
         assert np.allclose( uv_quad, np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
+
+
+
     def transform(self, xy_mat, z_mat):
-        self.z_surface.transform(xy_mat, z_mat)
+        """
+        Transform the GridSurface by arbitrary XY linear transform and Z linear transform.
+        :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
+        :param z_shift: [ z_scale, z_shift]
+        :return: None
+        Note:
+        """
+        # just XY transfrom of underlaying z_surface
+        self.z_surface.transform(xy_mat)
+
+        # transform quad
+        self.quad = self.z_surface.uv_to_xy( np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
+
+        # transform z_scale
+        self.z_scale = 1.0
+        self.z_shift = 0.0
 
 
     def xy_to_uv(self, xy_points):
@@ -799,16 +948,16 @@ class GridSurface:
 
         result = np.zeros(uv_points.shape[0])
         for i, uv in enumerate(uv_points):
-            iuv = np.floor(uv / self.uv_step)
+            iuv = np.floor(uv / self._uv_step)
             iu = max(0, min(self.shape[0] - 2, int(iuv[0])))
             iv = max(0, min(self.shape[1] - 2, int(iuv[1])))
             iuv = np.array([iu, iv])
 
-            uv_loc = uv / self.uv_step - iuv
+            uv_loc = uv / self._uv_step - iuv
             u_loc = np.array([1 - uv_loc[0], uv_loc[0]])
             v_loc = np.array([1 - uv_loc[1], uv_loc[1]])
-            Z_mat = self.grid_z[iv: (iv + 2), iu: (iu + 2)]
-            result[i] = self.z_surface.z_scale*(v_loc.dot(Z_mat).dot(u_loc)) + self.z_surface.z_shift
+            Z_mat = self.grid_uvz[iu: (iu + 2), iv: (iv + 2), 2]
+            result[i] = self.z_scale*(v_loc.dot(Z_mat).dot(u_loc)) + self.z_shift
         return result
 
 

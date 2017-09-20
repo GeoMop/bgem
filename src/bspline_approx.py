@@ -102,6 +102,15 @@ def curve_from_grid(points, **kwargs):
     :param points - N x D array, D is dimension
     :param nt Prescribed number of poles of the resulting spline.
     :return: Curve object.
+
+    TODO:
+    - Measure efficiency. Estimate how good we can be. Do it our self if we can do at leas 10 times better.
+    - Find out which method is used. Hoschek (4.4.1) refers to several methods how to determine parametrization of
+    the curve, i.e. Find parameters t_i to the given approximation points P_i.
+    - Further on it is not clear what is the mening of the 's' parameter and how one cna influence tolerance and smoothness.
+    - Some sort of adaptivity is used.
+
+
     """
     deg = kwargs.get('degree', 3)
     tol = kwargs.get('tol', 0.01)
@@ -122,6 +131,16 @@ def curve_from_grid(points, **kwargs):
 
 
 class _SurfaceApprox:
+    """
+    TODO:
+    - Check efficiency of scipy methods, compare it to our approach assuming theoretical number of operations.
+    - Optimize construction of A regularization matrix.
+    - Compute BtB directly during single assembly pass, local 9x9 matricies as in A matrix.
+    - In contradiction to some literature (Hoschek) solution of the LS system is fast as long as the basis is local (
+      this is true for B-splines).
+    - Extensions to fitting X and Y as well - general Surface
+
+    """
 
 
 

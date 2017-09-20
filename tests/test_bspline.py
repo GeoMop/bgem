@@ -3,11 +3,18 @@ import bspline as bs
 import numpy as np
 import math
 import bspline_plot as bs_plot
+
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
-
 class TestSplineBasis:
+
     def test_find_knot_interval(self):
+        """
+        test methods:
+        - make_equidistant
+        - find_knot_interval
+        """
         eq_basis = bs.SplineBasis.make_equidistant(2, 100)
         assert eq_basis.find_knot_interval(0.0) == 0
         assert eq_basis.find_knot_interval(0.001) == 0
@@ -27,8 +34,22 @@ class TestSplineBasis:
                 i_found = basis.find_knot_interval(x)
                 assert i_found == interval - 2, "i_found: {} i: {} j: {} x: {} ".format(i_found, interval-2, j, x)
 
-    def plot_basis(self, degree):
-        eq_basis = bs.SplineBasis.make_equidistant(degree, 4)
+
+    def test_packed_knots(self):
+        """
+        Test:
+         - make_from_packed_knots
+         - pack_knots
+        :return:
+        """
+        packed = [(-0.1, 3), (0,1), (1,1), (1.1, 3)]
+        basis = bs.SplineBasis.make_from_packed_knots(2, packed)
+        assert packed == basis.pack_knots()
+
+
+
+
+    def plot_basis(self, eq_basis):
         n_points = 401
         x_coord = np.linspace(eq_basis.domain[0], eq_basis.domain[1], n_points)
 
@@ -40,22 +61,11 @@ class TestSplineBasis:
 
 
     def test_eval(self):
-        #self.plot_basis(0)
-        #self.plot_basis(1)
-        #self.plot_basis(2)
-        #self.plot_basis(3)
+        #self.plot_basis(bs.SplineBasis.make_equidistant(0, 4))
 
         knots = np.array([0, 0, 0, 0.1880192, 0.24545785, 0.51219762, 0.82239001, 1., 1. , 1.])
         basis = bs.SplineBasis(2, knots)
-        n_points = 100
-        x_coord = np.linspace(basis.domain[0], basis.domain[1], n_points)
-
-        for i_base in range(basis.size):
-            y_coord = [ basis.eval(i_base, x) for x in x_coord ]
-            plt.plot(x_coord, y_coord)
-
-        plt.show()
-
+        # self.plot_basis(basis)
 
         eq_basis = bs.SplineBasis.make_equidistant(0, 2)
         assert eq_basis.eval(0, 0.0) == 1.0
@@ -75,6 +85,23 @@ class TestSplineBasis:
         assert eq_basis.eval(1, 0.125) == 0.5
         assert eq_basis.eval(2, 1.0) == 0.0
 
+        # check summation to one:
+        for deg in range(0, 10):
+            basis = bs.SplineBasis.make_equidistant(deg, 2)
+            for x in np.linspace(basis.domain[0], basis.domain[1], 10):
+                s = sum([ basis.eval(i, x) for i in range(basis.size) ])
+                assert np.isclose(s, 1.0)
+
+    def fn_supp(self):
+        basis = bs.SplineBasis.make_equidistant(2, 4)
+        for i in range(basis.size):
+            supp = basis.fn_supp(i)
+            for x in np.linspace(supp[0] - 0.1, supp[0], 10):
+                assert basis.eval(i, x) == 0.0
+            for x in np.linspace(supp[0] + 0.001, supp[1] - 0.001, 10):
+                assert basis.eval(i, x) > 0.0
+            for x in np.linspace(supp[1], supp[1] + 0.1):
+                assert basis.eval(i, x) == 0.0
 
     def test_linear_poles(self):
         eq_basis = bs.SplineBasis.make_equidistant(2, 4)
@@ -86,10 +113,8 @@ class TestSplineBasis:
             x = np.dot(b_vals, poles)
             assert np.abs( x - t ) < 1e-15
 
-
-
     def check_eval_vec(self, basis, i, t):
-        vec = basis.eval_base_vector(i, t)
+        vec = basis.eval_vector(i, t)
         for j in range(basis.degree + 1):
             assert vec[j] == basis.eval(i + j, t)
 
@@ -100,7 +125,7 @@ class TestSplineBasis:
         y_coords = np.zeros( (basis.size, x_coord.shape[0]) )
         for i, x in enumerate(x_coord):
             idx = basis.find_knot_interval(x)
-            y_coords[idx : idx + basis.degree + 1, i] = basis.eval_base_vector(idx, x)
+            y_coords[idx : idx + basis.degree + 1, i] = basis.eval_vector(idx, x)
 
         for i_base in range(basis.size):
             plt.plot(x_coord, y_coords[i_base, :])
@@ -108,7 +133,7 @@ class TestSplineBasis:
         plt.show()
 
 
-    def test_eval_base_vec(self):
+    def test_eval_vec(self):
         basis = bs.SplineBasis.make_equidistant(2, 4)
         # self.plot_basis_vec(basis)
         self.check_eval_vec(basis, 0, 0.1)
@@ -116,7 +141,6 @@ class TestSplineBasis:
         self.check_eval_vec(basis, 2, 0.6)
         self.check_eval_vec(basis, 3, 0.8)
         self.check_eval_vec(basis, 3, 1.0)
-
 
         basis = bs.SplineBasis.make_equidistant(3, 4)
         # self.plot_basis_vec(basis)
@@ -129,7 +153,7 @@ class TestSplineBasis:
 
 
     def check_diff_vec(self, basis, i, t):
-        vec = basis.eval_diff_base_vector(i, t)
+        vec = basis.eval_diff_vector(i, t)
         for j in range(basis.degree + 1):
             assert np.abs(vec[j] - basis.eval_diff(i + j, t)) < 1e-15
 
@@ -140,7 +164,7 @@ class TestSplineBasis:
         y_coords = np.zeros( (basis.size, x_coord.shape[0]) )
         for i, x in enumerate(x_coord):
             idx = basis.find_knot_interval(x)
-            y_coords[idx : idx + basis.degree + 1, i] = basis.eval_diff_base_vector(idx, x)
+            y_coords[idx : idx + basis.degree + 1, i] = basis.eval_diff_vector(idx, x)
 
         for i_base in range(basis.size):
             plt.plot(x_coord, y_coords[i_base, :])
@@ -166,6 +190,7 @@ class TestSplineBasis:
         self.check_diff_vec(basis, 3, 1.0)
 
 
+
 class TestCurve:
 
     def plot_4p(self):
@@ -174,15 +199,24 @@ class TestCurve:
         basis = bs.SplineBasis.make_equidistant(degree, 2)
         curve = bs.Curve(basis, poles)
 
-        bs_plot.plot_curve_2d(curve)
-        bs_plot.plot_curve_poles_2d(curve)
+        bs_plot.plot_curve_2d(curve, poles=True)
+        b00, b11 = curve.aabb()
+        b01 = [b00[0], b11[1]]
+        b10 = [b11[0], b00[1]]
+        bb = np.array([b00, b10, b11, b01, b00])
+
+        plt.plot( bb[:, 0], bb[:, 1], color='green')
         plt.show()
 
     def test_evaluate(self):
         # self.plot_4p()
+        # TODO: make numerical tests with explicitely computed values
+        # TODO: test rational curves, e.g. circle
+
         pass
 
-    # TODO: test rational curves, e.g. circle
+
+
 
 
 
@@ -204,8 +238,7 @@ class TestSurface:
         u_basis = bs.SplineBasis.make_equidistant(2, 1)
         v_basis = bs.SplineBasis.make_equidistant(2, 2)
         surface_extrude = bs.Surface( (u_basis, v_basis), poles)
-        bs_plot.plot_surface_3d(surface_extrude, ax)
-        bs_plot.plot_surface_poles_3d(surface_extrude, ax)
+        bs_plot.plot_surface_3d(surface_extrude, ax, poles = True)
         plt.show()
 
     def plot_function(self):
@@ -226,14 +259,10 @@ class TestSurface:
         plt.show()
 
     def test_evaluate(self):
-        from mpl_toolkits.mplot3d import Axes3D
-        import matplotlib.pyplot as plt
-
         # self.plot_extrude()
         # self.plot_function()
-
-
         # TODO: test rational surfaces, e.g. sphere
+        pass
 
 
 
@@ -282,8 +311,7 @@ class TestPointGrid:
     def make_point_grid(self):
         nu, nv = 5,6
         grid = bs.make_function_grid(TestPointGrid.function, 5, 6).reshape(nu*nv, 3)
-        surf = bs.GridSurface()
-        surf.init_from_seq(grid.T)
+        surf = bs.GridSurface(grid)
         return surf
 
     def check_surface(self, surf, xy_mat, xy_shift, z_mat):
@@ -308,9 +336,12 @@ class TestPointGrid:
 
         uvz = np.concatenate( (UV.T, Z_grid[:, None]), axis = 1)
         for u, v, z_approx in uvz:
-            z_func = z_mat[0]*self.function([u,v]) + z_mat[1]
+            z_func = z_mat[0]*TestPointGrid.function([u,v]) + z_mat[1]
             eps = max(eps, math.fabs( z_approx - z_func))
-            assert math.fabs( z_approx - z_func) < tol
+            assert np.isclose(z_approx,  z_func, atol = tol)
+
+            x, y, z = surf.eval_array(np.array([[u,v]]))[0]
+            assert np.isclose(z_approx, z, atol=tol)
         print("Max norm: ", eps, "Tol: ", tol)
 
     def test_grid_surface(self):
