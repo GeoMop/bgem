@@ -174,6 +174,27 @@ class SplineBasis:
         return packed_knots
 
 
+    def check(self, t, rtol = 1e-10):
+        """
+        Check that 't' is inside basis domain. Fix small perturbations.
+        :param t:
+        :return:
+        """
+        if self.domain[0] <= t <= self.domain[1]:
+            return t
+        else:
+            tol = (np.abs(t)  + 1e-4)*rtol
+            assert self.domain[0] - tol <= t <= self.domain[1] + tol, \
+                "Evaluate spline, t={}, out of domain: {}.".format(t, self.domain)
+            if t < self.domain[0]:
+                return self.domain[0]
+            else:
+                return self.domain[1]
+
+
+
+            self.domain[0]
+
     def find_knot_interval(self, t):
         """
         Find the first non-empty knot interval containing the value 't'.
@@ -187,6 +208,7 @@ class SplineBasis:
         idx = np.searchsorted(self.knots[self.degree: -self.degree -1], [t], side='right')[0] - 1
         assert 0 <= idx <= self.n_intervals, "Evaluation out of spline domain; t: {} min: {} max: {}".format(t, self.knots[0], self.knots[-1])
         return min(idx, self.n_intervals - 1)   # deals with t == self.knots[-1]
+
 
 
     def _basis(self, deg, idx, t):
@@ -514,7 +536,8 @@ class Surface:
         - use basis.eval_vector
         - test evaluation for rational curves
         """
-
+        u = self.u_basis.check(u)
+        v = self.v_basis.check(v)
         iu = self.u_basis.find_knot_interval(u)
         iv = self.v_basis.find_knot_interval(v)
         du = self.u_basis.degree + 1
@@ -797,18 +820,13 @@ class GridSurface:
         self.z_scale = 1.0
         self.z_shift = 0.0
 
-        # self._grid_z = point_seq[2, :].reshape(self.nv, self.nu)
-        # grid of original Z values, format as matrix
-
-
         self._uv_step = (1.0 / float(self.shape[0] - 1), 1.0 / float(self.shape[1] - 1))
         # Grid step in u, v direction respectively.
 
+        self.grid_uvz = None
+        # numpy array nu x nv x 3 with original XYZ values transformed to unit square.
+
         self._make_z_surface( point_seq)
-
-        self.points_xyz = point_seq
-        # Original sequance of XYZ points
-
         self._check_map()
 
 
@@ -881,7 +899,7 @@ class GridSurface:
     def _check_map(self):
         # check that xy_to_uv works fine
         uv_quad = self.xy_to_uv(self.quad)
-        print( uv_quad )
+        #print( "Check quad: ", uv_quad )
         assert np.allclose( uv_quad, np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
 
