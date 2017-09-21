@@ -1,7 +1,6 @@
 import enum
-import itertools
 import numpy as np
-import bspline as bs
+
 
 
 '''

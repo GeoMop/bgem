@@ -20,6 +20,8 @@ def plane_surface(vtxs, overhang=0.0):
     """
     Returns B-spline surface of a plane given by 3 points.
     We retun also list of UV coordinates of the given points.
+    U direction v0 -> v1
+    V direction v0 -> v2
     :param vtxs: List of tuples (X,Y,Z)
     :return: ( Surface, vtxs_uv )
     """

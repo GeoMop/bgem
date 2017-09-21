@@ -20,69 +20,6 @@ import numpy.linalg as la
 
 __author__ = 'Jan Brezina <jan.brezina@tul.cz>, Jiri Hnidek <jiri.hnidek@tul.cz>, Jiri Kopal <jiri.kopal@tul.cz>'
 
-    
-# class ParamError(Exception):
-#     pass
-#
-# def check_matrix(mat, shape, values, idx=[]):
-#     '''
-#     Check shape and type of scalar, vector or matrix.
-#     :param mat: Scalar, vector, or vector of vectors (i.e. matrix). Vector may be list or other iterable.
-#     :param shape: List of dimensions: [] for scalar, [ n ] for vector, [n_rows, n_cols] for matrix.
-#     If a value in this list is None, the dimension can be arbitrary. The shape list is set fo actual dimensions
-#     of the matrix.
-#     :param values: Type or tuple of  allowed types of elements of the matrix. E.g. ( int, float )
-#     :param idx: Internal. Used to pass actual index in the matrix for possible error messages.
-#     :return:
-#     '''
-#     try:
-#         if len(shape) == 0:
-#             if not isinstance(mat, values):
-#                 raise ParamError("Element at index {} of type {}, expected instance of {}.".format(idx, type(mat), values))
-#         else:
-#             if shape[0] is None:
-#                 shape[0] = len(mat)
-#             l=None
-#             if not hasattr(mat, '__len__'):
-#                 l=0
-#             elif len(mat) != shape[0]:
-#                 l=len(mat)
-#             if not l is None:
-#                 raise ParamError("Wrong len {} of element {}, should be  {}.".format(l, idx, shape[0]))
-#             for i, item in enumerate(mat):
-#                 sub_shape = shape[1:]
-#                 check_matrix(item, sub_shape, values, idx = [i] + idx)
-#                 shape[1:] = sub_shape
-#         return shape
-#     except ParamError:
-#         raise
-#     except Exception as e:
-#         raise ParamError(e)
-#
-#
-# def check_knots(deg, knots, N):
-#     total_multiplicity = 0
-#     for knot, mult in knots:
-#         # This condition must hold if we assume only (0,1) interval of curve or surface parameters.
-#         #assert float(knot) >= 0.0 and float(knot) <= 1.0
-#         total_multiplicity += mult
-#     assert total_multiplicity == deg + N + 1
-#
-#
-# scalar_types = (int, float, np.int64)
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 class SplineBasis:
     """
@@ -496,7 +433,7 @@ class Surface:
         :param degree: Non-negative int
         """
         u_basis = SplineBasis(degree[0], knots[0])
-        v_basis = SplineBasis(degree[0], knots[0])
+        v_basis = SplineBasis(degree[1], knots[1])
         return cls( (u_basis, v_basis), poles, rational)
 
 
@@ -567,6 +504,13 @@ class Surface:
         assert uv_points.shape[1] == 2
         return np.array( [ self.eval(u, v) for u, v in uv_points] )
 
+    def aabb(self):
+        """
+        Return Axes Aligned Bounding Box of the poles, which should be also bounding box of the curve itself.
+        :return: ( min_corner, max_corner); Box corners are numpy arryas of dimension D.
+        TODO: test
+        """
+        return (np.amin(self.poles, axis=(0,1)), np.amax(self.poles, axis=(0,1)))
 
 
 class Z_Surface:
@@ -777,7 +721,7 @@ class GridSurface:
 
 
     @staticmethod
-    def load(self, filename):
+    def load(filename):
         """
         Load the grid surface from file
         :param filename:
@@ -785,7 +729,7 @@ class GridSurface:
         """
         point_seq = np.loadtxt(filename)
         assert min(point_seq.shape) > 1
-        GridSurface(point_seq.T)
+        return GridSurface(point_seq)
 
     """
     Can load and check grid of XYZ points and construct a
