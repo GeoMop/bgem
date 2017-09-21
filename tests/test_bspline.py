@@ -215,7 +215,12 @@ class TestCurve:
 
         pass
 
-
+    def test_aabb(self):
+        poles = [ [0., 0.], [1.0, 0.5], [2., -2.], [3., 1.] ]
+        basis = bs.SplineBasis.make_equidistant(2, 2)
+        curve = bs.Curve(basis, poles)
+        box = curve.aabb()
+        assert np.allclose( box, np.array([ [0,-2], [3, 1]]) )
 
 
 
@@ -242,12 +247,12 @@ class TestSurface:
         plt.show()
 
     def plot_function(self):
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+
         # function surface
         def function(x):
             return math.sin(x[0]) * math.cos(x[1])
-
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
 
         poles = bs.make_function_grid(function, 4, 5)
         u_basis = bs.SplineBasis.make_equidistant(2, 2)
@@ -263,6 +268,19 @@ class TestSurface:
         # self.plot_function()
         # TODO: test rational surfaces, e.g. sphere
         pass
+
+
+    def test_aabb(self):
+        # function surface
+        def function(x):
+            return x[0] * (x[1] + 1.0) + 3.0
+
+        poles = bs.make_function_grid(function, 4, 5)
+        u_basis = bs.SplineBasis.make_equidistant(2, 2)
+        v_basis = bs.SplineBasis.make_equidistant(2, 3)
+        surface_func = bs.Surface( (u_basis, v_basis), np.array(poles))
+        box = surface_func.aabb()
+        assert np.allclose( box, np.array([ [0,0, 3], [1, 1, 5]]) )
 
 
 
@@ -299,6 +317,20 @@ class TestZ_Surface:
         #self.plot_function_uv()
         pass
 
+    def test_aabb(self):
+        # function surface
+        def function(x):
+            return x[0] * (x[1] + 1.0) + 3.0
+
+        poles = bs.make_function_grid(function, 4, 5)
+        u_basis = bs.SplineBasis.make_equidistant(2, 2)
+        v_basis = bs.SplineBasis.make_equidistant(2, 3)
+        surface_func = bs.Surface( (u_basis, v_basis), poles[:,:, [2] ])
+
+        quad = np.array( [ [0, 0], [0, 0.5], [1, 0.1],  [1.1, 1.1] ]  )
+        z_surf = bs.Z_Surface(quad, surface_func)
+        box = z_surf.aabb()
+        assert np.allclose(box, np.array([[0, 0, 3], [1.1, 1.1, 5]]))
 
 
 class TestPointGrid:
@@ -389,4 +421,8 @@ class TestPointGrid:
         assert np.all(surface.quad == new_quad), "surf: {} ref: {}".format(surface.quad, new_quad)
         self.check_surface(surface, xy_mat, xy_shift, z_shift)
 
-
+        surf_center = surface.center()
+        ref_center = np.array( [-2.0, math.sqrt(2.0)+5.0, (math.sin(0.5)*math.cos(0.5) + 1.3) ] )
+        #print(surf_center)
+        #print(ref_center)
+        assert np.allclose( ref_center, surf_center, rtol=0.01)

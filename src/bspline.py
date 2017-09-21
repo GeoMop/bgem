@@ -412,7 +412,7 @@ class Curve:
         Return Axes Aligned Bounding Box of the poles, which should be also bounding box of the curve itself.
         :return: ( min_corner, max_corner); Box corners are numpy arryas of dimension D.
         """
-        return (np.amin(self.poles, axis=0), np.amax(self.poles, axis=0))
+        return np.array( [np.amin(self.poles, axis=0), np.amax(self.poles, axis=0)] )
 
 
 class Surface:
@@ -510,7 +510,7 @@ class Surface:
         :return: ( min_corner, max_corner); Box corners are numpy arryas of dimension D.
         TODO: test
         """
-        return (np.amin(self.poles, axis=(0,1)), np.amax(self.poles, axis=(0,1)))
+        return np.array( [np.amin(self.poles, axis=(0,1)), np.amax(self.poles, axis=(0,1))] )
 
 
 class Z_Surface:
@@ -705,6 +705,13 @@ class Z_Surface:
         z_points = self.z_surface.eval_array(uv_points)
         return z_points.reshape(-1)
 
+
+    def aabb(self):
+        xyz_box = np.empty( (2, 3) )
+        xyz_box[0, 0:2] = np.amin(self.quad, axis=0)
+        xyz_box[1, 0:2] = np.amax(self.quad, axis=0)
+        xyz_box[:, 2] = self.z_surface.aabb()[:,0]
+        return xyz_box
 
 
 
@@ -926,7 +933,12 @@ class GridSurface:
         return result
 
 
+    def center(self):
+        return self.eval_array( np.array([ [0.5, 0.5] ]))[0]
 
+
+    def aabb(self):
+        return self.z_surface.aabb()
 
 
 def make_function_grid(fn, nu, nv):
