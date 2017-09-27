@@ -90,7 +90,7 @@ class TestSurfaceApprox:
         xyz_func = eval_func_on_grid(function_sin_cos, xy_mat[:2,:2], xy_mat[:, 2], z_mat)
 
         print("Compare: Func - GridSurface.transform")
-        points = bs.make_function_grid(function_sin_cos, 30, 40)
+        points = bs.make_function_grid(function_sin_cos, 200, 200)
         gs = bs.GridSurface(points.reshape(-1, 3))
         gs.transform(xy_mat, z_mat)
         xyz_grid = eval_z_surface_on_grid(gs, xy_mat[:2,:2], xy_mat[:, 2])
@@ -103,7 +103,8 @@ class TestSurfaceApprox:
         grid_cmp(xyz_func, xyz_grid, 0.02)
 
         print("Compare: Func - GridSurface.transform.Z_surf_approx")
-        z_surf = bs_approx.surface_from_grid(gs, (16, 24))
+        #z_surf = bs_approx.surface_from_grid(gs, (16, 24))
+        z_surf = bs_approx.surface_from_grid(gs, (100, 100))
         #z_surf.transform(xy_mat, z_mat)
         xyz_grid = eval_z_surface_on_grid(z_surf, xy_mat[:2,:2], xy_mat[:, 2])
         grid_cmp(xyz_func, xyz_grid, 0.02)

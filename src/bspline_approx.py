@@ -401,7 +401,7 @@ class _SurfaceApprox:
         data_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
         nnz_a = 0
 
-
+        print("vnint: {} unint: {} nqp: {} prod: {}".format(v_n_inter, u_n_inter, nq_points, v_n_inter* u_n_inter* nq_points*nq_points))
         for i in range(v_n_inter):
             j_idx = v_idx[i] # * nq_points + k
             for l in range(u_n_inter):
@@ -413,6 +413,19 @@ class _SurfaceApprox:
                         u_point = u_val[:, l * nq_points + m]
                         ud_point = ud_val[:, l * nq_points + m]
 
+
+                        # 9x9 dense matrix for single patch is:
+                        # N'_i(u) * N'_k(u) * N_j(v)*N_l(v) + N_i(u) * N_k(u) * N'_j(v) * N'_l(v)
+                        # Precomputing M'_ik(u) = N'_i(u) * N'_k(u) and M_ik(u) = N_i(u) * N_k(u)
+                        # and similarly M'_jl(v) and M_jl(v) for u and v quad points we can compute
+                        # whole local matrix as M_I(u_i) * M'_J(v_j) + M'_I(u_i)*M_J(v_j) =
+                        # [ M_I, M'_I ](u_i) .dot. [ M'_J, M_J](v_j)
+                        # sum_i,j X_I(u_i) .dot. Y_J(v_j) =
+                        # (sum_i X_I(u_i)) .dot. (sum_j Y_J(v_j))
+                        # = A_I .dot. B_J
+                        # A_I = sum_i [M_I, M'_I](u_i)
+                        # B_J = sum_j [M'_J, M'_J](v_j)
+                        # matrix shapes: (9,2) .dot. (2,9)
                         for n in range(0, 3):
                             # Hard-coded Kronecker product: vd = numpy.kron(vd_point, u_point)
                             v_diff_u[3 * n:3 * (n + 1)] = vd_point[n] * u_point
@@ -437,6 +450,7 @@ class _SurfaceApprox:
                     col_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = colv[n]
                 nnz_a += n_uv_loc_nz * n_uv_loc_nz
 
+        print("Assembled")
         mat_a = scipy.sparse.coo_matrix((data_m, (row_m, col_m)),
                                         shape=(u_n_basf * v_n_basf, u_n_basf * v_n_basf)).tocsr()
 
