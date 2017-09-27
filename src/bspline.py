@@ -585,7 +585,7 @@ class Z_Surface:
         return Surface(basis, poles)
 
 
-    def transform(self, xy_mat, z_mat=np.array( [1.0, 0.0] ) ):
+    def transform(self, xy_mat, z_mat = np.array( [1.0, 0.0] ) ):
         """
         Transform the Z-surface by arbitrary XY linear transform and Z linear transform.
         :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
@@ -598,6 +598,9 @@ class Z_Surface:
         self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
         self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
         self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
+
+        # transform quad
+        self.quad = np.dot(self.quad, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2]
 
         # apply z-transfrom directly to the poles
         self.z_surface.poles *= z_mat[0]
@@ -863,14 +866,15 @@ class GridSurface:
         Note:
         """
         # just XY transfrom of underlaying z_surface
-        self.z_surface.transform(xy_mat)
-
-        # transform quad
-        self.quad = self.z_surface.uv_to_xy( np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
+        if xy_mat is not None:
+            self.z_surface.transform(xy_mat)
+            # transform quad
+            self.quad = self.z_surface.uv_to_xy( np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
         # transform z_scale
-        self.z_scale *= z_mat[0]
-        self.z_shift = z_mat[0]*self.z_shift + z_mat[1]
+        if z_mat is not None:
+            self.z_scale *= z_mat[0]
+            self.z_shift = z_mat[0]*self.z_shift + z_mat[1]
 
 
     def xy_to_uv(self, xy_points):
@@ -936,7 +940,10 @@ class GridSurface:
 
 
     def aabb(self):
-        return self.z_surface.aabb()
+        z_surf_box = self.z_surface.aabb()
+        z_surf_box[:,2] *= self.z_scale
+        z_surf_box[:, 2] += self.z_shift
+        return z_surf_box
 
 
 def make_function_grid(fn, nu, nv):

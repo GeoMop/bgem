@@ -426,3 +426,8 @@ class TestPointGrid:
         #print(surf_center)
         #print(ref_center)
         assert np.allclose( ref_center, surf_center, rtol=0.01)
+
+        v_min, v_max = surface.aabb()
+        assert np.allclose(v_min, np.array([-3.0/math.sqrt(2) -2, 0.0 + 5, 1.3]))
+        assert np.allclose(v_max, np.array([3.0 / math.sqrt(2) - 2, 4.0 / math.sqrt(2) + 5, math.sin(1.0) + 1.3]))
+
