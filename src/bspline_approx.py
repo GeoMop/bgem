@@ -336,7 +336,7 @@ class _SurfaceApprox:
         nq_points = len(self._q_points)
         point_val = np.zeros((3, n_int * nq_points))
         d_point_val = np.zeros((3, n_int * nq_points))
-        point_idx = np.zeros((n_int * nq_points, 1))
+        point_idx = np.zeros((n_int, 1))
         q_point = np.zeros((n_int * nq_points, 1))
 
         n = 0
@@ -352,8 +352,8 @@ class _SurfaceApprox:
                 u_base_vec_diff = basis.eval_diff_base_vector(idx, up)
                 point_val[:, n] = u_base_vec
                 d_point_val[:, n] = u_base_vec_diff
-                point_idx[n] = idx
                 n += 1
+        point_idx[i] = idx
         return point_val, d_point_val, point_idx, q_point
 
     def build_sparse_reg_matrix(self):
@@ -385,38 +385,39 @@ class _SurfaceApprox:
         self._weights = [1.0 / 6, 5.0 / 6, 5.0 / 6, 1.0 / 6]
         nq_points = len(self._q_points)
 
-        # TODO: rename: u_vals, u_diffs, u_idxs, u_points
-        u_point_val, ud_point_val, u_point_idx, q_u_point = self._basis_in_q_points(self.u_basis)
-        v_point_val, vd_point_val, v_point_idx, q_v_point = self._basis_in_q_points(self.v_basis)
+        # DONE: rename: u_vals, u_diffs, u_idxs, u_points
+        u_val, ud_val, u_idx, q_u_point = self._basis_in_q_points(self.u_basis)
+        v_val, vd_val, v_idx, q_v_point = self._basis_in_q_points(self.v_basis)
 
         # Matrix construction
-        # TODO: Assembly local dense blocks 9*9 and then put these nonzeroes into sparse matirx
+        # DONE: Assembly local dense blocks 9*9 and then put these nonzeroes into sparse matirx
         # TODO: use numpy opperations to make assembly of local blocks readable, eliminate loops
         colv = np.zeros(n_uv_loc_nz)
-        # TODO:rename data and data2 to something meqningful
-        data = np.zeros(n_uv_loc_nz)
-        data2 = np.zeros(n_uv_loc_nz)
-        row_m = np.zeros((v_n_inter * u_n_inter * nq_points * nq_points * n_uv_loc_nz * n_uv_loc_nz))
-        col_m = np.zeros((v_n_inter * u_n_inter * nq_points * nq_points * n_uv_loc_nz * n_uv_loc_nz))
-        data_m = np.zeros((v_n_inter * u_n_inter * nq_points * nq_points * n_uv_loc_nz * n_uv_loc_nz))
+        # DONE:rename data and data2 to something meqningful
+        v_diff_u = np.zeros(n_uv_loc_nz)
+        v_u_diff = np.zeros(n_uv_loc_nz)
+        row_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
+        col_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz)) # * nq_points * nq_points
+        data_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
         nnz_a = 0
 
 
         for i in range(v_n_inter):
-            for k in range(nq_points):
-                v_point = v_point_val[:, i * nq_points + k]
-                vd_point = vd_point_val[:, i * nq_points + k]
-                j_idx = v_point_idx[i * nq_points + k]
-                for l in range(u_n_inter):
+            j_idx = v_idx[i] # * nq_points + k
+            for l in range(u_n_inter):
+                i_idx = u_idx[l]  # * nq_points + m
+                for k in range(nq_points):
+                    v_point = v_val[:, i * nq_points + k]
+                    vd_point = vd_val[:, i * nq_points + k]
                     for m in range(nq_points):
-                        u_point = u_point_val[:, l * nq_points + m]
-                        ud_point = ud_point_val[:, l * nq_points + m]
-                        i_idx = u_point_idx[l * nq_points + m]
+                        u_point = u_val[:, l * nq_points + m]
+                        ud_point = ud_val[:, l * nq_points + m]
+
                         for n in range(0, 3):
                             # Hard-coded Kronecker product: vd = numpy.kron(vd_point, u_point)
-                            data[3 * n:3 * (n + 1)] = vd_point[n] * u_point
+                            v_diff_u[3 * n:3 * (n + 1)] = vd_point[n] * u_point
                             # Hard-coded Kronecker product: ud = numpy.kron(v_point, ud_point)
-                            data2[3 * n:3 * (n + 1)] = v_point[n] * ud_point
+                            v_u_diff[3 * n:3 * (n + 1)] = v_point[n] * ud_point
                             # column indices for data & data2
                             for p in range(0, 3):
                                 colv[3 * n + p] = (j_idx + n) * u_n_basf + i_idx + p
@@ -430,10 +431,11 @@ class _SurfaceApprox:
                         jac = 1.0 / u_n_inter / v_n_inter
                         coef = self._weights[m] * self._weights[k] * jac
                         for n in range(0, 9):
-                            row_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = colv
-                            col_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = colv[n]
-                            data_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = coef * (data[n] * data + data2[n] * data2)
-                        nnz_a += n_uv_loc_nz * n_uv_loc_nz
+                            data_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = coef * (v_diff_u[n] * v_diff_u + v_u_diff[n] * v_u_diff)
+                for n in range(0, 9):
+                    row_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = colv
+                    col_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = colv[n]
+                nnz_a += n_uv_loc_nz * n_uv_loc_nz
 
         mat_a = scipy.sparse.coo_matrix((data_m, (row_m, col_m)),
                                         shape=(u_n_basf * v_n_basf, u_n_basf * v_n_basf)).tocsr()
