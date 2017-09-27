@@ -12,9 +12,7 @@ In future:
 """
 
 
-import matplotlib.pyplot as plt
 import numpy as np
-import math
 import numpy.linalg as la
 
 
