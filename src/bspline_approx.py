@@ -335,8 +335,8 @@ class _SurfaceApprox:
         n_int = basis.n_intervals
         nq_points = len(self._q_points)
         q_point = np.zeros((n_int * nq_points, 1))
-        point_val_outer = np.zeros((3, 3 * n_int)) # "3" considers degree 2
-        d_point_val_outer = np.zeros((3, 3 * n_int)) # "3" considers degree 2
+        point_val_outer = np.zeros((3, 3, n_int)) # "3" considers degree 2
+        d_point_val_outer = np.zeros((3, 3, n_int)) # "3" considers degree 2
 
         #TODO: use numpy functions for quadrature points
         n = 0
@@ -348,8 +348,8 @@ class _SurfaceApprox:
                 q_point[n] = up
                 u_base_vec = basis.eval_base_vector(i, up)
                 u_base_vec_diff = basis.eval_diff_base_vector(i, up)
-                point_val_outer[:, 3 * i : 3 * (i + 1)] += self._weights[j] * np.outer(u_base_vec,u_base_vec)
-                d_point_val_outer[:, 3 * i : 3 * (i + 1)] += self._weights[j] * np.outer(u_base_vec_diff,u_base_vec_diff)
+                point_val_outer[:, :, i] += self._weights[j] * np.outer(u_base_vec,u_base_vec)
+                d_point_val_outer[:, :, i] += self._weights[j] * np.outer(u_base_vec_diff,u_base_vec_diff)
                 n += 1
 
         return  point_val_outer, d_point_val_outer,q_point
@@ -399,13 +399,17 @@ class _SurfaceApprox:
         for i in range(v_n_inter):
             for l in range(u_n_inter):
                 jac = 1.0 / u_n_inter / v_n_inter
-                coef = jac
-                data_m[nnz_a:nnz_a + n_uv_loc_nz * n_uv_loc_nz] = coef * ( np.kron(v_val_outer[:, 3 * i: 3 * (i + 1)],u_diff_val_outer[:, 3 * l: 3 * (l + 1)]).ravel()
-                + np.kron(v_diff_val_outer[:, 3 * i: 3 * (i + 1)],u_val_outer[:, 3 * l: 3 * (l + 1)]).ravel() )
+                idx_range = n_uv_loc_nz * n_uv_loc_nz
+                v_val_outer_loc = v_val_outer[:, :, i]
+                dv_val_outer_loc = v_diff_val_outer[:, : , i]
+                u_val_outer_loc = u_val_outer[:, :, i]
+                du_val_outer_loc = u_diff_val_outer[:, : , i]
+                data_m[nnz_a:nnz_a + idx_range] = jac * ( np.kron(v_val_outer_loc, du_val_outer_loc)
+                            + np.kron(dv_val_outer_loc, u_val_outer_loc) ).ravel()
                 colv = np.repeat((i + linsp) * u_n_basf,self.u_basis.degree+1) + llinsp
-                col_m[nnz_a:nnz_a + n_uv_loc_nz * n_uv_loc_nz] = np.repeat(colv,n_uv_loc_nz)
-                row_m[nnz_a:nnz_a + n_uv_loc_nz * n_uv_loc_nz] = np.tile(colv,n_uv_loc_nz)
-                nnz_a += n_uv_loc_nz * n_uv_loc_nz
+                col_m[nnz_a:nnz_a + idx_range] = np.repeat(colv,n_uv_loc_nz)
+                row_m[nnz_a:nnz_a + idx_range] = np.tile(colv,n_uv_loc_nz)
+                nnz_a += idx_range
         print("Assembled")
         mat_a = scipy.sparse.coo_matrix((data_m, (row_m, col_m)),
                                         shape=(u_n_basf * v_n_basf, u_n_basf * v_n_basf)).tocsr()
