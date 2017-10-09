@@ -334,11 +334,11 @@ class _SurfaceApprox:
     def _basis_in_q_points(self, basis):
         n_int = basis.n_intervals
         nq_points = len(self._q_points)
-        point_val = np.zeros((3, n_int * nq_points))
-        d_point_val = np.zeros((3, n_int * nq_points))
-        point_idx = np.zeros((n_int * nq_points, 1))
         q_point = np.zeros((n_int * nq_points, 1))
+        point_val_outer = np.zeros((3, 3, n_int)) # "3" considers degree 2
+        d_point_val_outer = np.zeros((3, 3, n_int)) # "3" considers degree 2
 
+        #TODO: use numpy functions for quadrature points
         n = 0
         for i in range(n_int):
             us = basis.knots[i + 2]
@@ -346,15 +346,14 @@ class _SurfaceApprox:
             for j in range(nq_points):
                 up = us + uil * self._q_points[j]
                 q_point[n] = up
-                # TODO: no need to find interval, idx = i
-                idx = basis.find_knot_interval(up)
-                u_base_vec = basis.eval_base_vector(idx, up)
-                u_base_vec_diff = basis.eval_diff_base_vector(idx, up)
-                point_val[:, n] = u_base_vec
-                d_point_val[:, n] = u_base_vec_diff
-                point_idx[n] = idx
+                u_base_vec = basis.eval_base_vector(i, up)
+                u_base_vec_diff = basis.eval_diff_base_vector(i, up)
+                point_val_outer[:, :, i] += self._weights[j] * np.outer(u_base_vec,u_base_vec)
+                d_point_val_outer[:, :, i] += self._weights[j] * np.outer(u_base_vec_diff,u_base_vec_diff)
                 n += 1
-        return point_val, d_point_val, point_idx, q_point
+
+        return  point_val_outer, d_point_val_outer,q_point
+
 
     def build_sparse_reg_matrix(self):
         """
@@ -385,59 +384,33 @@ class _SurfaceApprox:
         self._weights = [1.0 / 6, 5.0 / 6, 5.0 / 6, 1.0 / 6]
         nq_points = len(self._q_points)
 
-        # TODO: rename: u_vals, u_diffs, u_idxs, u_points
-        u_point_val, ud_point_val, u_point_idx, q_u_point = self._basis_in_q_points(self.u_basis)
-        v_point_val, vd_point_val, v_point_idx, q_v_point = self._basis_in_q_points(self.v_basis)
+        u_val_outer, u_diff_val_outer, q_u_point = self._basis_in_q_points(self.u_basis)
+        v_val_outer, v_diff_val_outer, q_v_point = self._basis_in_q_points(self.v_basis)
 
-        # Matrix construction
-        # TODO: Assembly local dense blocks 9*9 and then put these nonzeroes into sparse matirx
-        # TODO: use numpy opperations to make assembly of local blocks readable, eliminate loops
-        colv = np.zeros(n_uv_loc_nz)
-        # TODO:rename data and data2 to something meqningful
-        data = np.zeros(n_uv_loc_nz)
-        data2 = np.zeros(n_uv_loc_nz)
-        row_m = np.zeros((v_n_inter * u_n_inter * nq_points * nq_points * n_uv_loc_nz * n_uv_loc_nz))
-        col_m = np.zeros((v_n_inter * u_n_inter * nq_points * nq_points * n_uv_loc_nz * n_uv_loc_nz))
-        data_m = np.zeros((v_n_inter * u_n_inter * nq_points * nq_points * n_uv_loc_nz * n_uv_loc_nz))
+        row_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
+        col_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
+        data_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
+
         nnz_a = 0
+        linsp = np.linspace(0,self.u_basis.degree,self.u_basis.degree+1)
+        llinsp = np.tile(linsp,self.u_basis.degree+1)
 
-
+        print("vnint: {} unint: {} nqp: {} prod: {}".format(v_n_inter, u_n_inter, nq_points, v_n_inter* u_n_inter* nq_points*nq_points))
         for i in range(v_n_inter):
-            for k in range(nq_points):
-                v_point = v_point_val[:, i * nq_points + k]
-                vd_point = vd_point_val[:, i * nq_points + k]
-                j_idx = v_point_idx[i * nq_points + k]
-                for l in range(u_n_inter):
-                    for m in range(nq_points):
-                        u_point = u_point_val[:, l * nq_points + m]
-                        ud_point = ud_point_val[:, l * nq_points + m]
-                        i_idx = u_point_idx[l * nq_points + m]
-                        for n in range(0, 3):
-                            # Hard-coded Kronecker product: vd = numpy.kron(vd_point, u_point)
-                            data[3 * n:3 * (n + 1)] = vd_point[n] * u_point
-                            # Hard-coded Kronecker product: ud = numpy.kron(v_point, ud_point)
-                            data2[3 * n:3 * (n + 1)] = v_point[n] * ud_point
-                            # column indices for data & data2
-                            for p in range(0, 3):
-                                colv[3 * n + p] = (j_idx + n) * u_n_basf + i_idx + p
-
-                        # Hard-coded Outer product:
-                        # Jacobian * weights[m] * weights[k] * (numpy.outer(ud, ud) + numpy.outer(vd, vd))
-                        #u_q = q_u_point[l * nq_points + m, 0]
-                        #v_q = q_v_point[i * nq_points + k, 0]
-
-                        # jacobian for UV coordinates should be used
-                        jac = 1.0 / u_n_inter / v_n_inter
-                        coef = self._weights[m] * self._weights[k] * jac
-                        for n in range(0, 9):
-                            row_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = colv
-                            col_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = colv[n]
-                            data_m[nnz_a + 9 * n:nnz_a + 9 * (n + 1)] = coef * (data[n] * data + data2[n] * data2)
-                        nnz_a += n_uv_loc_nz * n_uv_loc_nz
-
+            for l in range(u_n_inter):
+                jac = 1.0 / u_n_inter / v_n_inter
+                idx_range = n_uv_loc_nz * n_uv_loc_nz
+                v_val_outer_loc = v_val_outer[:, :, i]
+                dv_val_outer_loc = v_diff_val_outer[:, : , i]
+                u_val_outer_loc = u_val_outer[:, :, i]
+                du_val_outer_loc = u_diff_val_outer[:, : , i]
+                data_m[nnz_a:nnz_a + idx_range] = jac * ( np.kron(v_val_outer_loc, du_val_outer_loc)
+                            + np.kron(dv_val_outer_loc, u_val_outer_loc) ).ravel()
+                colv = np.repeat((i + linsp) * u_n_basf,self.u_basis.degree+1) + llinsp
+                col_m[nnz_a:nnz_a + idx_range] = np.repeat(colv,n_uv_loc_nz)
+                row_m[nnz_a:nnz_a + idx_range] = np.tile(colv,n_uv_loc_nz)
+                nnz_a += idx_range
+        print("Assembled")
         mat_a = scipy.sparse.coo_matrix((data_m, (row_m, col_m)),
                                         shape=(u_n_basf * v_n_basf, u_n_basf * v_n_basf)).tocsr()
-
         return mat_a
-
-

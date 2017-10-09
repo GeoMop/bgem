@@ -119,8 +119,9 @@ class SplineBasis:
             return t
         else:
             tol = (np.abs(t)  + 1e-4)*rtol
-            assert self.domain[0] - tol <= t <= self.domain[1] + tol, \
-                "Evaluate spline, t={}, out of domain: {}.".format(t, self.domain)
+            if not self.domain[0] - tol <= t <= self.domain[1] + tol:
+                raise IndexError("Evaluate spline, t={}, out of domain: {}.".format(t, self.domain))
+
             if t < self.domain[0]:
                 return self.domain[0]
             else:
@@ -814,7 +815,7 @@ class GridSurface:
             not la.norm(diff[1] + diff[3]) < self.step_tolerance * la.norm(diff[1]):
             raise GridNotInShapeExc("Grid XY envelope is not a parallelogram.")
 
-        self._point_tol = np.max( la.norm(diff, axis = 1) )
+        self._point_tol = self.tolerance * np.max( la.norm(diff, axis = 1) )
         self._u_step = diff[1] / (nu-1)      # v10 - v00
         self._v_step = diff[2] / (nv-1)      # v11 - v10
 
