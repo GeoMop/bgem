@@ -127,8 +127,6 @@ class SplineBasis:
             else:
                 return self.domain[1]
 
-
-
             self.domain[0]
 
     def find_knot_interval(self, t):
@@ -449,10 +447,11 @@ class Surface:
         self.u_basis, self.v_basis = basis
         # Surface basis for U and V axis.
 
-        self.dim = len(poles[0][0]) - rational
+        self.poles = np.array(poles, dtype=float)
+        self.dim = len(self.poles[0,0,:]) - rational
         # Surface dimension, D.
 
-        self.poles=np.array(poles, dtype=float)
+
         # Surface poles matrix: Nu x Nv x (D+r)
         assert self.poles.shape == (self.u_basis.size, self.v_basis.size, self.dim + rational)
 
@@ -461,7 +460,7 @@ class Surface:
         if rational:
             # precomputations
             self._weights = poles[:, :, self.dim]
-            self._poles = (poles[:,:,0:self.dim].T * self._weights.T ).T
+            self._poles = (poles[:, :, 0:self.dim].T * self._weights.T ).T
 
     def eval(self, u, v):
         """
