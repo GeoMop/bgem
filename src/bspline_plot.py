@@ -81,7 +81,7 @@ def plot_surface_3d(surface, fig_ax, n_points=(100, 100), **kwargs):
 
     img = fig_ax.plot_surface(X, Y,  Z, **kwargs)
     if poles:
-        plot_curve_poles_2d(surface)
+        plot_surface_poles_3d(surface,fig_ax)
     return img
 
 
