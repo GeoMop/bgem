@@ -2,10 +2,14 @@ import pytest
 import bspline as bs
 import numpy as np
 import math
-import bspline_plot as bs_plot
+import bspline_plot as bp
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+
+plotting = bp.Plotting()
+#plotting = bp.Plotting(bp.PlottingMatplot())
+
 
 class TestSplineBasis:
 
@@ -55,9 +59,9 @@ class TestSplineBasis:
 
         for i_base in range(eq_basis.size):
             y_coord = [ eq_basis.eval(i_base, x) for x in x_coord ]
-            plt.plot(x_coord, y_coord)
+            plotting.plot_2d(x_coord, y_coord)
 
-        plt.show()
+        plotting.show()
 
 
     def test_eval(self):
@@ -65,7 +69,7 @@ class TestSplineBasis:
 
         knots = np.array([0, 0, 0, 0.1880192, 0.24545785, 0.51219762, 0.82239001, 1., 1. , 1.])
         basis = bs.SplineBasis(2, knots)
-        # self.plot_basis(basis)
+        #self.plot_basis(basis)
 
         eq_basis = bs.SplineBasis.make_equidistant(0, 2)
         assert eq_basis.eval(0, 0.0) == 1.0
@@ -128,14 +132,14 @@ class TestSplineBasis:
             y_coords[idx : idx + basis.degree + 1, i] = basis.eval_vector(idx, x)
 
         for i_base in range(basis.size):
-            plt.plot(x_coord, y_coords[i_base, :])
+            plotting.plot_2d(x_coord, y_coords[i_base, :])
 
-        plt.show()
+        plotting.show()
 
 
     def test_eval_vec(self):
         basis = bs.SplineBasis.make_equidistant(2, 4)
-        # self.plot_basis_vec(basis)
+        #self.plot_basis_vec(basis)
         self.check_eval_vec(basis, 0, 0.1)
         self.check_eval_vec(basis, 1, 0.3)
         self.check_eval_vec(basis, 2, 0.6)
@@ -167,14 +171,14 @@ class TestSplineBasis:
             y_coords[idx : idx + basis.degree + 1, i] = basis.eval_diff_vector(idx, x)
 
         for i_base in range(basis.size):
-            plt.plot(x_coord, y_coords[i_base, :])
+            plotting.plot_2d(x_coord, y_coords[i_base, :])
 
-        plt.show()
+        plotting.show()
 
 
     def test_eval_diff_base_vec(self):
         basis = bs.SplineBasis.make_equidistant(2, 4)
-        # self.plot_basis_diff(basis)
+        #self.plot_basis_diff(basis)
         self.check_diff_vec(basis, 0, 0.1)
         self.check_diff_vec(basis, 1, 0.3)
         self.check_diff_vec(basis, 2, 0.6)
@@ -199,17 +203,17 @@ class TestCurve:
         basis = bs.SplineBasis.make_equidistant(degree, 2)
         curve = bs.Curve(basis, poles)
 
-        bs_plot.plot_curve_2d(curve, poles=True)
+        plotting.plot_curve_2d(curve, poles=True)
         b00, b11 = curve.aabb()
         b01 = [b00[0], b11[1]]
         b10 = [b11[0], b00[1]]
         bb = np.array([b00, b10, b11, b01, b00])
 
-        plt.plot( bb[:, 0], bb[:, 1], color='green')
-        plt.show()
+        plotting.plot_2d( bb[:, 0], bb[:, 1])
+        plotting.show()
 
     def test_evaluate(self):
-        # self.plot_4p()
+        #self.plot_4p()
         # TODO: make numerical tests with explicitely computed values
         # TODO: test rational curves, e.g. circle
 
@@ -233,8 +237,6 @@ class TestCurve:
 class TestSurface:
 
     def plot_extrude(self):
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
 
         # curve extruded to surface
         poles_yz = [[0., 0.], [1.0, 0.5], [2., -2.], [3., 1.]]
@@ -243,8 +245,8 @@ class TestSurface:
         u_basis = bs.SplineBasis.make_equidistant(2, 1)
         v_basis = bs.SplineBasis.make_equidistant(2, 2)
         surface_extrude = bs.Surface( (u_basis, v_basis), poles)
-        bs_plot.plot_surface_3d(surface_extrude, ax, poles = True)
-        plt.show()
+        plotting.plot_surface_3d(surface_extrude, poles = True)
+        plotting.show()
 
     def plot_function(self):
         fig = plt.figure()
@@ -258,14 +260,12 @@ class TestSurface:
         u_basis = bs.SplineBasis.make_equidistant(2, 2)
         v_basis = bs.SplineBasis.make_equidistant(2, 3)
         surface_func = bs.Surface( (u_basis, v_basis), poles)
-        bs_plot.plot_surface_3d(surface_func, ax)
-        bs_plot.plot_surface_poles_3d(surface_func, ax)
-
-        plt.show()
+        plotting.plot_surface_3d(surface_func, poles = True)
+        plotting.show()
 
     def test_evaluate(self):
-        # self.plot_extrude()
-        # self.plot_function()
+        #self.plot_extrude()
+        #self.plot_function()
         # TODO: test rational surfaces, e.g. sphere
         pass
 
@@ -294,27 +294,23 @@ class TestZ_Surface:
         def function(x):
             return math.sin(x[0]*4) * math.cos(x[1]*4)
 
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-
         poles = bs.make_function_grid(function, 4, 5)
         u_basis = bs.SplineBasis.make_equidistant(2, 2)
         v_basis = bs.SplineBasis.make_equidistant(2, 3)
         surface_func = bs.Surface( (u_basis, v_basis), poles[:,:, [2] ])
 
-        quad = np.array( [ [0, 0], [0, 0.5], [1, 0.1],  [1.1, 1.1] ]  )
-        #quad = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+        #quad = np.array( [ [0, 0], [0, 0.5], [1, 0.1],  [1.1, 1.1] ]  )
+        quad = np.array([[0, 0], [1, 0], [1, 1], [0, 1]])
         z_surf = bs.Z_Surface(quad, surface_func)
         full_surf = z_surf.make_full_surface()
+        z_surf.transform(np.array([[1., 0, 0], [0, 1, 0]]), np.array([2.0, 0]) )
+        plotting.plot_surface_3d(z_surf)
+        plotting.plot_surface_3d(full_surf)
 
-        bs_plot.plot_surface_3d(z_surf, ax)
-        bs_plot.plot_surface_3d(full_surf, ax, color='red')
-        #bs_plot.plot_surface_poles_3d(surface_func, ax)
-
-        plt.show()
+        plotting.show()
 
     def test_eval_uv(self):
-        #self.plot_function_uv()
+        self.plot_function_uv()
         pass
 
     def test_aabb(self):
@@ -348,12 +344,10 @@ class TestPointGrid:
 
 
     def plot_check_surface(self, XYZ_grid_eval, XYZ_surf_eval, XYZ_func_eval):
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        ax.plot_surface(XYZ_grid_eval[:, :, 0], XYZ_grid_eval[:, :, 1], XYZ_grid_eval[:, :, 2], color='blue')
-        ax.plot_surface(XYZ_surf_eval[:, :, 0], XYZ_surf_eval[:, :, 1], XYZ_surf_eval[:, :, 2], color='red')
-        ax.plot_surface(XYZ_func_eval[:, :, 0], XYZ_func_eval[:, :, 1], XYZ_func_eval[:, :, 2], color='green')
-        plt.show()
+        plotting.plot_surface(XYZ_grid_eval[:, :, 0], XYZ_grid_eval[:, :, 1], XYZ_grid_eval[:, :, 2], color='blue')
+        plotting.plot_surface(XYZ_surf_eval[:, :, 0], XYZ_surf_eval[:, :, 1], XYZ_surf_eval[:, :, 2], color='red')
+        plotting.plot_surface(XYZ_func_eval[:, :, 0], XYZ_func_eval[:, :, 1], XYZ_func_eval[:, :, 2], color='green')
+        plotting.show()
 
     def grid_cmp(self, a, b, tol):
         a_z = a[:, :, 2].ravel()
