@@ -2,7 +2,6 @@ import enum
 import numpy as np
 
 
-
 '''
 TODO:
 - For Solid make auto conversion from Faces similar to Face from Edges
@@ -154,7 +153,9 @@ def curve_from_bs( curve):
         curve_dim = Curve3D
     else:
         assert False
-    return curve_dim(curve.poles, curve.basis.pack_knots(), curve.rational, curve.basis.degree)
+    c = curve_dim(curve.poles, curve.basis.pack_knots(), curve.rational, curve.basis.degree)
+    c._bs_curve = curve
+    return c
 
 class Curve3D:
     """
@@ -184,6 +185,13 @@ class Curve3D:
         self.knots=knots
         self.rational=rational
         self.degree=degree
+
+    def _eval_check(self, t, point):
+        if hasattr(self, '_bs_curve'):
+            repr_pt = self._bs_curve.eval(t)
+            if not np.allclose(np.array(point), repr_pt , rtol = 1.0e-3):
+                raise Exception("Point: {} far from curve repr: {}".format(point, repr_pt))
+
 
     def _dfs(self, groups):
         if not hasattr(self, 'id'):
@@ -234,6 +242,12 @@ class Curve2D:
         self.rational=rational
         self.degree=degree
 
+    def _eval_check(self, t, surface, point):
+        if hasattr(self, '_bs_curve'):
+            u, v = self._bs_curve.eval(t)
+            surface._eval_check(u, v, point)
+
+
     def _dfs(self, groups):
         if not hasattr(self, 'id'):
             id = len(groups['curves_2d']) + 1
@@ -261,9 +275,10 @@ def surface_from_bs(surf):
     :param surf: bs.Surface object
     :return:
     """
-    return Surface(surf.poles, (surf.u_basis.pack_knots(), surf.v_basis.pack_knots()),
+    s = Surface(surf.poles, (surf.u_basis.pack_knots(), surf.v_basis.pack_knots()),
                    surf.rational, (surf.u_basis.degree, surf.v_basis.degree) )
-
+    s._bs_surface = surf
+    return s
 
 class Surface:
     """
@@ -307,6 +322,13 @@ class Surface:
         self.knots=knots
         self.rational=rational
         self.degree=degree
+
+    def _eval_check(self, u, v, point):
+        if hasattr(self, '_bs_surface'):
+            repr_pt = self._bs_surface.eval(u, v)
+            if not np.allclose(np.array(point), repr_pt, rtol = 1.0e-3):
+                raise Exception("Point: {} far from curve repr: {}".format(point, repr_pt))
+
 
     def _dfs(self, groups):
         if not hasattr(self, 'id'):
@@ -868,6 +890,8 @@ class Edge(Shape):
         :return: None
         """
         assert type(curve) == Curve3D
+        curve._eval_check(t_range[0], self.points()[0])
+        curve._eval_check(t_range[1], self.points()[1])
         self.repr.append( (self.Repr.Curve3d, t_range, curve, location) )
 
     def attach_to_2d_curve(self, t_range, curve, surface, location=Location()):
@@ -881,6 +905,8 @@ class Edge(Shape):
         """
         assert type(surface) == Surface
         assert type(curve) == Curve2D
+        curve._eval_check(t_range[0], surface, self.points()[0])
+        curve._eval_check(t_range[1], surface, self.points()[1])
         self.repr.append( (self.Repr.Curve2d, t_range, curve, surface, location) )
 
     def attach_to_plane(self, surface, v0, v1):
@@ -892,6 +918,7 @@ class Edge(Shape):
         :return:
         """
         assert type(surface) == Surface
+
         self.attach_to_2d_curve((0.0, 1.0), Approx.line_2d([v0, v1]), surface)
 
     def implicit_curve(self):
@@ -972,6 +999,7 @@ class Vertex(Shape):
         :param location: Location object. Default is None = identity location.
         :return: None
         """
+        curve._eval_check(t, self.point)
         self.repr.append( (self.Repr.Curve3d, t, curve, location) )
 
     def attach_to_2d_curve(self, t, curve, surface, location=Location()):
@@ -983,6 +1011,7 @@ class Vertex(Shape):
         :param location: Location object. Default is None = identity location.
         :return: None
         """
+        curve._eval_check(t, surface, self.point)
         self.repr.append( (self.Repr.Curve2d, t, curve, surface, location) )
 
     def attach_to_surface(self, u, v, surface, location=Location()):
@@ -993,7 +1022,9 @@ class Vertex(Shape):
         :param location: Location object. Default is None = identity location.
         :return: None
         """
+        surface._eval_check(u, v, self.point)
         self.repr.append( (self.Repr.Surface, u,v, surface, location) )
+
 
     def _dfs(self, groups):
         Shape._dfs(self,groups)
@@ -1056,6 +1087,5 @@ def write_model(stream, compound, location):
         shape._brep_output(stream, groups)
     stream.write("\n+1 0")
     #stream.write("0\n")
-
 
 
