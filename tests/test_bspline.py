@@ -310,7 +310,7 @@ class TestZ_Surface:
         plotting.show()
 
     def test_eval_uv(self):
-        self.plot_function_uv()
+        #self.plot_function_uv()
         pass
 
     def test_aabb(self):
@@ -424,4 +424,23 @@ class TestPointGrid:
         v_min, v_max = surface.aabb()
         assert np.allclose(v_min, np.array([-3.0/math.sqrt(2) -2, 0.0 + 5, 1.3]))
         assert np.allclose(v_max, np.array([3.0 / math.sqrt(2) - 2, 4.0 / math.sqrt(2) + 5, math.sin(1.0) + 1.3]))
+
+    def test_grid_surface_transform(self):
+        surface = self.make_point_grid()
+        xy_mat = np.array([ [3.0, 0.0], [0.0, 2.0] ])
+        xy_shift = np.array([[-2.0, 5.0 ]])
+        surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), None)
+        quad = surface.quad
+        #print(quad)
+        assert quad[0][0] == -2
+        assert quad[0][1] == 7
+        assert quad[2][0] == 1
+        assert quad[2][1] == 5
+
+        surface.reset_transform()
+        quad = surface.quad
+        assert quad[0][0] == 0
+        assert quad[0][1] == 1
+        assert quad[2][0] == 1
+        assert quad[2][1] == 0
 

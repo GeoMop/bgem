@@ -537,6 +537,36 @@ class Z_Surface:
         self.v_basis = z_surface.v_basis
         # Basis for UV directions.
 
+        self.reset_transform(xy_quad)
+
+
+    def make_full_surface(self):
+        """
+        Return representation of the surface by the 3d Surface object.
+        Compute redundant XY poles.
+        :return: Surface.
+        """
+        basis = (self.z_surface.u_basis, self.z_surface.v_basis)
+
+        u = basis[0].make_linear_poles()
+        v = basis[1].make_linear_poles()
+        V, U = np.meshgrid(v,u)
+        uv_poles_vec = np.stack([U.ravel(), V.ravel()], axis=1)
+        xy_poles = self.uv_to_xy(uv_poles_vec).reshape(U.shape[0], U.shape[1], 2)
+        poles = np.concatenate( (xy_poles, self.z_surface.poles), axis = 2 )
+
+        return Surface(basis, poles)
+
+    def reset_transform(self, xy_quad):
+        """
+        Set XY transform according to given domain quadrilateral (or triangle for linear mapping case).
+        :param xy_quad: np array N x 2
+            Four or three points, determining bilinear or linear mapping, respectively.
+            Four points giving XY coordinates for the uv corners: (0,1), (0,0), (1,0),  (1,1)
+            Three points giving XY coordinates for the uv corners:  (0,1), (0,0), (1,0)
+            Linear case is also detected for the four points.
+        :return: None
+        """
         # Build envelope quadrilateral polygon in XY plane.
         self.quad = np.array(xy_quad, dtype=float)
         assert self.quad.shape[0] in [3, 4], "Three or four points must be given."
@@ -561,28 +591,6 @@ class Z_Surface:
             # bilinear case
             self.xy_to_uv = self._bilinear_xy_to_uv
             self.uv_to_xy = self._bilinear_uv_to_xy
-
-
-        #TODO: remove this, after fixing GridSurface z_eval
-        #self.z_scale =1.0
-        #self.z_shift = 1.0
-
-    def make_full_surface(self):
-        """
-        Return representation of the surface by the 3d Surface object.
-        Compute redundant XY poles.
-        :return: Surface.
-        """
-        basis = (self.z_surface.u_basis, self.z_surface.v_basis)
-
-        u = basis[0].make_linear_poles()
-        v = basis[1].make_linear_poles()
-        V, U = np.meshgrid(v,u)
-        uv_poles_vec = np.stack([U.ravel(), V.ravel()], axis=1)
-        xy_poles = self.uv_to_xy(uv_poles_vec).reshape(U.shape[0], U.shape[1], 2)
-        poles = np.concatenate( (xy_poles, self.z_surface.poles), axis = 2 )
-
-        return Surface(basis, poles)
 
 
     def transform(self, xy_mat, z_mat = np.array( [1.0, 0.0] ) ):
@@ -807,6 +815,7 @@ class GridSurface:
         vtx_10 = xy_points[-nv, :]
         vtx_11 = xy_points[-1, :]
         self.quad = np.array( [ vtx_01, vtx_00, vtx_10, vtx_11 ], dtype = float )
+        self._orig_quad = self.quad
 
         # check that quad is parallelogram.
         diff = np.roll(self.quad, -1, axis = 0) - self.quad
@@ -854,6 +863,18 @@ class GridSurface:
         #print( "Check quad: ", uv_quad )
         assert np.allclose( uv_quad, np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
+    def reset_transform(self):
+        """
+        Set identify transform just as after construction.
+        :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
+        :param z_mat: [ z_scale, z_shift]
+        :return:
+        """
+        self.z_scale = 1.0
+        self.z_shift = 0.0
+        self.z_surface.reset_transform(self._orig_quad)
+        self.quad = self._orig_quad
+        self._check_map()
 
 
 
