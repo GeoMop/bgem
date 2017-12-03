@@ -302,15 +302,16 @@ class TestZ_Surface:
         #quad = np.array( [ [0, 0], [0, 0.5], [1, 0.1],  [1.1, 1.1] ]  )
         quad = np.array([[0, 0], [1, 0], [1, 1], [0, 1]])
         z_surf = bs.Z_Surface(quad, surface_func)
+        z_surf.transform(None, np.array([2.0, 0]) )
         full_surf = z_surf.make_full_surface()
-        z_surf.transform(np.array([[1., 0, 0], [0, 1, 0]]), np.array([2.0, 0]) )
+        z_surf.transform(None, np.array([1.0, 0.1]) )
         plotting.plot_surface_3d(z_surf)
         plotting.plot_surface_3d(full_surf)
 
         plotting.show()
 
     def test_eval_uv(self):
-        #self.plot_function_uv()
+        self.plot_function_uv()
         pass
 
     def test_aabb(self):
@@ -327,6 +328,10 @@ class TestZ_Surface:
         z_surf = bs.Z_Surface(quad, surface_func)
         box = z_surf.aabb()
         assert np.allclose(box, np.array([[0, 0, 3], [1.1, 1.1, 5]]))
+
+        z_surf.transform(None, np.array([2.0, 1.0]))
+        box = z_surf.aabb()
+        assert np.allclose(box, np.array([[0, 0, 7], [1.1, 1.1, 11]]))
 
 
 class TestPointGrid:

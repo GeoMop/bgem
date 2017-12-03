@@ -537,8 +537,12 @@ class Z_Surface:
         self.v_basis = z_surface.v_basis
         # Basis for UV directions.
 
-        self.reset_transform(xy_quad)
+        self.quad = None
+        # Boundary quadrilateral.
 
+        self.reset_transform(xy_quad)
+        # Set further private attributes, see comment there:
+        # _z_mat, _have_z_mat, _xy_shift, _mat_xy_to_uv, _mat_uv_to_xy
 
     def make_full_surface(self):
         """
@@ -553,7 +557,11 @@ class Z_Surface:
         V, U = np.meshgrid(v,u)
         uv_poles_vec = np.stack([U.ravel(), V.ravel()], axis=1)
         xy_poles = self.uv_to_xy(uv_poles_vec).reshape(U.shape[0], U.shape[1], 2)
-        poles = np.concatenate( (xy_poles, self.z_surface.poles), axis = 2 )
+        z_poles = self.z_surface.poles.copy()
+        if self._have_z_mat:
+            z_poles *= self.z_mat[0]
+            z_poles += self.z_mat[1]
+        poles = np.concatenate( (xy_poles, z_poles), axis = 2 )
 
         return Surface(basis, poles)
 
@@ -592,31 +600,47 @@ class Z_Surface:
             self.xy_to_uv = self._bilinear_xy_to_uv
             self.uv_to_xy = self._bilinear_uv_to_xy
 
+        self.z_mat = np.array( [1.0, 0.0] )
+        # [ z_scale, z_shift ]
 
-    def transform(self, xy_mat, z_mat = np.array( [1.0, 0.0] ) ):
+        self._have_z_mat = False
+        # Indicate that we have z_mat different from identity.
+        # Optimization for array evaluation methods. z_mat must be set anyway.
+
+    def transform(self, xy_mat, z_mat = None ):
         """
         Transform the Z-surface by arbitrary XY linear transform and Z linear transform.
         :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
-        :param z_shift: [ z_scale, z_shift]
+        :param z_shift: np.array, [ z_scale, z_shift]
         :return: None
         """
-        assert xy_mat.shape == (2, 3)
-        assert z_mat.shape == (2, )
+        if xy_mat is not None:
+            assert xy_mat.shape == (2, 3)
+            self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
+            self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
+            self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
 
-        self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
-        self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
-        self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
-
-        # transform quad
-        self.quad = np.dot(self.quad, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2]
+            # transform quad
+            self.quad = np.dot(self.quad, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2]
 
         # apply z-transfrom directly to the poles
-        self.z_surface.poles *= z_mat[0]
-        self.z_surface.poles += z_mat[1]
+        if z_mat is not None:
+            assert z_mat.shape == (2,)
+            self.z_mat[0] *= z_mat[0]
+            self.z_mat[1] = z_mat[0] * self.z_mat[1] + z_mat[1]
+            self._have_z_mat = True
 
-        #TODO: remove this, after fixing GridSurface z_eval
-        #self.z_scale *= z_mat[0]
-        #self.z_shift = self.z_shift*z_mat[0] + z_mat[1]
+    def apply_z_transform(self):
+        """
+        Apply current Z transform to the poles. Reset the Z transform.
+        :return:
+        """
+        if self._have_z_mat:
+            self.z_surface.poles *= self.z_mat[0]
+            self.z_surface.poles += self.z_mat[1]
+            self.z_mat = np.array([1.0, 0.0])
+            self._have_z_mat = False
+
 
 
 
@@ -665,6 +689,7 @@ class Z_Surface:
         :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
         """
         z = self.z_surface.eval(u, v)
+        z = self.z_mat[0] * z + self.z_mat[1]
         uv_points = np.array([[u, v]])
         x, y = self.uv_to_xy( uv_points )[0]
         return np.array( [x, y, z] )
@@ -678,6 +703,10 @@ class Z_Surface:
         """
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
+        if self._have_z_mat:
+            z_points *= self.z_mat[0]
+            z_points += self.z_mat[1]
+
         xy_points = self.uv_to_xy(uv_points)
         return np.concatenate( (xy_points, z_points), axis = 1)
 
@@ -689,8 +718,7 @@ class Z_Surface:
         :return: array N x D; D - is dimension given by dimension of poles.
         """
         uv_points  = self.xy_to_uv(xy_points)
-        z_points = self.z_surface.eval_array(uv_points)
-        return np.concatenate( (xy_points, z_points), axis = 1)
+        return self.eval_array(uv_points)
 
 
     def z_eval_array(self, uv_points):
@@ -701,6 +729,9 @@ class Z_Surface:
         """
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
+        if self._have_z_mat:
+            z_points *= self.z_mat[0]
+            z_points += self.z_mat[1]
         return z_points.reshape(-1)
 
 
@@ -711,15 +742,22 @@ class Z_Surface:
         :return: array N x D; D - is dimension given by dimension of poles.
         """
         uv_points = self.xy_to_uv(xy_points)
-        z_points = self.z_surface.eval_array(uv_points)
-        return z_points.reshape(-1)
+        return self.z_eval_array(uv_points)
+
+
+    def center(self):
+        """
+        Evaluate surface in center of UV square.
+        :return: (X, Y, Z)
+        """
+        return self.eval_array( np.array([ [0.5, 0.5] ]))
 
 
     def aabb(self):
         xyz_box = np.empty( (2, 3) )
         xyz_box[0, 0:2] = np.amin(self.quad, axis=0)
         xyz_box[1, 0:2] = np.amax(self.quad, axis=0)
-        xyz_box[:, 2] = self.z_surface.aabb()[:,0]
+        xyz_box[:, 2] = self.z_mat[0]*self.z_surface.aabb()[:,0] + self.z_mat[1]
         return xyz_box
 
 
@@ -850,6 +888,9 @@ class GridSurface:
 
         poles_z = points[:, 2].reshape(nu, nv, 1)
         self.z_surface = Z_Surface(self.quad[0:3], Surface((u_basis, v_basis), poles_z) )
+        self.u_basis = self.z_surface.u_basis
+        self.v_basis = self.z_surface.v_basis
+
         uv_points = self.z_surface.xy_to_uv( points[:, 0:2] )
         grid_uv = uv_points.reshape(nu, nv, 2)
         self.grid_uvz = np.concatenate((grid_uv, poles_z), axis=2)
