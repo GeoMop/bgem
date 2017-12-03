@@ -122,6 +122,14 @@ class Plotting:
         """
         self.backend.add_curve_2d(X,Y)
 
+    def scatter_2d(self, X, Y):
+        """
+        Add point scatter plot. Every plot use automatically different color.
+        :param X: x-coords of points
+        :param Y: y-coords of points
+        """
+        self.backend.add_points_2d(X,Y)
+
     def plot_surface(self, X, Y, Z):
         """
         Add line scatter plot. Every plot use automatically different color.
@@ -157,6 +165,14 @@ class Plotting:
         """
         x_poles, y_poles = curve.poles.T[0:2, :]    # remove weights
         return self.backend.add_points_2d(x_poles, y_poles)
+
+    def scatter_3d(self, X, Y, Z):
+        """
+        Add point scatter plot. Every plot use automatically different color.
+        :param X: x-coords of points
+        :param Y: y-coords of points
+        """
+        self.backend.add_points_3d(X, Y, Z)
 
 
     def plot_surface_3d(self, surface, n_points=(100, 100), poles=False):
