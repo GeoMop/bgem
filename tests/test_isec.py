@@ -40,7 +40,7 @@ class TestSurface:
         surface_extrude2 = bs.Surface((u_basis, v_basis), poles2)
         myplot.plot_surface_3d(surface_extrude2, poles=False)
 
-        myplot.show()
+        #myplot.show() # view
 
         return surface_extrude, surface_extrude2
 
@@ -72,8 +72,10 @@ class TestSurface:
 
         surf1, surf2 = self.plot_extrude()
         isec = iss.IsecSurfSurf(surf1, surf2)
-        boxes1, tree1 = isec.bounding_boxes(surf1)
-        boxes2, tree2 = isec.bounding_boxes(surf2)
+        box1, tree1 = isec.bounding_boxes(surf1)
+        box2, tree2 = isec.bounding_boxes(surf2)
+        isec.get_intersection(surf1,surf2,tree1,tree2,box1,box2,isec.nt,isec.nit) # surf1,surf2,tree1,tree2
+
         #print(tree1.find_box(boxes2[0]))
         #print(surf1.poles[:,:,1])
         #print(surf1.u_basis.n_intervals)
