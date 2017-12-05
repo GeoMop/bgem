@@ -14,7 +14,7 @@ In future:
 
 import numpy as np
 import numpy.linalg as la
-
+import copy
 
 __author__ = 'Jan Brezina <jan.brezina@tul.cz>, Jiri Hnidek <jiri.hnidek@tul.cz>, Jiri Kopal <jiri.kopal@tul.cz>'
 
@@ -493,6 +493,12 @@ class Surface:
             #print("val: {}".format(value.shape))
             return np.inner( value, v_base_vec)
 
+    def deep_copy(self):
+        u_basis = copy.copy(self.u_basis)
+        v_basis = copy.copy(self.v_basis)
+        poles = copy.copy(self.poles)
+        return Surface( ( u_basis, v_basis), poles)
+
     def eval_array(self, uv_points):
         """
         Evaluate in array of uv-points.
@@ -537,6 +543,7 @@ class Z_Surface:
         self.v_basis = z_surface.v_basis
         # Basis for UV directions.
 
+        self.orig_quad = xy_quad
         self.quad = None
         # Boundary quadrilateral.
 
@@ -565,7 +572,7 @@ class Z_Surface:
 
         return Surface(basis, poles)
 
-    def reset_transform(self, xy_quad):
+    def reset_transform(self, xy_quad=None):
         """
         Set XY transform according to given domain quadrilateral (or triangle for linear mapping case).
         :param xy_quad: np array N x 2
@@ -573,9 +580,13 @@ class Z_Surface:
             Four points giving XY coordinates for the uv corners: (0,1), (0,0), (1,0),  (1,1)
             Three points giving XY coordinates for the uv corners:  (0,1), (0,0), (1,0)
             Linear case is also detected for the four points.
+
+            If no xy_quad is given, we reset to the quad used in constructor.
         :return: None
         """
         # Build envelope quadrilateral polygon in XY plane.
+        if xy_quad is None:
+            xy_quad = self.orig_quad
         self.quad = np.array(xy_quad, dtype=float)
         assert self.quad.shape[0] in [3, 4], "Three or four points must be given."
         assert self.quad.shape[1] == 2
@@ -632,16 +643,25 @@ class Z_Surface:
 
     def apply_z_transform(self):
         """
-        Apply current Z transform to the poles. Reset the Z transform.
+        Make copy of the bs.Surface for Z coordinates and  apply current Z transform to the poles of the copy.
+        Reset the Z transform.
         :return:
         """
         if self._have_z_mat:
+            self.z_surface = self.z_surface.deep_copy()
             self.z_surface.poles *= self.z_mat[0]
             self.z_surface.poles += self.z_mat[1]
             self.z_mat = np.array([1.0, 0.0])
             self._have_z_mat = False
 
 
+    def get_copy(self):
+        """
+        Returns a copy of the Z_surface with own Z and XY transforms, but shared
+        bs.Surface for Z coordinates (Z poles).
+        :return: A copy of the Z_Surface object.
+        """
+        return copy.copy(self)
 
 
     """
@@ -750,7 +770,7 @@ class Z_Surface:
         Evaluate surface in center of UV square.
         :return: (X, Y, Z)
         """
-        return self.eval_array( np.array([ [0.5, 0.5] ]))
+        return self.eval_array( np.array([ [0.5, 0.5] ]))[0]
 
 
     def aabb(self):
