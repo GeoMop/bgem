@@ -115,13 +115,16 @@ class TestSurfaceApprox:
         xyz = np.concatenate((xy, z[:, None]), axis=1)
         approx = bs_approx.SurfaceApprox(xyz)
         quad = approx.compute_default_quad()
-        surface = approx.compute_approximation()
+
         nuv = approx.nuv
         ref_quad = np.array([  [-1 , 1], [0,0], [1, 1],  [0, 2] ])
         ref_quad += np.array([10, 20])
         assert np.allclose(ref_quad, quad, atol=1e-2)
 
+        nuv = approx.compute_default_nuv()
+        assert np.allclose( np.array([8, 8]), nuv)
 
+        surface = approx.compute_approximation()
         surface.transform(xy_mat = None, z_mat=z_mat)
         nu, nv = 50, 50
         uv_probe = gen_uv_grid(nu, nv)
@@ -150,9 +153,18 @@ class TestSurfaceApprox:
         # xyz_grid = eval_surface_on_grid(z_surf.make_full_surface())
         # grid_cmp(xyz_func, xyz_grid, 0.01)
 
+    def test_transformed_quad(self):
+        xy_mat = np.array( [ [1.0, -1.0, 0 ], [1.0, 1.0, 0 ]])    # rotate left pi/4 and blow up 1.44
+        np.random.seed(seed=123)
+        uv = np.random.rand(1000,2)
+        xy = xy_mat[:2,:2].dot(uv.T).T + xy_mat[:, 2]
+        z = np.array( [function_sin_cos([u, v])  for u, v in uv] )
+        xyz = np.concatenate((xy, z[:, None]), axis=1)
+        approx = bs_approx.SurfaceApprox(xyz)
+        approx.quad = np.array([  [-1 , 1], [0,0], [1, 1],  [0, 2] ])
 
-
-
+        xy_mat = np.array([[2, 1, -1],[1, 2, -2]])
+        assert np.allclose( np.array([  [-2 , -1], [-1,-2], [2, 1],  [1, 2] ]), approx.transformed_quad(xy_mat))
 
 
     def plot_approx_transformed_grid(self):

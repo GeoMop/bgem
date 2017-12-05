@@ -261,6 +261,12 @@ class SurfaceApprox:
 
     @staticmethod
     def approx_from_grid_surface(grid_surface):
+        """
+        Approximation from a GrodSurface object. Use grid of Z coords in
+        XY pozitions of poles.
+        :param grid_surface: GridSurface.
+        :return:
+        """
         u_basis, v_basis = grid_surface.u_basis, grid_surface.v_basis
 
         u_coord = u_basis.make_linear_poles()
@@ -328,23 +334,38 @@ class SurfaceApprox:
         self.quad = min_bounding_rect(hull)
         return self.quad
 
-    def _compute_default_nuv(self, n_points):
-        """
-        Default nu and nv for given number of points inside of quad.
-        :return: (nu, nv)
-        """
-        assert(self.quad is not None)
 
-        dv = la.norm(self.quad[0, :] - self.quad[1, :])
-        du = la.norm(self.quad[2, :] - self.quad[1, :])
+    def transformed_quad(self, xy_mat):
+        """
+        Return actual quad transformed by given transform matrix.
+        Boudary quadrilateral of the approximation is not touched.
+        :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
+        :return: transformed quad as 4x2 numpy array or None
+        """
+        if self.quad is None:
+            return None
+        assert xy_mat.shape == (2, 3)
 
-        # try to make number of unknowns less then number of remaining points
-        # +1 to improve determination
-        nv = np.sqrt( n_points * dv / du )
-        nu = nv * du / dv
-        nuv = np.array( [np.floor(nu / 3), np.floor(nv / 3)] ) - self._degree
-        self.nuv = np.maximum(1, nuv)
+        # transform quad
+        return np.dot(self.quad, xy_mat[0:2, 0:2].T) + xy_mat[0:2, 2]
+
+
+    def compute_default_nuv(self):
+        """
+        Compute default quad (if not set) filter points in the quad and estimate
+        nuv from their count. Set self.nuv
+        :return: nuv = (nu, nv)
+        """
+        if self.quad is None:
+            self.quad = self.compute_default_quad()
+        self._compute_uv_points()
+
+        nuv = self._compute_default_nuv(len(self._z_quad_points))
+        self.nuv = nuv.astype(int)
+        if self.nuv[0] < 1 or self.nuv[1] < 1:
+            raise Exception("Two few points, {}, to make approximation, degree: {}".format(self._n_points, self._degree))
         return self.nuv
+
 
 
 
@@ -360,16 +381,10 @@ class SurfaceApprox:
 
         logging.info('Transforming points to parametric space ...')
         start_time = time.time()
-
         if self.quad is None:
-            self.quad = self.compute_default_quad()
-        self._compute_uv_points()
-
+            self.compute_default_quad()
         if self.nuv is None:
-            self.nuv = self._compute_default_nuv(len(self._z_quad_points))
-        self.nuv = self.nuv.astype(int)
-        if self.nuv[0] < 1 or self.nuv[1] < 1:
-            raise Exception("Two few points, {}, to make approximation, degree: {}".format(self._n_points, self._degree))
+            self.compute_default_nuv()
 
         logging.info("Using {} x {} B-spline approximation.".format(self.nuv[0], self.nuv[1]))
         self._u_basis = bs.SplineBasis.make_equidistant(2, self.nuv[0])
@@ -451,6 +466,27 @@ class SurfaceApprox:
         self.surface = bs.Z_Surface(self.quad[0:3], surface_z)
 
         return self.surface
+
+
+    def _compute_default_nuv(self, n_points):
+        """
+        Default nu and nv for given number of points inside of quad.
+        :return: (nu, nv)
+        """
+        assert(self.quad is not None)
+
+        dv = la.norm(self.quad[0, :] - self.quad[1, :])
+        du = la.norm(self.quad[2, :] - self.quad[1, :])
+
+        # try to make number of unknowns less then number of remaining points
+        # +1 to improve determination
+        nv = np.sqrt( n_points * dv / du )
+        nu = nv * du / dv
+        nuv = np.array( [np.floor(nu / 3), np.floor(nv / 3)] ) - self._degree
+        self.nuv = np.maximum(1, nuv)
+        return self.nuv
+
+
 
     def _compute_uv_points(self):
         """
