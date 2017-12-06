@@ -626,6 +626,7 @@ class Z_Surface:
         :return: None
         """
         if xy_mat is not None:
+            xy_mat = np.array(xy_mat)
             assert xy_mat.shape == (2, 3)
             self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
             self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
@@ -636,10 +637,18 @@ class Z_Surface:
 
         # apply z-transfrom directly to the poles
         if z_mat is not None:
+            z_mat = np.array(z_mat)
             assert z_mat.shape == (2,)
             self.z_mat[0] *= z_mat[0]
             self.z_mat[1] = z_mat[0] * self.z_mat[1] + z_mat[1]
             self._have_z_mat = True
+
+    def get_xy_matrix(self):
+        """
+        Return xy_mat of curent XY tranasform.
+        :return:
+        """
+        return np.concatenate((self._mat_uv_to_xy, self._xy_shift[:, None]), axis=1)
 
     def apply_z_transform(self):
         """
