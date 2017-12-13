@@ -622,29 +622,38 @@ class SurfaceApprox:
 
         u_val_outer, u_diff_val_outer, q_u_point = self._basis_in_q_points(self._u_basis)
         v_val_outer, v_diff_val_outer, q_v_point = self._basis_in_q_points(self._v_basis)
+        # xy_outer shape is (3, 3, n_inter)
 
         row_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
         col_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
         data_m = np.zeros((v_n_inter * u_n_inter * n_uv_loc_nz * n_uv_loc_nz))
 
         nnz_a = 0
-        linsp = np.linspace(0,self._u_basis.degree,self._u_basis.degree+1)
-        llinsp = np.tile(linsp,self._u_basis.degree+1)
-
+        #linsp = np.linspace(0, self._u_basis.degree, self._u_basis.degree+1)
+        #llinsp = np.tile(linsp, self._u_basis.degree+1)
+        #np.repeat((iv + linsp) * u_n_basf, self._u_basis.degree + 1) + llinsp
+        i_local = np.arange(self._u_basis.degree+1, dtype=int)
+        iuv_local = (u_n_basf * i_local[:, None] + i_local[None,:]).ravel() # 0,1,2, N+[0,1,2], 2*N+[0,1,2]
         #print("vnint: {} unint: {} nqp: {} prod: {}".format(v_n_inter, u_n_inter, nq_points, v_n_inter* u_n_inter* nq_points*nq_points))
-        for i in range(v_n_inter):
-            for l in range(u_n_inter):
-                jac = 1.0 / u_n_inter / v_n_inter
-                idx_range = n_uv_loc_nz * n_uv_loc_nz
-                v_val_outer_loc = v_val_outer[:, :, i]
-                dv_val_outer_loc = v_diff_val_outer[:, : , i]
-                u_val_outer_loc = u_val_outer[:, :, i]
-                du_val_outer_loc = u_diff_val_outer[:, : , i]
-                data_m[nnz_a:nnz_a + idx_range] = jac * ( np.kron(v_val_outer_loc, du_val_outer_loc)
-                            + np.kron(dv_val_outer_loc, u_val_outer_loc) ).ravel()
-                colv = np.repeat((i + linsp) * u_n_basf,self._u_basis.degree+1) + llinsp
-                col_m[nnz_a:nnz_a + idx_range] = np.repeat(colv,n_uv_loc_nz)
-                row_m[nnz_a:nnz_a + idx_range] = np.tile(colv,n_uv_loc_nz)
+        jac = 1.0 / u_n_inter / v_n_inter
+        idx_range = n_uv_loc_nz * n_uv_loc_nz      # 9 * 9 = 81 NZ per single bspline square
+        for iv in range(v_n_inter):
+            v_val_outer_loc = v_val_outer[:, :, iv]
+            dv_val_outer_loc = v_diff_val_outer[:, :, iv]
+
+            for iu in range(u_n_inter):
+                u_val_outer_loc = u_val_outer[:, :, iu]
+                du_val_outer_loc = u_diff_val_outer[:, : , iu]
+                # xy_outer_loc have shape 3x3
+
+                v_du = np.kron(v_val_outer_loc, du_val_outer_loc)
+                dv_u = np.kron(dv_val_outer_loc, u_val_outer_loc)
+                data_m[nnz_a:nnz_a + idx_range] = jac * ( v_du + dv_u).ravel()  # 9x9 values
+
+                iuv = iu + iv * u_n_basf
+                colv = iuv + iuv_local
+                col_m[nnz_a:nnz_a + idx_range] = np.repeat(colv, n_uv_loc_nz)
+                row_m[nnz_a:nnz_a + idx_range] = np.tile(colv, n_uv_loc_nz)
                 nnz_a += idx_range
         #print("Assembled")
         mat_a = scipy.sparse.coo_matrix((data_m, (row_m, col_m)),

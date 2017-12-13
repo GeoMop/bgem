@@ -153,6 +153,12 @@ class TestSurfaceApprox:
         # xyz_grid = eval_surface_on_grid(z_surf.make_full_surface())
         # grid_cmp(xyz_func, xyz_grid, 0.01)
 
+    def test_approx_real_surface(self):
+        # Test approximation of real surface grid using a random subset
+        #  hard test of regularization.
+        #  TODO: use Hradek grid,
+        pass
+
     def test_transformed_quad(self):
         xy_mat = np.array( [ [1.0, -1.0, 0 ], [1.0, 1.0, 0 ]])    # rotate left pi/4 and blow up 1.44
         np.random.seed(seed=123)
