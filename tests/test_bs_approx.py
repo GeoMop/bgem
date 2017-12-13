@@ -156,8 +156,26 @@ class TestSurfaceApprox:
     def test_approx_real_surface(self):
         # Test approximation of real surface grid using a random subset
         #  hard test of regularization.
-        #  TODO: use Hradek grid,
-        pass
+        logging.basicConfig(level=logging.DEBUG)
+
+        xy_mat = np.array( [ [1.0, 0.0, 0 ], [0.0, 1.0, 0 ]])    # rotate left pi/4 and blow up 1.44
+        z_mat = np.array( [1.0, 0] )
+        xyz_func = eval_func_on_grid(function_sin_cos, xy_mat[:2,:2], xy_mat[:, 2], z_mat)
+
+        print("Compare: Func - Randomized.approx")
+        points = bs.make_function_grid(function_sin_cos, 50, 50)
+        points = points.reshape( (-1, 3) )
+        n_sample_points= 400 # this is near the limit number of points to keep desired precision
+        random_subset = np.random.random_integers(0, len(points)-1, n_sample_points)
+        points_random = points[random_subset, :]
+
+        approx = bs_approx.SurfaceApprox(points_random)
+        approx.set_quad(None)   # set unit square
+        surface = approx.compute_approximation()
+        xyz_grid = eval_z_surface_on_grid(surface, xy_mat[:2, :2], xy_mat[:, 2])
+        print("Approx error: ", approx.error)
+        grid_cmp(xyz_func, xyz_grid, 0.02)
+
 
     def test_transformed_quad(self):
         xy_mat = np.array( [ [1.0, -1.0, 0 ], [1.0, 1.0, 0 ]])    # rotate left pi/4 and blow up 1.44

@@ -324,6 +324,10 @@ class SurfaceApprox:
         # Error of the approximation
         self.error = None
 
+    def set_quad(self, quad = None):
+        if quad is None:
+            quad = np.array([[0,1], [0,0], [1,0], [1,1]])
+        self.quad = quad
 
     def compute_default_quad(self):
         """
