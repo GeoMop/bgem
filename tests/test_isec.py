@@ -72,9 +72,10 @@ class TestSurface:
 
         surf1, surf2 = self.plot_extrude()
         isec = iss.IsecSurfSurf(surf1, surf2)
-        box1, tree1 = isec.bounding_boxes(surf1)
-        box2, tree2 = isec.bounding_boxes(surf2)
-        isec.get_intersection(surf1,surf2,tree1,tree2,box1,box2,isec.nt,isec.nit) # surf1,surf2,tree1,tree2
+        #box1, tree1 = isec.bounding_boxes(surf1)
+        #box2, tree2 = isec.bounding_boxes(surf2)
+        #isec.get_intersection(surf1,surf2,tree1,tree2,box1,box2,isec.nt,isec.nit) # surf1,surf2,tree1,tree2
+        isec.get_intersection()
 
         #print(tree1.find_box(boxes2[0]))
         #print(surf1.poles[:,:,1])
