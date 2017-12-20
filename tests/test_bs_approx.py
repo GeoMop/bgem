@@ -97,7 +97,7 @@ class TestSurfaceApprox:
         # xyz_grid[:, :, 2] += z_mat[1]
         # grid_cmp(xyz_func, xyz_grid, 0.02)
 
-        print("Compare: Func - GridSurface.approx")
+        print("\nCompare: Func - GridSurface.approx")
         points = bs.make_function_grid(function_sin_cos, 50, 50)
         gs = bs.GridSurface(points.reshape(-1, 3))
         gs.transform(xy_mat, z_mat)
@@ -107,7 +107,7 @@ class TestSurfaceApprox:
         print("Approx error: ", approx.error)
         grid_cmp(xyz_func, xyz_grid, 0.02)
 
-        print("Compare: Func - points.approx")
+        print("\nCompare: Func - points.approx")
         np.random.seed(seed=123)
         uv = np.random.rand(1000,2)
         xy = xy_mat[:2,:2].dot(uv.T).T + xy_mat[:, 2]
@@ -180,29 +180,40 @@ class TestSurfaceApprox:
         surf = bs_approx.plane_surface([ [0.0, 0, 0], [1.0, 0, 0], [0.0, 0, 1] ], overhang=0.1)
         self.plot_surf(surf)
 
-    def test_surface_approx(self):
-        # self.plot_approx_grid()
-        # self.plot_approx_transformed_grid()
-        # self.plot_plane()
-        pass
+    def test_approx_speed(self):
+        logging.basicConfig(level=logging.DEBUG)
 
+        print("Performance test for 100k points.")
+        np.random.seed(seed=123)
+        uv = np.random.rand(100000,2)
+        xy = uv
+        z = np.array( [function_sin_cos([u, v])  for u, v in uv] )
+        xyz = np.concatenate((xy, z[:, None]), axis=1)
+        start_time = time.time()
+        approx = bs_approx.SurfaceApprox(xyz)
+        surface = approx.compute_approximation()
+        end_time = time.time()
+        print("\nApprox 100k points by 100x100 grid in: {} sec".format(end_time - start_time))
+        assert end_time - start_time < 6
+        # target is approximation of 1M points in one minute
+        # B matrix 3.6 sec, A matrix 0.7 sec, SVD + Z solve 0.7 sec
 
 class TestBoundingBox:
     def test_hull_and_box(self):
         points = np.random.randn(1000000,2)
 
-        print("hull")
+        print()
         start = time.perf_counter()
         for i in range(1):
             hull = bs_approx.convex_hull_2d(points)
         end = time.perf_counter()
-        print("conver hull time: ", end - start)
+        print("\nConvex hull of 1M points: {} s".format(end - start))
 
         start = time.perf_counter()
         for i in range(10):
             quad = bs_approx.min_bounding_rect(hull)
         end = time.perf_counter()
-        print("quad time: ", end - start)
+        print("Min area bounding box: {} s".format(end - start))
         return
 
         plt = bs_plot.Plotting()

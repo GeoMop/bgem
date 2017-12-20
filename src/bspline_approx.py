@@ -379,7 +379,7 @@ class SurfaceApprox:
         self.nuv = kwargs.get("nuv", self.nuv)
         self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
 
-        logging.info('Transforming points to parametric space ...')
+        logging.info('Transforming points (n={}) ...'.format(self._n_points))
         start_time = time.time()
         if self.quad is None:
             self.compute_default_quad()
@@ -391,26 +391,24 @@ class SurfaceApprox:
         self._v_basis = bs.SplineBasis.make_equidistant(2, self.nuv[1])
 
         end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
+        logging.info('Computed in: {} s'.format(end_time - start_time))
 
         # Approximation itself
         logging.info('Creating B matrix ...')
         start_time = time.time()
         b_mat, interval = self._build_ls_matrix()
         end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
+        logging.info('Computed in: {} s'.format(end_time - start_time))
 
         logging.info('Creating A matrix ...')
         start_time = time.time()
         a_mat = self._build_sparse_reg_matrix()
         end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
+        logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        logging.info('Scaling ...')
+        logging.info('Scaling + B^T B ...')
         start_time = time.time()
-
         g_vec = self._z_quad_points[:]
-
         if self._weights is not None:
             W = scipy.sparse.diags(self._w_quad_points, 0)
             wg_vec = np.dot(W, g_vec)
@@ -418,45 +416,35 @@ class SurfaceApprox:
         else:
             wg_vec = g_vec
             wb_mat = b_mat
-
         b_vec = b_mat.transpose().dot( wg_vec )
-        end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
-
-        end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
-
-        logging.info('Computing B^T B matrix ...')
-        start_time = time.time()
         bb_mat = b_mat.transpose().dot(wb_mat)
         end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
+        logging.info('Computed in: {} s'.format(end_time - start_time))
 
         logging.info('Computing A and B svds approximation ...')
         start_time = time.time()
-
-        bb_norm = scipy.sparse.linalg.svds(bb_mat, k=1, ncv=10, tol=1e-4, which='LM', v0=None,
+        bb_norm = scipy.sparse.linalg.svds(bb_mat, k=1, ncv=10, tol=1e-2, which='LM', v0=None,
                                            maxiter=300, return_singular_vectors=False)
-        a_norm = scipy.sparse.linalg.svds(a_mat, k=1, ncv=10, tol=1e-4, which='LM', v0=None,
-                                          maxiter=300, return_singular_vectors=False)
+        a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                          maxiter=300, return_eigenvectors=False)
         c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+        end_time = time.time()
+        logging.info('Computed in: {} s'.format(end_time - start_time))
 
-
-
-        logging.info('Computing Z coordinates ...')
+        logging.info('Solving for Z coordinates ...')
         start_time = time.time()
         z_vec = scipy.sparse.linalg.spsolve(c_mat, b_vec)
         assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
         end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
+        logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        logging.info('Computing differences ...')
+        logging.info('Computing error ...')
         start_time = time.time()
         diff = b_mat.dot(z_vec) - g_vec
         self.error = max_diff = np.max(diff)
         logging.info("Approximation error (max norm): {}".format(max_diff) )
         end_time = time.time()
-        logging.info('Computed in {0} seconds.'.format(end_time - start_time))
+        logging.info('Computed in: {} s'.format(end_time - start_time))
 
         # Construct Z-Surface
         poles_z = z_vec.reshape(self._v_basis.size, self._u_basis.size).T
