@@ -13,6 +13,7 @@ import scipy.sparse.linalg
 import scipy.interpolate
 
 import bspline as bs
+import csv
 
 #logging.basicConfig(level=logging.DEBUG)
 #logging.info("Test info mesg.")
@@ -256,7 +257,11 @@ class SurfaceApprox:
         :param filename: Path to the input text file.
         :return: The approximation object.
         """
-        point_seq = np.loadtxt(filename)
+        with open(filename, 'r') as f:
+            point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
+
+        # too slow: alternatives: loadtxt (16s), csv.reader (1.6s), pandas. read_csv (0.6s)
+        #point_seq = np.loadtxt(filename)
         return SurfaceApprox(point_seq)
 
 
