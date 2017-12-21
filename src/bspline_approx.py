@@ -14,7 +14,8 @@ import scipy.interpolate
 
 import bspline as bs
 
-            
+#logging.basicConfig(level=logging.DEBUG)
+#logging.info("Test info mesg.")
 """
 Approximation methods for B/splines of degree 2.
 
@@ -379,6 +380,7 @@ class SurfaceApprox:
         Approximation parameters can be passed in through kwargs or set in the object before the call.
         :return: B-Spline surface
         """
+
         self.quad = kwargs.get("quad", self.quad)
         self.nuv = kwargs.get("nuv", self.nuv)
         self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
@@ -389,6 +391,9 @@ class SurfaceApprox:
             self.compute_default_quad()
         if self.nuv is None:
             self.compute_default_nuv()
+
+        # TODO: better logic, since this has to be recomputed only if quad is changed.
+        self._compute_uv_points()
 
         logging.info("Using {} x {} B-spline approximation.".format(self.nuv[0], self.nuv[1]))
         self._u_basis = bs.SplineBasis.make_equidistant(2, self.nuv[0])
