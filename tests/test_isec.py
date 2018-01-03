@@ -64,8 +64,8 @@ class TestSurface:
         #plt.show()
 
 
-    def boudingbox(self):
-        SurfSurf = IsecSurfSurf.bounding_boxes()
+    #def boudingbox(self):
+    #    SurfSurf = IsecSurfSurf.bounding_boxes()
 
     def test_isec(self):
 

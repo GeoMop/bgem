@@ -22,22 +22,21 @@ class IsecSurfSurf:
         self.nit = nit
         #tolerance
 
-    @staticmethod
-    def bounding_boxes(surf):
+    def bounding_boxes(self,surf):
         tree = bih.BIH()
         n_patch = (surf.u_basis.n_intervals)*(surf.v_basis.n_intervals)
 
 
         patch_poles = np.zeros([9, 3, n_patch])
         i_patch = 0
-        for k in range(surf.u_basis.n_intervals):
-            for l in range(surf.v_basis.n_intervals):
+        for iu in range(surf.u_basis.n_intervals):
+            for iv in range(surf.v_basis.n_intervals):
                 n_points = 0
                 for i in range(0,3):
                     for j in range(0,3):
-                        patch_poles[n_points,:,i_patch] = surf.poles[k+i, l+j, :]
+                        patch_poles[n_points,:,i_patch] = surf.poles[iu+i, iv+j, :]
                         n_points += 1
-                assert i_patch == (k * surf.v_basis.n_intervals + l)
+                assert i_patch == (iu * surf.v_basis.n_intervals + iv)
                 i_patch += 1
 
         boxes = [bih.AABB(patch_poles[:,:,p].tolist()) for p in range(n_patch)]
@@ -61,10 +60,10 @@ class IsecSurfSurf:
         # computes intersection of BSpline patch with BSpline thread
 
 
-        point, n_points, ninter = self._compute_intersection(self.surf1,self.surf2,self.tree1,self.tree2,self.box1,self.box2)
+        point, n_points, ninter = self._intersection(self.surf1,self.surf2,self.tree1,self.tree2,self.box1,self.box2)
         # surf1, surf2, tree1, tree2, box1, box2, nt, nit
 
-    def _compute_intersection(self,surf1,surf2,tree1,tree2,box1,box2):
+    def _intersection(self,surf1,surf2,tree1,tree2,box1,box2): # use
 
         nt = self.nt
         nit = self.nit
@@ -72,212 +71,219 @@ class IsecSurfSurf:
         #surf1, surf2, tree1, tree2, box1, box2, nt, nit
         n_points = 0
         point = np.zeros([surf1.u_basis.n_intervals * surf1.v_basis.n_intervals, 11])
-        ninter =  np.zeros([surf1.u_basis.n_intervals,surf1.v_basis.n_intervals])
-        for u_index in range(surf1.u_basis.n_intervals):
-            us1 = surf1.u_basis.knots[u_index + 2]
-            ue1 = surf1.u_basis.knots[u_index + 3]
-            u1_center =(us1 + ue1)/2
-            ui = np.zeros([2,1])
-            print(ui.shape)
-            ui[0:1,0] = ([us1, ue1])
-            #ui = np.array([us1, ue1] )
-            for v_index in range(surf1.v_basis.n_intervals):
-                vs1 = surf1.v_basis.knots[v_index+2]
-                ve1 = surf1.v_basis.knots[v_index+3]
-                v1_center = (vs1  + ve1)/2
-                vi = np.array([vs1, ve1])
+        #ninter =  np.zeros([surf1.u_basis.n_intervals,surf1.v_basis.n_intervals])
+        for iu1 in range(surf1.u_basis.n_intervals):
+            for iv1 in range(surf1.v_basis.n_intervals):
                 s=0
-                box_id = v_index + surf1.u_basis.n_intervals * u_index
-                intersectioned_boxes1 = tree1.find_box(box2[box_id])
+                box_id = iv1 + surf1.v_basis.n_intervals * iu1
+                intersectioned_patches1 = tree1.find_box(box2[box_id])
+                for ipatch2 in intersectioned_patches1:
+                    iu2 = int(np.floor(ipatch2/ surf2.v_basis.n_intervals))
+                    iv2 = int(ipatch2 - (iu2 * surf2.v_basis.n_intervals))
+                    assert ipatch2 == iu2 * surf2.v_basis.n_intervals + iv2
+                    uv1, uv2, r3_coor, conv = self._patch_patch_intersection(surf1,iu1, iv1, surf2, iu2, iv2)
+                    print(uv1)
+                    print(uv2)
 
-                #if n_isec.shape[1] > 0:
-                for i_boxes1 in intersectioned_boxes1:
-                    u2_index = int(np.floor(i_boxes1 / surf2.v_basis.n_intervals))
-                    v2_index = int(i_boxes1 - (u2_index * surf2.v_basis.n_intervals))
-                    sp_i = u2_index * surf2.v_basis.n_intervals + v2_index
-                    # v2 fixed
-                    u2i = np.array([surf2.u_basis.knots[u2_index+2], surf2.u_basis.knots[u2_index+3]])
-                    v2_thread = np.linspace(surf2.v_basis.knots[v2_index+2],surf2.v_basis.knots[v2_index+3],nt)
-                    for v2_val  in v2_thread:  #=1:length(v_knot)
-                        u2_center = (u2i[0] + u2i[1])/2
-                        v2i = np.array([v2_val])
-                        uvu2v2 = np.array([u1_center, v1_center, u2_center])#initial condition
-                        uvu2v2,ptl,conv  = self._patch_patch_intersection( surf1, surf2,uvu2v2, ui,vi,u2i,v2i, nit ,u2_index,v2_index,u_index,v_index)
-
-                        if np.not_equal(conv, 0):
-                            s = s+1
-                            n_points = n_points +1
-                            point[n_points,:] = [uvu2v2,v2_val,ptl(1),ptl(2),ptl(3),u2_index,v2_index,u_index,v_index]
-
-                        # u2 fixed
-                        #v2i = [vs_knots(o+2) vs_knots(o+3)]
-                        #u_knot = linspace(us_knots(m+2),us_knots(m+3),nt)
-                        #for h =1:length(u_knot)
-                        #    v2_c = (vs_knots(o+2) + vs_knots(o+3))/2
-                        #    u2i = u_knot(h)
-                        #    uvu2v2 = [u1_c,v1_c,v2_c]; % initial condition
-                        #    [ uvu2v2,ptl,conv ] = patch_patch_intersection( uvu2v2, ui,vi,u2i,v2i, u_knots, v_knots, X,us_knots, vs_knots, Xs, nit ,m,o,k,l)
-                        #    if conv ~= 0
-                        #        s = s+1
-                        #        n_points = n_points +1
-                        #        point(n_points,:) = [uvu2v2(1:2)',u_knot(h),uvu2v2(3),ptl(1),ptl(2),ptl(3),k,l,m,o]
-
-                ninter[u_index,v_index] = s
+                    if np.not_equal(conv, 0):
+                        s = s+1
+                        n_points = n_points +1
+                        #print(uv1[0], uv1[1])
+                        #print(uv2.shape)
+                        #print(uv2.size)
+                        #print( uv2)
+                        print(r3_coor[0], r3_coor[1], r3_coor[2])
+                        print(iu2, iv2, iu1, iv1)
+                        print(uv1[0], uv1[1], uv2[0], uv2[1], r3_coor[0], r3_coor[1], r3_coor[2], iu2, iv2, iu1, iv1)
+                        point[n_points,:] = uv1[0], uv1[1], uv2[0], uv2[1], r3_coor[0], r3_coor[1], r3_coor[2], iu2, iv2, iu1, iv1
+                #ninter[iu1,iv1] = s
 
         return point, n_points, ninter
 
-    def _patch_patch_intersection( self,surf1, surf2,uvt, ui,vi,u2i,v2i, nit ,m,o,k,l):
+    @staticmethod
+    def _energetic_inner_product(u,v,X):
+        """
+        Computes energetic inner product u^T X v
+        :param u: vector of nonzero basis function in u
+        :param v: vector of nonzero basis function in v
+        :param X: tensor of poles in x,y,z
+        :return: xyz
+        """
+        #xyz = np.zeros([3,1])
+        uX = np.tensordot(u, X, axes=([0], [0]))
+        xyz = np.tensordot(uX, v, axes=([0], [0]))
+        return xyz
+
+    @staticmethod
+    def _compute_bounds(knots,idx):
+        """
+        Computes bounds of the patch
+        :param knots: knot vector
+        :param idx: index of tha patch
+        :return: s,e,c (lower bound, upper bound, center)
+        """
+        s = knots[idx +2]
+        e = knots[idx +3]
+        c = (s + e)/2
+        return s,e,c
+
+    def _compute_jacobian_and_delta(self,uvt,sum_idx,surf1,iu1,iv1,X,t_poles,t_basis,it):
+        """
+
+        :param uvt: vector of unknowns [u1,v1,t]
+        :param sum_idx: index which determines sumation - u fixed = 0, v fixed = 1
+        :param surf1: intersected surface
+        :param iu1: index of the patch of the surface (surf1) in u
+        :param iv1: index of the patch of the surface (surf1) in u
+        :param X: poles of the surface (surf1)
+        :param t_poles: poles of curve
+        :param t_basis: function basis of the curve
+        :param it: index of the interval of the curve
+        :return: J: jacobian  , deltaXYZ: vector of deltas
+        """
+
+        uf = surf1.u_basis.eval_vector(iu1, uvt[0, 0])
+        vf = surf1.v_basis.eval_vector(iv1, uvt[1, 0])
+        ufd = surf1.u_basis.eval_diff_vector(iu1, uvt[0, 0])
+        vfd = surf1.v_basis.eval_diff_vector(iv1, uvt[1, 0])
+        tf = t_basis.eval_vector(it, uvt[2, 0])
+        tfd = t_basis.eval_diff_vector(it, uvt[2, 0])
+
+        dXYZt = np.tensordot(tfd, t_poles, axes=([0], [sum_idx]))
+        dXYZu1 = self._energetic_inner_product(ufd, vf, X)
+        dXYZv1 = self._energetic_inner_product(uf, vfd, X)
+        J = np.column_stack((dXYZu1, dXYZv1, -dXYZt))
+
+        XYZ1 = self._energetic_inner_product(uf, vf, X)
+        XYZ2 = np.tensordot(tf, t_poles, axes=([0], [1]))
+
+        xyz1 = np.zeros([3, 1])
+        xyz1[0, 0] = XYZ1[0]
+        xyz1[1, 0] = XYZ1[1]
+        xyz1[2, 0] = XYZ1[2]
+        XYZ1 = xyz1
+
+        deltaXYZ = XYZ1 - XYZ2
+
+        return J, deltaXYZ
+
+    def _patch_patch_intersection( self,surf1,iu1, iv1, surf2, iu2, iv2):
         #returns coordinetes of the intersection of the patches (if exist), one
         #parameter must be fixed
-        pt = np.zeros([3,1])
-        conv =0
-        tol = 1e-6 # in x,y,z
+
+        nit = self.nit
+
+        r3_coor = np.zeros([3, 1])
+        uv1 = np.zeros([2, 1])
+        uv2 = np.zeros([2, 1])
+
+        conv = 0
+        abs_tol = 1e-6 # in x,y,z
         tol2 = 1e-4 # in u,v
         # nt = self.nt
-        #print(uvt.shape)
-        #print(uvt[0])
-        #print(uvt)
-        #print(m,o,k,l)
 
-        X2 = surf2.poles[m:m + 3, o:o + 3,:]
-        X = surf1.poles[k:k + 3, l:l + 3,:]
+        u1s, u1e, u1c = self._compute_bounds(surf1.u_basis.knots,iu1)
+        v1s, v1e, v1c = self._compute_bounds(surf1.v_basis.knots, iv1)
+        u2s, u2e, u2c = self._compute_bounds(surf2.u_basis.knots, iu2)
+        v2s, v2e, v2c = self._compute_bounds(surf2.v_basis.knots, iv2)
 
+        u1i = np.array([u1s, u1e])
+        v1i = np.array([v1s, v1e])
+        u2i = np.array([u2s, u2e])
+        v2i = np.array([v2s, v2e])
 
-        if u2i.shape[0] == 1:
-            u2f = surf2.u_basis.eval_vector(m,u2i) # eval_vector(self, i_base, t):
-
-        if v2i.shape[0] == 1:
-            v2f = surf2.v_basis.eval_vector(o,v2i)
-
-        for i in range(nit):
-            uf = surf1.u_basis.eval_vector(k,uvt[0])
-            vf = surf1.v_basis.eval_vector(l,uvt[1])
-            ufd = surf1.u_basis.eval_diff_vector(k,uvt[0])
-            vfd = surf1.v_basis.eval_diff_vector(l,uvt[1])
-
-            if u2i.shape[0] == 1:
-                v2f = surf2.v_basis.eval_vector(o,uvt[2])
-                v2fd = surf2.v_basis.eval_diff_vector(o,uvt[2])
-                uX2 = np.tensordot(u2f,X2,axes=([0],[0]))
-                dXYZp2 = np.tensordot(uX2,v2fd,axes=([0],[0]))
-
-            if v2i.shape[0] == 1:
-                u2f = surf2.u_basis.eval_vector(m,uvt[2])
-                u2fd = surf2.u_basis.eval_diff_vector(m,uvt[2])
-                uX2 = np.tensordot(u2fd,X2,axes=([0],[0]))
-                dXYZp2 = np.tensordot(uX2,v2f,axes=([0],[0]))
-
-            X1v = np.tensordot(X, vf,axes=([0],[0]))
-            dXYZu1 = np.tensordot(ufd,X1v,axes=([0],[0]))
-            X1vd = np.tensordot(X,vfd,axes=([0],[0]))
-            dXYZv1 = np.tensordot(uf,X1vd,axes=([0],[0]))
-            J = np.column_stack((dXYZu1, dXYZv1, -dXYZp2))
-
-            uX1 = np.tensordot(uf,X,axes=([0],[0]))
-            XYZ1 = np.tensordot(uX1,vf,axes=([0],[0]))
-            uX2 = np.tensordot(u2f,X,axes=([0],[0]))
-            XYZ2 = np.tensordot(uX2,v2f,axes=([0],[0]))[:,0]
-            #print(uf.shape)
-            #print(vf.shape)
-            #print(u2f.shape)
-            #print(v2f.shape)
-            #print(XYZ1.shape)
-            #print(XYZ2.shape)
-            deltaXYZ = XYZ1 - XYZ2
+        X = surf1.poles[iu1:iu1 + 3, iv1:iv1 + 3, :]
+        X2 = surf2.poles[iu2:iu2 + 3, iv2:iv2 + 3,:]
 
 
-            #print(XYZ1)
-            #print(XYZ2)
+        for sum_idx in range(0,2):
+            for thread in range(0,2):
 
-            #print(deltaXYZ)
-            uvt = uvt - la.solve(J,deltaXYZ)   #uvt = uvt- J\deltaXYZ
-            #print(uvt)
-            test,uvt = self._rangetest(uvt,ui,vi,u2i,v2i,0.0)
+                # initial condition
+                uvt = np.zeros([3, 1])
+                uvt[0, 0] = u1c
+                uvt[1, 0] = v1c
 
-            test,uvt = self._rangetest(uvt,ui,vi,u2i,v2i,tol2)
-            if test == 1:
-                if u2i.shape[0] == 1:
-                    surf2_pos = surf2.eval(u2i,uvt[2])
-                if v2i.shape[0] == 1:
-                    surf2_pos = surf2.eval(uvt[2],v2i)
+                if sum_idx == 0: # u fixed
+                    w = u2i[thread]
+                    u2f = surf2.u_basis.eval_vector(iu2,w)
+                    t_poles = np.tensordot(u2f,X2,axes=([0],[0]))
+                    t_basis = surf2.v_basis
+                    ti = v2i
+                    it = iv2
+                    uvt[2, 0] = v2c
 
-            dist = la.norm(surf1.eval(uvt[0],uvt[1]) - surf2_pos) # may be faster, indices of patches are known
+                if sum_idx == 1: # v fixed
+                    w = v2i[thread]
+                    v2f = surf2.v_basis.eval_vector(iv2,w)
+                    t_poles = np.tensordot(v2f,X2, axes=([0], [1])).transpose()
+                    t_basis = surf2.u_basis
+                    ti = u2i
+                    it = iu2
+                    uvt[2, 0] = u2c
 
-        if test == 1:
-            if dist <= tol:
-                #pt = la.multi_dot(uf,X,vf) #kron(vf',uf')*X
-                uX1 = np.tensordot(uf,X,axes=([0],[0]))
-                pt = np.dot(uX1,vf,axes=([0],[0]))
-                conv =1
+                for i in range(nit):
+                    J, deltaXYZ = self._compute_jacobian_and_delta(uvt,sum_idx,surf1,iu1,iv1,X,t_poles,t_basis,it)
+                    uvt = uvt - la.solve(J,deltaXYZ)
+                    test,uvt = self._rangetest(uvt,sum_idx,u1i,v1i,ti,0.0)
+
+                test,uvt = self._rangetest(uvt,sum_idx,u1i,v1i,ti,tol2)
+
+                if test == 1:
+                    uv1, uv2, r3_coor, conv  = self._test_intesection_tolerance(surf1, surf2, sum_idx, uvt, w, abs_tol)
+
+        return uv1, uv2, r3_coor, conv
+
+    @staticmethod
+    def _test_intesection_tolerance(surf1,surf2,sum_idx,uvt,w,abs_tol):
+
+        if sum_idx == 0:
+            surf2_pos = surf2.eval(w, uvt[2, 0])  # may be faster, patches indices are known
+            uv2 = np.array([w, uvt[2, 0]])
+        if sum_idx == 1:
+            surf2_pos = surf2.eval(uvt[2, 0], w)
+            uv2 = np.array(uvt[2, 0], w)
+        r3_coor = surf1.eval(uvt[0, 0], uvt[1, 0])
+        dist = la.norm(r3_coor - surf2_pos)
+        if dist <= abs_tol:
+            uv1 = np.array(uvt[0, 0], uvt[1, 0])
+            conv = 1
         else:
-            uvt = np.zeros(3,1)
+            uv1 = np.array([0, 0])
+            conv = 0
 
-        return uvt, pt, conv
+        return uv1, uv2, r3_coor, conv
 
-    def _rangetest(self,uvt, ui, vi, u2i, v2i, tol):
+    def _rangetest(self,uvt, sum_idx,ui, vi, ti, tol):
     # test if paramaters does not lie outside current patch, otherwise they are returned to the boundary
         test = 0
-        #print(uvt)
-        print(ui)
 
-        du = np.array([uvt[0] - ui[0], ui[1] - uvt[0]])
-        dv = np.array([uvt[1] - vi[0], vi[1] - uvt[1]])
-        #print(uvt.shape)
-        #print(uvt[0])
-        #print(ui[0])
-        #print(ui[1])
+        du = np.array([uvt[0,0] - ui[0], ui[1] - uvt[0,0]])
+        dv = np.array([uvt[1,0] - vi[0], vi[1] - uvt[1,0]])
 
+        if sum_idx == 1:
+            dt = [uvt[2,0] - ti[0], ti[1] - uvt[2,0]]
+        if sum_idx == 0:
+            dt = np.array([uvt[2,0] - ti[0], ti[1] - uvt[2,0]])
 
-        if v2i.shape[0] == 1:
-            d2p = [uvt[2] - u2i[0], u2i[1] - uvt[2]]
-            pi = u2i
-
-        if u2i.shape[0] == 1:
-            d2p = np.array([uvt[2] - v2i[0], v2i[1] - uvt[2]])
-            pi = v2i
-        #print(du)
         for i in range(0,2):
-            #print(du[i])
             if (du[i] < -tol):
-                uvt[0] = ui[i]
+                uvt[0,0] = ui[i]
 
         for i in range(0,2):
             if (dv[i] < -tol):
-                uvt[1] = vi[i]
+                uvt[1,0] = vi[i]
 
         for i in range(0,2):
-            if (d2p[i] < -tol):
-                uvt[2] = pi[i]
+            if (dt[i] < -tol):
+                uvt[2,0] = ti[i]
 
-        if np.logical_and(uvt[0] >= ui[0],uvt[0] <= ui[1]):
-            if np.logical_and(uvt[1] >= vi[0], uvt[1] <= vi[1]):
-                if np.logical_and(uvt[2] >= pi[0], uvt[2] <= pi[1]):
+        if np.logical_and(uvt[0,0] >= ui[0],uvt[0,0] <= ui[1]):
+            if np.logical_and(uvt[1,0] >= vi[0], uvt[1,0] <= vi[1]):
+                if np.logical_and(uvt[2,0] >= ti[0], uvt[2,0] <= ti[1]):
                     test = 1
 
-        return uvt, test
-
-
-
-
-
-
-
-#    def get_intersections(tree1,tree2):
-#$        for k in range( self.surf.u_basis.n_intervals - 2):
- #           for l in range(self.surf.v_basis.n_intervals - 2):
- #           self.tree1.
-
-
-
-
-
-
-    # def compute_intersection(self.tree1,self.tree2):
-    #
-    #
-    #     intersect_box_ids = tree.find_point([0.7, 0.5, 0.5])
-    #     intersect_box_ids = tree.find_box(box)
-
+        return test, uvt
 
     '''
     Calculation and representation of intersection of two B-spline surfaces.
