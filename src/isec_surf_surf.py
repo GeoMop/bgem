@@ -9,7 +9,28 @@ import numpy.linalg as la
 
 import bspline as bs
 
-class PatchCurveIsec:
+
+class IsecPoint:
+
+    def __init__(self, surf1,iu1,iv1,surf2,iu2,iv2):
+
+        self.surf1 = surf1
+        self.iu1 = iu1
+        self.iv1 = iv1
+
+        self.surf2 = surf2
+        self.iu2 = iu2
+        self.iv2 = iv2
+
+        self.tol = 1
+
+        R3_coor = 1
+
+        self.curv = curv
+        self.it = it
+
+
+class IsecCurveSurf:
 
     def __init__(self, surf,iu,iv,curv,it):
         self.surf = surf
@@ -210,9 +231,6 @@ class IsecSurfSurf:
 
     def _intersection(self,surf1,surf2,tree1,tree2,box1,box2): # use
 
-        nt = self.nt
-        nit = self.nit
-
         #surf1, surf2, tree1, tree2, box1, box2, nt, nit
         n_points = 0
         point = np.zeros([surf1.u_basis.n_intervals * surf1.v_basis.n_intervals, 11])
@@ -233,10 +251,6 @@ class IsecSurfSurf:
                     if np.not_equal(conv, 0):
                         s = s+1
                         n_points = n_points +1
-                        #print(uv1[0], uv1[1])
-                        #print(uv2.shape)
-                        #print(uv2.size)
-                        #print( uv2)
                         print(r3_coor[0], r3_coor[1], r3_coor[2])
                         print(iu2, iv2, iu1, iv1)
                         print(uv1[0], uv1[1], uv2[0], uv2[1], r3_coor[0], r3_coor[1], r3_coor[2], iu2, iv2, iu1, iv1)
@@ -245,19 +259,19 @@ class IsecSurfSurf:
 
         return point, n_points, ninter
 
-    @staticmethod
-    def _energetic_inner_product(u,v,X):
-        """
-        Computes energetic inner product u^T X v
-        :param u: vector of nonzero basis function in u
-        :param v: vector of nonzero basis function in v
-        :param X: tensor of poles in x,y,z
-        :return: xyz
-        """
-        #xyz = np.zeros([3,1])
-        uX = np.tensordot(u, X, axes=([0], [0]))
-        xyz = np.tensordot(uX, v, axes=([0], [0]))
-        return xyz
+    # @staticmethod
+    # def _energetic_inner_product(u,v,X):
+    #     """
+    #     Computes energetic inner product u^T X v
+    #     :param u: vector of nonzero basis function in u
+    #     :param v: vector of nonzero basis function in v
+    #     :param X: tensor of poles in x,y,z
+    #     :return: xyz
+    #     """
+    #     #xyz = np.zeros([3,1])
+    #     uX = np.tensordot(u, X, axes=([0], [0]))
+    #     xyz = np.tensordot(uX, v, axes=([0], [0]))
+    #     return xyz
 
     @staticmethod
     def _compute_bounds(knots,idx):
@@ -311,8 +325,16 @@ class IsecSurfSurf:
         return J, deltaXYZ
 
     def _patch_patch_intersection( self,surf1,iu1, iv1, surf2, iu2, iv2):
-        #returns coordinetes of the intersection of the patches (if exist), one
-        #parameter must be fixed
+        """
+
+        :param surf1: intersected surface
+        :param iu1: u coordinate of the patch
+        :param iv1: v coordinate of the patch
+        :param surf2: surface which is broken into main curves
+        :param iu2: u coordinate of the patch
+        :param iv2: v coordinate of the patc
+        :return:
+        """
 
         nit = self.nit
         nt = self.nt
@@ -324,7 +346,7 @@ class IsecSurfSurf:
         conv = 0
         abs_tol = 1e-6 # in x,y,z
         rel_tol = 1e-4 # in u,v
-        # nt = self.nt
+
 
         u1s, u1e, u1c = self._compute_bounds(surf1.u_basis.knots,iu1)
         v1s, v1e, v1c = self._compute_bounds(surf1.v_basis.knots, iv1)
@@ -336,9 +358,6 @@ class IsecSurfSurf:
         u2i = np.array([u2s, u2e])
         v2i = np.array([v2s, v2e])
 
-        X = surf1.poles[iu1:iu1 + 3, iv1:iv1 + 3, :]
-        X2 = surf2.poles[iu2:iu2 + 3, iv2:iv2 + 3,:]
-        #"""
 
         sum_idx = 0 # u2_fixed
         for w in np.linspace(u2i[0],u2i[1],nt):
@@ -350,38 +369,22 @@ class IsecSurfSurf:
 
             # curve init
             u2f = surf2.u_basis.eval_vector(iu2,w)
-            t_poles = np.tensordot(u2f,X2,axes=([0],[sum_idx]))
-            #print("tpoles")
-            #print(t_poles)
-            t_basis = surf2.v_basis
-            ti = v2i
+            surf_pol = surf2.poles[iu2:iu2 + 3, :,:]
+            curv_pol = np.tensordot(u2f, surf_pol, axes=([0], [sum_idx]))
+            curv_basis = surf2.v_basis
+
             it = iv2
             uvt[2, 0] = v2c
 
-            curv_pol = surf2.poles[iu2:iu2 + 3, :,:]
-            c_pol = np.tensordot(u2f, curv_pol, axes=([0], [sum_idx]))
+            curv = bs.Curve(curv_basis,curv_pol)
+            curve_surf_isec = IsecCurveSurf(surf1,iu1,iv1,curv,it)
 
-            curv = bs.Curve(t_basis,c_pol)
+            uvt = curve_surf_isec.get_intersection(uvt,nit,rel_tol,abs_tol)
 
-            pci = PatchCurveIsec(surf1,iu1,iv1,curv,it)
+            uv1 = uvt[0:1, :]
+            uv2[0, 0] = w
+            uv2[1, 0] = uvt[2, 0]
 
-            uvt = pci.get_intersection(uvt,nit,rel_tol,abs_tol)
-            print(uvt)
-
-            uvt[0, 0] = u1c
-            uvt[1, 0] = v1c
-            uvt[2, 0] = v2c
-
-            for i in range(nit):
-                J, deltaXYZ = self._compute_jacobian_and_delta(uvt,surf1,iu1,iv1,X,t_poles,t_basis,it)
-                uvt = uvt - la.solve(J,deltaXYZ)
-                test,uvt = self._rangetest(uvt,u1i,v1i,ti,0.0)
-
-            test,uvt = self._rangetest(uvt,u1i,v1i,ti,rel_tol)
-
-            if test == 1:
-                uv1, uv2, r3_coor, conv  = self._test_intesection_tolerance(surf1, surf2, sum_idx, uvt, w, abs_tol)
-       # """
 
         sum_idx = 1 # v2_fixed
         for w in np.linspace(v2i[0],v2i[1],nt):
@@ -390,85 +393,72 @@ class IsecSurfSurf:
             uvt = np.zeros([3, 1])
             uvt[0, 0] = u1c
             uvt[1, 0] = v1c
+            uvt[2, 0] = u2c
 
             # curve init
             v2f = surf2.v_basis.eval_vector(iv2,w)
-            t_poles = np.tensordot(v2f,X2, axes=([0], [sum_idx]))#.transpose()
-            t_basis = surf2.u_basis
-            #print("tpoles1")
-            #print(t_poles)
-
-            ti = u2i
+            surf_pol = surf2.poles[:,iv2:iv2 + 3,:]
+            curv_pol = np.tensordot(v2f, surf_pol, axes=([0], [sum_idx]))
             it = iu2
 
-            #tfd = t_basis.eval_diff_vector(it, uvt[2, 0])
-            #dXYZt = np.tensordot(tfd, t_poles, axes=([0], [sum_idx]))
-            #print(dXYZt)
-            #t_poles = np.tensordot(v2f, X2, axes=([0], [sum_idx]))
-            #dXYZt = np.tensordot(tfd, t_poles, axes=([0], [0]))
-            #print(dXYZt)
+            curv = bs.Curve(curv_basis,curv_pol)
+            patch_curve_isec = IsecCurveSurf(surf1,iu1,iv1,curv,it)
+
+            uvt = patch_curve_isec.get_intersection(uvt,nit,rel_tol,abs_tol)
 
 
-            uvt[2, 0] = u2c
-
-            for i in range(nit):
-                J, deltaXYZ = self._compute_jacobian_and_delta(uvt,surf1,iu1,iv1,X,t_poles,t_basis,it)
-                uvt = uvt - la.solve(J,deltaXYZ)
-                test,uvt = self._rangetest(uvt,u1i,v1i,ti,0.0)
-
-            test,uvt = self._rangetest(uvt,u1i,v1i,ti,rel_tol)
-
-            if test == 1:
-                uv1, uv2, r3_coor, conv  = self._test_intesection_tolerance(surf1, surf2, sum_idx, uvt, w, abs_tol)
+            uv1 = uvt[0:1, :]
+            uv2[0, 0] = uvt[2, 0]
+            uv2[1, 0] = w
 
         return uv1, uv2, r3_coor, conv
 
-    @staticmethod
-    def _test_intesection_tolerance(surf1,surf2,sum_idx,uvt,w,abs_tol):
+    # @staticmethod
+    # def _test_intesection_tolerance(surf1,surf2,sum_idx,uvt,w,abs_tol):
+    #
+    #     if sum_idx == 0:
+    #         surf2_pos = surf2.eval(w, uvt[2, 0])  # may be faster, patches indices are known
+    #         uv2 = np.array([w, uvt[2, 0]])
+    #     if sum_idx == 1:
+    #         surf2_pos = surf2.eval(uvt[2, 0], w)
+    #         uv2 = np.array(uvt[2, 0], w)
+    #     r3_coor = surf1.eval(uvt[0, 0], uvt[1, 0])
+    #     dist = la.norm(r3_coor - surf2_pos)
+    #     if dist <= abs_tol:
+    #         uv1 = np.array(uvt[0, 0], uvt[1, 0])
+    #         conv = 1
+    #     else:
+    #         uv1 = np.array([0, 0])
+    #         conv = 0
+    #
+    #     return uv1, uv2, r3_coor, conv
 
-        if sum_idx == 0:
-            surf2_pos = surf2.eval(w, uvt[2, 0])  # may be faster, patches indices are known
-            uv2 = np.array([w, uvt[2, 0]])
-        if sum_idx == 1:
-            surf2_pos = surf2.eval(uvt[2, 0], w)
-            uv2 = np.array(uvt[2, 0], w)
-        r3_coor = surf1.eval(uvt[0, 0], uvt[1, 0])
-        dist = la.norm(r3_coor - surf2_pos)
-        if dist <= abs_tol:
-            uv1 = np.array(uvt[0, 0], uvt[1, 0])
-            conv = 1
-        else:
-            uv1 = np.array([0, 0])
-            conv = 0
-
-        return uv1, uv2, r3_coor, conv
-
-    def _rangetest(self,uvt,ui, vi, ti, tol):
-    # test if paramaters does not lie outside current patch, otherwise they are returned to the boundary
-        test = 0
-
-        du = np.array([uvt[0,0] - ui[0], ui[1] - uvt[0,0]])
-        dv = np.array([uvt[1,0] - vi[0], vi[1] - uvt[1,0]])
-        dt = np.array([uvt[2,0] - ti[0], ti[1] - uvt[2,0]])
-
-        for i in range(0,2):
-            if (du[i] < -tol):
-                uvt[0,0] = ui[i]
-
-        for i in range(0,2):
-            if (dv[i] < -tol):
-                uvt[1,0] = vi[i]
-
-        for i in range(0,2):
-            if (dt[i] < -tol):
-                uvt[2,0] = ti[i]
-
-        if np.logical_and(uvt[0,0] >= ui[0],uvt[0,0] <= ui[1]):
-            if np.logical_and(uvt[1,0] >= vi[0], uvt[1,0] <= vi[1]):
-                if np.logical_and(uvt[2,0] >= ti[0], uvt[2,0] <= ti[1]):
-                    test = 1
-
-        return test, uvt
+    # def _rangetest(self,uvt,ui, vi, ti, tol):
+    # # test if paramaters does not lie outside current patch, otherwise they are returned to the boundary
+    #     test = 0
+    #
+    #     du = np.array([uvt[0,0] - ui[0], ui[1] - uvt[0,0]])
+    #     dv = np.array([uvt[1,0] - vi[0], vi[1] - uvt[1,0]])
+    #     dt = np.array([uvt[2,0] - ti[0], ti[1] - uvt[2,0]])
+    #
+    #     for i in range(0,2):
+    #         if (du[i] < -tol):
+    #             uvt[0,0] = ui[i]
+    #
+    #     for i in range(0,2):
+    #         if (dv[i] < -tol):
+    #             uvt[1,0] = vi[i]
+    #
+    #     for i in range(0,2):
+    #         if (dt[i] < -tol):
+    #             uvt[2,0] = ti[i]
+    #
+    #     if np.logical_and(uvt[0,0] >= ui[0],uvt[0,0] <= ui[1]):
+    #         if np.logical_and(uvt[1,0] >= vi[0], uvt[1,0] <= vi[1]):
+    #             if np.logical_and(uvt[2,0] >= ti[0], uvt[2,0] <= ti[1]):
+    #                 test = 1
+    #
+    #     return test, uvt
 
     '''
     Calculation and representation of intersection of two B-spline surfaces.
