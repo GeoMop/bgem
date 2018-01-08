@@ -14,7 +14,7 @@ In future:
 
 import numpy as np
 import numpy.linalg as la
-
+import copy
 
 __author__ = 'Jan Brezina <jan.brezina@tul.cz>, Jiri Hnidek <jiri.hnidek@tul.cz>, Jiri Kopal <jiri.kopal@tul.cz>'
 
@@ -375,19 +375,15 @@ class Curve:
             self._poles = (poles[:, 0:self.dim].T * self._weights ).T
 
 
-    def eval(self, t):
+    def eval_local(self, t, it):
         """
-        Evaluate a B-spline curve for paramater 't'.
+        Evaluate a B-spline curve for parameter 't' with given knotinterval 'it'.
         :param t: Evaluation point.
-        :return: D-dimensional pnumpy array. D - is dimension given by dimension of poles.
-        TODO:
-        - use basis.eval_vector
-        - test evaluation for rational curves
+        :param it: Index of knot subinterval (see doc of 'find_knot_interval')
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
         """
-
-        it = self.basis.find_knot_interval(t)
         dt = self.basis.degree + 1
-        t_base_vec = np.array([self.basis.eval(jt, t) for jt in range(it, it + dt)])
+        t_base_vec = self.basis.eval_vector(it, t)
 
         if self.rational:
             top_value = np.inner(t_base_vec, self._poles[it: it + dt, :].T)
@@ -396,6 +392,20 @@ class Curve:
         else:
             return  np.inner(t_base_vec, self.poles[it: it + dt, :].T)
 
+
+    def eval(self, t):
+        """
+        Evaluate a B-spline curve for paramater 't'. Check and fix range of 't'.
+        :param t: Evaluation point.
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
+        TODO:
+        - test evaluation for rational curves
+        """
+        t = self.basis.check(t)
+        it = self.basis.find_knot_interval(t)
+        return self.eval_local(t, it)
+
+
     def eval_array(self, t_points):
         """
         Evaluate in array of t-points.
@@ -403,6 +413,7 @@ class Curve:
         :return: Numpy array N x D, D is dimension of the curve.
         """
         return np.array( [ self.eval(t) for t in t_points] )
+
 
     def aabb(self):
         """
@@ -462,23 +473,20 @@ class Surface:
             self._weights = poles[:, :, self.dim]
             self._poles = (poles[:, :, 0:self.dim].T * self._weights.T ).T
 
-    def eval(self, u, v):
+
+
+
+    def eval_local(self, u, v, iu, iv):
         """
-        Evaluate a B-spline surface for paramaters u,v.
+        Evaluate a B-spline surface for paramaters u,v with given knot subintervals.
         :param u, v: Evaluation point.
+        :param iu, iv: Knot subintervals of u, v.
         :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
-        TODO:
-        - use basis.eval_vector
-        - test evaluation for rational curves
         """
-        u = self.u_basis.check(u)
-        v = self.v_basis.check(v)
-        iu = self.u_basis.find_knot_interval(u)
-        iv = self.v_basis.find_knot_interval(v)
         du = self.u_basis.degree + 1
         dv = self.v_basis.degree + 1
-        u_base_vec = np.array([self.u_basis.eval(ju, u) for ju in range(iu, iu + du)])
-        v_base_vec = np.array([self.v_basis.eval(jv, v) for jv in range(iv, iv + dv)])
+        u_base_vec = self.u_basis.eval_vector(iu, u)
+        v_base_vec = self.v_basis.eval_vector(iv, v)
 
         if self.rational:
             top_value = np.inner(u_base_vec, self._poles[iu: iu + du, iv: iv + dv, :].T)
@@ -492,6 +500,33 @@ class Surface:
             value = np.inner(u_base_vec, self.poles[iu: iu + du, iv: iv + dv, :].T )
             #print("val: {}".format(value.shape))
             return np.inner( value, v_base_vec)
+
+
+
+    def eval(self, u, v):
+        """
+        Evaluate a B-spline surface for paramaters u,v. Check and fix range of 'u, v'.
+        :param u, v: Evaluation point.
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
+        TODO:
+        - test evaluation for rational curves
+        """
+        u = self.u_basis.check(u)
+        v = self.v_basis.check(v)
+        iu = self.u_basis.find_knot_interval(u)
+        iv = self.v_basis.find_knot_interval(v)
+        return self.eval_local(u, v, iu, iv)
+
+
+
+
+
+
+    def deep_copy(self):
+        u_basis = copy.copy(self.u_basis)
+        v_basis = copy.copy(self.v_basis)
+        poles = copy.copy(self.poles)
+        return Surface( ( u_basis, v_basis), poles)
 
     def eval_array(self, uv_points):
         """
@@ -537,7 +572,50 @@ class Z_Surface:
         self.v_basis = z_surface.v_basis
         # Basis for UV directions.
 
+        self.orig_quad = xy_quad
+        self.quad = None
+        # Boundary quadrilateral.
+
+        self.reset_transform(xy_quad)
+        # Set further private attributes, see comment there:
+        # _z_mat, _have_z_mat, _xy_shift, _mat_xy_to_uv, _mat_uv_to_xy
+
+    def make_full_surface(self):
+        """
+        Return representation of the surface by the 3d Surface object.
+        Compute redundant XY poles.
+        :return: Surface.
+        """
+        basis = (self.z_surface.u_basis, self.z_surface.v_basis)
+
+        u = basis[0].make_linear_poles()
+        v = basis[1].make_linear_poles()
+        V, U = np.meshgrid(v,u)
+        uv_poles_vec = np.stack([U.ravel(), V.ravel()], axis=1)
+        xy_poles = self.uv_to_xy(uv_poles_vec).reshape(U.shape[0], U.shape[1], 2)
+        z_poles = self.z_surface.poles.copy()
+        if self._have_z_mat:
+            z_poles *= self.z_mat[0]
+            z_poles += self.z_mat[1]
+        poles = np.concatenate( (xy_poles, z_poles), axis = 2 )
+
+        return Surface(basis, poles)
+
+    def reset_transform(self, xy_quad=None):
+        """
+        Set XY transform according to given domain quadrilateral (or triangle for linear mapping case).
+        :param xy_quad: np array N x 2
+            Four or three points, determining bilinear or linear mapping, respectively.
+            Four points giving XY coordinates for the uv corners: (0,1), (0,0), (1,0),  (1,1)
+            Three points giving XY coordinates for the uv corners:  (0,1), (0,0), (1,0)
+            Linear case is also detected for the four points.
+
+            If no xy_quad is given, we reset to the quad used in constructor.
+        :return: None
+        """
         # Build envelope quadrilateral polygon in XY plane.
+        if xy_quad is None:
+            xy_quad = self.orig_quad
         self.quad = np.array(xy_quad, dtype=float)
         assert self.quad.shape[0] in [3, 4], "Three or four points must be given."
         assert self.quad.shape[1] == 2
@@ -562,54 +640,66 @@ class Z_Surface:
             self.xy_to_uv = self._bilinear_xy_to_uv
             self.uv_to_xy = self._bilinear_uv_to_xy
 
+        self.z_mat = np.array( [1.0, 0.0] )
+        # [ z_scale, z_shift ]
 
-        #TODO: remove this, after fixing GridSurface z_eval
-        #self.z_scale =1.0
-        #self.z_shift = 1.0
+        self._have_z_mat = False
+        # Indicate that we have z_mat different from identity.
+        # Optimization for array evaluation methods. z_mat must be set anyway.
 
-    def make_full_surface(self):
-        """
-        Return representation of the surface by the 3d Surface object.
-        Compute redundant XY poles.
-        :return: Surface.
-        """
-        basis = (self.z_surface.u_basis, self.z_surface.v_basis)
-
-        u = basis[0].make_linear_poles()
-        v = basis[1].make_linear_poles()
-        V, U = np.meshgrid(v,u)
-        uv_poles_vec = np.stack([U.ravel(), V.ravel()], axis=1)
-        xy_poles = self.uv_to_xy(uv_poles_vec).reshape(U.shape[0], U.shape[1], 2)
-        poles = np.concatenate( (xy_poles, self.z_surface.poles), axis = 2 )
-
-        return Surface(basis, poles)
-
-
-    def transform(self, xy_mat, z_mat = np.array( [1.0, 0.0] ) ):
+    def transform(self, xy_mat, z_mat = None ):
         """
         Transform the Z-surface by arbitrary XY linear transform and Z linear transform.
         :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
-        :param z_shift: [ z_scale, z_shift]
+        :param z_shift: np.array, [ z_scale, z_shift]
         :return: None
         """
-        assert xy_mat.shape == (2, 3)
-        assert z_mat.shape == (2, )
+        if xy_mat is not None:
+            xy_mat = np.array(xy_mat)
+            assert xy_mat.shape == (2, 3)
+            self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
+            self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
+            self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
 
-        self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
-        self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
-        self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
-
-        # transform quad
-        self.quad = np.dot(self.quad, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2]
+            # transform quad
+            self.quad = np.dot(self.quad, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2]
 
         # apply z-transfrom directly to the poles
-        self.z_surface.poles *= z_mat[0]
-        self.z_surface.poles += z_mat[1]
+        if z_mat is not None:
+            z_mat = np.array(z_mat)
+            assert z_mat.shape == (2,)
+            self.z_mat[0] *= z_mat[0]
+            self.z_mat[1] = z_mat[0] * self.z_mat[1] + z_mat[1]
+            self._have_z_mat = True
 
-        #TODO: remove this, after fixing GridSurface z_eval
-        #self.z_scale *= z_mat[0]
-        #self.z_shift = self.z_shift*z_mat[0] + z_mat[1]
+    def get_xy_matrix(self):
+        """
+        Return xy_mat of curent XY tranasform.
+        :return:
+        """
+        return np.concatenate((self._mat_uv_to_xy, self._xy_shift[:, None]), axis=1)
 
+    def apply_z_transform(self):
+        """
+        Make copy of the bs.Surface for Z coordinates and  apply current Z transform to the poles of the copy.
+        Reset the Z transform.
+        :return:
+        """
+        if self._have_z_mat:
+            self.z_surface = self.z_surface.deep_copy()
+            self.z_surface.poles *= self.z_mat[0]
+            self.z_surface.poles += self.z_mat[1]
+            self.z_mat = np.array([1.0, 0.0])
+            self._have_z_mat = False
+
+
+    def get_copy(self):
+        """
+        Returns a copy of the Z_surface with own Z and XY transforms, but shared
+        bs.Surface for Z coordinates (Z poles).
+        :return: A copy of the Z_Surface object.
+        """
+        return copy.copy(self)
 
 
     """
@@ -657,6 +747,7 @@ class Z_Surface:
         :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
         """
         z = self.z_surface.eval(u, v)
+        z = self.z_mat[0] * z + self.z_mat[1]
         uv_points = np.array([[u, v]])
         x, y = self.uv_to_xy( uv_points )[0]
         return np.array( [x, y, z] )
@@ -670,6 +761,10 @@ class Z_Surface:
         """
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
+        if self._have_z_mat:
+            z_points *= self.z_mat[0]
+            z_points += self.z_mat[1]
+
         xy_points = self.uv_to_xy(uv_points)
         return np.concatenate( (xy_points, z_points), axis = 1)
 
@@ -681,8 +776,7 @@ class Z_Surface:
         :return: array N x D; D - is dimension given by dimension of poles.
         """
         uv_points  = self.xy_to_uv(xy_points)
-        z_points = self.z_surface.eval_array(uv_points)
-        return np.concatenate( (xy_points, z_points), axis = 1)
+        return self.eval_array(uv_points)
 
 
     def z_eval_array(self, uv_points):
@@ -693,6 +787,9 @@ class Z_Surface:
         """
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
+        if self._have_z_mat:
+            z_points *= self.z_mat[0]
+            z_points += self.z_mat[1]
         return z_points.reshape(-1)
 
 
@@ -703,15 +800,22 @@ class Z_Surface:
         :return: array N x D; D - is dimension given by dimension of poles.
         """
         uv_points = self.xy_to_uv(xy_points)
-        z_points = self.z_surface.eval_array(uv_points)
-        return z_points.reshape(-1)
+        return self.z_eval_array(uv_points)
+
+
+    def center(self):
+        """
+        Evaluate surface in center of UV square.
+        :return: (X, Y, Z)
+        """
+        return self.eval_array( np.array([ [0.5, 0.5] ]))[0]
 
 
     def aabb(self):
         xyz_box = np.empty( (2, 3) )
         xyz_box[0, 0:2] = np.amin(self.quad, axis=0)
         xyz_box[1, 0:2] = np.amax(self.quad, axis=0)
-        xyz_box[:, 2] = self.z_surface.aabb()[:,0]
+        xyz_box[:, 2] = self.z_mat[0]*self.z_surface.aabb()[:,0] + self.z_mat[1]
         return xyz_box
 
 
@@ -807,6 +911,7 @@ class GridSurface:
         vtx_10 = xy_points[-nv, :]
         vtx_11 = xy_points[-1, :]
         self.quad = np.array( [ vtx_01, vtx_00, vtx_10, vtx_11 ], dtype = float )
+        self._orig_quad = self.quad
 
         # check that quad is parallelogram.
         diff = np.roll(self.quad, -1, axis = 0) - self.quad
@@ -841,6 +946,9 @@ class GridSurface:
 
         poles_z = points[:, 2].reshape(nu, nv, 1)
         self.z_surface = Z_Surface(self.quad[0:3], Surface((u_basis, v_basis), poles_z) )
+        self.u_basis = self.z_surface.u_basis
+        self.v_basis = self.z_surface.v_basis
+
         uv_points = self.z_surface.xy_to_uv( points[:, 0:2] )
         grid_uv = uv_points.reshape(nu, nv, 2)
         self.grid_uvz = np.concatenate((grid_uv, poles_z), axis=2)
@@ -854,6 +962,18 @@ class GridSurface:
         #print( "Check quad: ", uv_quad )
         assert np.allclose( uv_quad, np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
+    def reset_transform(self):
+        """
+        Set identify transform just as after construction.
+        :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
+        :param z_mat: [ z_scale, z_shift]
+        :return:
+        """
+        self.z_scale = 1.0
+        self.z_shift = 0.0
+        self.z_surface.reset_transform(self._orig_quad)
+        self.quad = self._orig_quad
+        self._check_map()
 
 
 

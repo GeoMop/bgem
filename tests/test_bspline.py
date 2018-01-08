@@ -288,29 +288,31 @@ class TestZ_Surface:
 
     # TODO: Compute max norm of the difference of two surfaces and assert that it is cose to zero.
 
+    def make_z_surf(self, func, quad):
+        poles = bs.make_function_grid(func, 4, 5)
+        u_basis = bs.SplineBasis.make_equidistant(2, 2)
+        v_basis = bs.SplineBasis.make_equidistant(2, 3)
+        surface_func = bs.Surface( (u_basis, v_basis), poles[:,:, [2] ])
+        return  bs.Z_Surface(quad, surface_func)
 
     def plot_function_uv(self):
         # function surface
         def function(x):
             return math.sin(x[0]*4) * math.cos(x[1]*4)
 
-        poles = bs.make_function_grid(function, 4, 5)
-        u_basis = bs.SplineBasis.make_equidistant(2, 2)
-        v_basis = bs.SplineBasis.make_equidistant(2, 3)
-        surface_func = bs.Surface( (u_basis, v_basis), poles[:,:, [2] ])
-
-        #quad = np.array( [ [0, 0], [0, 0.5], [1, 0.1],  [1.1, 1.1] ]  )
         quad = np.array([[0, 0], [1, 0], [1, 1], [0, 1]])
-        z_surf = bs.Z_Surface(quad, surface_func)
+        z_surf = self.make_z_surf(function, quad)
+
+        z_surf.transform(None, np.array([2.0, 0]) )
         full_surf = z_surf.make_full_surface()
-        z_surf.transform(np.array([[1., 0, 0], [0, 1, 0]]), np.array([2.0, 0]) )
+        z_surf.transform(None, np.array([1.0, 0.1]) )
         plotting.plot_surface_3d(z_surf)
         plotting.plot_surface_3d(full_surf)
 
         plotting.show()
 
     def test_eval_uv(self):
-        self.plot_function_uv()
+        #self.plot_function_uv()
         pass
 
     def test_aabb(self):
@@ -318,15 +320,47 @@ class TestZ_Surface:
         def function(x):
             return x[0] * (x[1] + 1.0) + 3.0
 
-        poles = bs.make_function_grid(function, 4, 5)
-        u_basis = bs.SplineBasis.make_equidistant(2, 2)
-        v_basis = bs.SplineBasis.make_equidistant(2, 3)
-        surface_func = bs.Surface( (u_basis, v_basis), poles[:,:, [2] ])
-
         quad = np.array( [ [0, 0], [0, 0.5], [1, 0.1],  [1.1, 1.1] ]  )
-        z_surf = bs.Z_Surface(quad, surface_func)
+        z_surf = self.make_z_surf(function, quad)
+
         box = z_surf.aabb()
         assert np.allclose(box, np.array([[0, 0, 3], [1.1, 1.1, 5]]))
+
+        z_surf.transform(None, np.array([2.0, 1.0]))
+        box = z_surf.aabb()
+        assert np.allclose(box, np.array([[0, 0, 7], [1.1, 1.1, 11]]))
+
+    def test_reset_transform(self):
+        def function(x):
+            return math.sin(x[0]*4) * math.cos(x[1]*4)
+
+        quad = np.array([[1., 3.5], [1., 2.],  [2., 2.2], [2, 3.7]])
+        z_surf = self.make_z_surf(function, quad)
+        xy_mat = np.array([[2, 1, -1],[1, 2, -2]])
+        z_mat = np.array([2, 1])
+        z_surf.transform(xy_mat, z_mat)
+        assert np.allclose( z_surf.quad[0], np.array([4.5, 6]) )
+        z_surf.reset_transform()
+        assert np.allclose(z_surf.quad, quad)
+
+    def test_get_copy(self):
+        def function(x):
+            return math.sin(x[0]*4) * math.cos(x[1]*4)
+
+        quad = np.array([[1., 3.5], [1., 2.], [2., 2.2], [2, 3.7]])
+        a_surf = self.make_z_surf(function, quad)
+        b_surf = a_surf.get_copy()
+        b_surf.transform(None, np.array([2, 1]))
+        assert np.allclose(a_surf.center()[0:1], b_surf.center()[0:1])
+        assert np.isclose(2 * a_surf.center()[2] + 1, b_surf.center()[2])
+        za = a_surf.center()[2]
+        zb = b_surf.center()[2]
+
+        b_surf.apply_z_transform()
+        assert np.allclose(a_surf.center()[0:1], b_surf.center()[0:1])
+        assert np.isclose(zb, b_surf.center()[2])
+        assert np.isclose(za, a_surf.center()[2])
+
 
 
 class TestPointGrid:
@@ -391,6 +425,7 @@ class TestPointGrid:
         self.grid_cmp(XYZ_func_eval, XYZ_grid_eval, tol)
         self.grid_cmp(XYZ_func_eval, XYZ_surf_eval, tol)
 
+
     def test_grid_surface(self):
         xy_mat = np.array([ [1.0, 0.0], [0.0, 1.0] ])
         xy_shift = np.array([0.0, 0.0 ])
@@ -424,4 +459,23 @@ class TestPointGrid:
         v_min, v_max = surface.aabb()
         assert np.allclose(v_min, np.array([-3.0/math.sqrt(2) -2, 0.0 + 5, 1.3]))
         assert np.allclose(v_max, np.array([3.0 / math.sqrt(2) - 2, 4.0 / math.sqrt(2) + 5, math.sin(1.0) + 1.3]))
+
+    def test_grid_surface_transform(self):
+        surface = self.make_point_grid()
+        xy_mat = np.array([ [3.0, 0.0], [0.0, 2.0] ])
+        xy_shift = np.array([[-2.0, 5.0 ]])
+        surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), None)
+        quad = surface.quad
+        #print(quad)
+        assert quad[0][0] == -2
+        assert quad[0][1] == 7
+        assert quad[2][0] == 1
+        assert quad[2][1] == 5
+
+        surface.reset_transform()
+        quad = surface.quad
+        assert quad[0][0] == 0
+        assert quad[0][1] == 1
+        assert quad[2][0] == 1
+        assert quad[2][1] == 0
 

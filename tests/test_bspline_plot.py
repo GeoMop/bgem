@@ -6,7 +6,7 @@ import bspline_plot as bp
 
 
 class TestPlottingMatplot:
-    plotting = bp.Plotting(bp.PlottingMatplot())
+    # plotting = bp.Plotting(bp.PlottingMatplot())
 
     def plotting_2d(self, plotting):
         # simple 2d graphs
