@@ -375,19 +375,15 @@ class Curve:
             self._poles = (poles[:, 0:self.dim].T * self._weights ).T
 
 
-    def eval(self, t):
+    def eval_local(self, t, it):
         """
-        Evaluate a B-spline curve for paramater 't'.
+        Evaluate a B-spline curve for parameter 't' with given knotinterval 'it'.
         :param t: Evaluation point.
-        :return: D-dimensional pnumpy array. D - is dimension given by dimension of poles.
-        TODO:
-        - use basis.eval_vector
-        - test evaluation for rational curves
+        :param it: Index of knot subinterval (see doc of 'find_knot_interval')
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
         """
-
-        it = self.basis.find_knot_interval(t)
         dt = self.basis.degree + 1
-        t_base_vec = np.array([self.basis.eval(jt, t) for jt in range(it, it + dt)])
+        t_base_vec = self.basis.eval_vector(it, t)
 
         if self.rational:
             top_value = np.inner(t_base_vec, self._poles[it: it + dt, :].T)
@@ -396,6 +392,20 @@ class Curve:
         else:
             return  np.inner(t_base_vec, self.poles[it: it + dt, :].T)
 
+
+    def eval(self, t):
+        """
+        Evaluate a B-spline curve for paramater 't'. Check and fix range of 't'.
+        :param t: Evaluation point.
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
+        TODO:
+        - test evaluation for rational curves
+        """
+        t = self.basis.check(t)
+        it = self.basis.find_knot_interval(t)
+        return self.eval_local(t, it)
+
+
     def eval_array(self, t_points):
         """
         Evaluate in array of t-points.
@@ -403,6 +413,7 @@ class Curve:
         :return: Numpy array N x D, D is dimension of the curve.
         """
         return np.array( [ self.eval(t) for t in t_points] )
+
 
     def aabb(self):
         """
@@ -462,23 +473,20 @@ class Surface:
             self._weights = poles[:, :, self.dim]
             self._poles = (poles[:, :, 0:self.dim].T * self._weights.T ).T
 
-    def eval(self, u, v):
+
+
+
+    def eval_local(self, u, v, iu, iv):
         """
-        Evaluate a B-spline surface for paramaters u,v.
+        Evaluate a B-spline surface for paramaters u,v with given knot subintervals.
         :param u, v: Evaluation point.
+        :param iu, iv: Knot subintervals of u, v.
         :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
-        TODO:
-        - use basis.eval_vector
-        - test evaluation for rational curves
         """
-        u = self.u_basis.check(u)
-        v = self.v_basis.check(v)
-        iu = self.u_basis.find_knot_interval(u)
-        iv = self.v_basis.find_knot_interval(v)
         du = self.u_basis.degree + 1
         dv = self.v_basis.degree + 1
-        u_base_vec = np.array([self.u_basis.eval(ju, u) for ju in range(iu, iu + du)])
-        v_base_vec = np.array([self.v_basis.eval(jv, v) for jv in range(iv, iv + dv)])
+        u_base_vec = self.u_basis.eval_vector(iu, u)
+        v_base_vec = self.v_basis.eval_vector(iv, v)
 
         if self.rational:
             top_value = np.inner(u_base_vec, self._poles[iu: iu + du, iv: iv + dv, :].T)
@@ -492,6 +500,27 @@ class Surface:
             value = np.inner(u_base_vec, self.poles[iu: iu + du, iv: iv + dv, :].T )
             #print("val: {}".format(value.shape))
             return np.inner( value, v_base_vec)
+
+
+
+    def eval(self, u, v):
+        """
+        Evaluate a B-spline surface for paramaters u,v. Check and fix range of 'u, v'.
+        :param u, v: Evaluation point.
+        :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
+        TODO:
+        - test evaluation for rational curves
+        """
+        u = self.u_basis.check(u)
+        v = self.v_basis.check(v)
+        iu = self.u_basis.find_knot_interval(u)
+        iv = self.v_basis.find_knot_interval(v)
+        return self.eval_local(u, v, iu, iv)
+
+
+
+
+
 
     def deep_copy(self):
         u_basis = copy.copy(self.u_basis)
