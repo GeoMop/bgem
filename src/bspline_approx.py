@@ -92,15 +92,16 @@ def line(vtxs, overhang = 0.0):
 
 
 
-def surface_from_grid(grid_surface, nuv, **kwargs):
+def surface_from_grid(grid_surface, nuv):
     """
     Make a Z_Surface of degree 2 as an approximation of the GridSurface.
     :param grid_surface: grid surface to approximate
     :param (nu, nv) Prescribed number of poles in u and v directions.
     :return: Z_surface object.
     """
-    approx = SurfaceApprox(grid_surface, nuv, **kwargs)
-    return  approx.get_approximation()
+    approx = SurfaceApprox.approx_from_grid_surface(grid_surface)
+    return approx.compute_approximation(nuv=nuv)
+
 
 
 def curve_from_grid(points, **kwargs):
