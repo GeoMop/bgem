@@ -346,19 +346,21 @@ class SurfaceApprox:
         return self.quad
 
 
-    def transformed_quad(self, xy_mat):
-        """
-        Return actual quad transformed by given transform matrix.
-        Boudary quadrilateral of the approximation is not touched.
-        :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
-        :return: transformed quad as 4x2 numpy array or None
-        """
-        if self.quad is None:
-            return None
-        assert xy_mat.shape == (2, 3)
-
-        # transform quad
-        return np.dot(self.quad, xy_mat[0:2, 0:2].T) + xy_mat[0:2, 2]
+    # def transformed_quad(self, xy_mat):
+    #     """
+    #     Return actual quad transformed by given transform matrix.
+    #     Boudary quadrilateral of the approximation is not touched.
+    #     :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
+    #     :return: transformed quad as 4x2 numpy array or None
+    #     """
+    #     if self.quad is None:
+    #         return None
+    #     assert xy_mat.shape == (2, 3)
+    #     quad_center = np.average(self.quad, axis=0)
+    #     # transform quad
+    #     return np.dot( (self.quad - quad_center) , xy_mat[0:2, 0:2].T) + quad_center + xy_mat[0:2, 2]
+    #
+    #     #return np.dot((self.quad), xy_mat[0:2, 0:2].T) + xy_mat[0:2, 2]
 
 
     def compute_default_nuv(self):

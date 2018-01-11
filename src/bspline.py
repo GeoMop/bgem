@@ -576,7 +576,7 @@ class Z_Surface:
         self.quad = None
         # Boundary quadrilateral.
 
-        self.reset_transform(xy_quad)
+        self._reset_transform(xy_quad)
         # Set further private attributes, see comment there:
         # _z_mat, _have_z_mat, _xy_shift, _mat_xy_to_uv, _mat_uv_to_xy
 
@@ -601,7 +601,7 @@ class Z_Surface:
 
         return Surface(basis, poles)
 
-    def reset_transform(self, xy_quad=None):
+    def _reset_transform(self, xy_quad=None):
         """
         Set XY transform according to given domain quadrilateral (or triangle for linear mapping case).
         :param xy_quad: np array N x 2
@@ -649,27 +649,31 @@ class Z_Surface:
 
     def transform(self, xy_mat, z_mat = None ):
         """
-        Transform the Z-surface by arbitrary XY linear transform and Z linear transform.
+        Set XY a Z transform of the Z-surface by arbitrary XY linear transform and Z linear transform.
         :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
         :param z_shift: np.array, [ z_scale, z_shift]
         :return: None
         """
+        self._reset_transform()
+        surf_center = self.center()
         if xy_mat is not None:
             xy_mat = np.array(xy_mat)
             assert xy_mat.shape == (2, 3)
-            self._mat_uv_to_xy = xy_mat[0:2,0:2].dot( self._mat_uv_to_xy )
-            self._xy_shift = xy_mat[0:2,0:2].dot( self._xy_shift ) + xy_mat[0:2, 2]
+            self._mat_uv_to_xy = xy_mat[0:2,0:2]
+
+            quad_center = surf_center[0:2]
+            self._xy_shift = xy_mat[0:2, 2] - np.dot(self._mat_uv_to_xy, quad_center) + quad_center
             self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
 
             # transform quad
-            self.quad = np.dot(self.quad, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2]
+            self.quad = np.dot(self.quad, self._mat_uv_to_xy.T) + self._xy_shift
 
-        # apply z-transfrom directly to the poles
         if z_mat is not None:
             z_mat = np.array(z_mat)
             assert z_mat.shape == (2,)
-            self.z_mat[0] *= z_mat[0]
-            self.z_mat[1] = z_mat[0] * self.z_mat[1] + z_mat[1]
+            self.z_mat[0] = z_mat[0]
+            z_center = surf_center[2]
+            self.z_mat[1] = z_mat[1] + (1 - self.z_mat[0])*z_center
             self._have_z_mat = True
 
     def get_xy_matrix(self):
@@ -828,6 +832,7 @@ class IrregularGridExc(Exception):
 
 
 class GridSurface:
+
     step_tolerance = 1e-5
     # relative step_tolerance of 
 
@@ -962,39 +967,32 @@ class GridSurface:
         #print( "Check quad: ", uv_quad )
         assert np.allclose( uv_quad, np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
-    def reset_transform(self):
-        """
-        Set identify transform just as after construction.
-        :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
-        :param z_mat: [ z_scale, z_shift]
-        :return:
-        """
-        self.z_scale = 1.0
-        self.z_shift = 0.0
-        self.z_surface.reset_transform(self._orig_quad)
-        self.quad = self._orig_quad
-        self._check_map()
+    # def _reset_transform(self):
+    #     """
+    #     Set identify transform just as after construction.
+    #     :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
+    #     :param z_mat: [ z_scale, z_shift]
+    #     :return:
+    #     """
+    #     self.z_scale = 1.0
+    #     self.z_shift = 0.0
+    #     self.z_surface._reset_transform(self._orig_quad)
+    #     self.quad = self._orig_quad
+    #     self._check_map()
 
 
 
     def transform(self, xy_mat, z_mat):
         """
-        Transform the GridSurface by arbitrary XY linear transform and Z linear transform.
+        Set transform of the GridSurface to arbitrary XY linear transform and Z linear transform.
         :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
         :param z_shift: [ z_scale, z_shift]
         :return: None
         Note:
         """
-        # just XY transfrom of underlaying z_surface
-        if xy_mat is not None:
-            self.z_surface.transform(xy_mat)
-            # transform quad
-            self.quad = self.z_surface.uv_to_xy( np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
-
-        # transform z_scale
-        if z_mat is not None:
-            self.z_scale *= z_mat[0]
-            self.z_shift = z_mat[0]*self.z_shift + z_mat[1]
+        self.z_surface.transform(xy_mat, z_mat)
+        # transform quad
+        self.quad = self.z_surface.uv_to_xy( np.array([[0, 1], [0, 0], [1, 0], [1, 1]]) )
 
 
     def xy_to_uv(self, xy_points):
@@ -1051,7 +1049,7 @@ class GridSurface:
             u_loc = np.array([1 - uv_loc[0], uv_loc[0]])
             v_loc = np.array([1 - uv_loc[1], uv_loc[1]])
             Z_mat = self.grid_uvz[iu: (iu + 2), iv: (iv + 2), 2]
-            result[i] = self.z_scale*(u_loc.dot(Z_mat).dot(v_loc)) + self.z_shift
+            result[i] = self.z_surface.z_mat[0]*(u_loc.dot(Z_mat).dot(v_loc)) + self.z_surface.z_mat[1]
         return result
 
 
