@@ -386,6 +386,9 @@ class SurfaceApprox:
         """
         Compute approximation of the point set (given to constructor).
         Approximation parameters can be passed in through kwargs or set in the object before the call.
+        :param quad: [(x1,y1), .. , (x4,y4)] Set vertices of different quad for the point set.
+        :param nuv: (nu, nv) Set number of intervals of the resulting B-spline, in U and V direction
+        :param regularization_wight: Default 0.001, is scaled by the max singular value of B.
         :return: B-Spline surface
         """
 

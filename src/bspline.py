@@ -576,7 +576,8 @@ class Z_Surface:
         self.quad = None
         # Boundary quadrilateral.
 
-        self._reset_transform(xy_quad)
+        self._reset_transform_xy(xy_quad)
+        self._reset_transform_z()
         # Set further private attributes, see comment there:
         # _z_mat, _have_z_mat, _xy_shift, _mat_xy_to_uv, _mat_uv_to_xy
 
@@ -601,7 +602,15 @@ class Z_Surface:
 
         return Surface(basis, poles)
 
-    def _reset_transform(self, xy_quad=None):
+    def _reset_transform_z(self):
+        self.z_mat = np.array( [1.0, 0.0] )
+        # [ z_scale, z_shift ]
+
+        self._have_z_mat = False
+        # Indicate that we have z_mat different from identity.
+        # Optimization for array evaluation methods. z_mat must be set anyway.
+
+    def _reset_transform_xy(self, xy_quad=None):
         """
         Set XY transform according to given domain quadrilateral (or triangle for linear mapping case).
         :param xy_quad: np array N x 2
@@ -640,35 +649,33 @@ class Z_Surface:
             self.xy_to_uv = self._bilinear_xy_to_uv
             self.uv_to_xy = self._bilinear_uv_to_xy
 
-        self.z_mat = np.array( [1.0, 0.0] )
-        # [ z_scale, z_shift ]
-
-        self._have_z_mat = False
-        # Indicate that we have z_mat different from identity.
-        # Optimization for array evaluation methods. z_mat must be set anyway.
 
     def transform(self, xy_mat, z_mat = None ):
         """
         Set XY a Z transform of the Z-surface by arbitrary XY linear transform and Z linear transform.
+        Combine the prescribed transform with the original XY transform, which represents original grid.
+
         :param xy_mat: np array, 2 rows 3 cols, last column is xy shift
         :param z_shift: np.array, [ z_scale, z_shift]
         :return: None
         """
-        self._reset_transform()
+
         surf_center = self.center()
         if xy_mat is not None:
+            self._reset_transform_xy()
             xy_mat = np.array(xy_mat)
             assert xy_mat.shape == (2, 3)
-            self._mat_uv_to_xy = xy_mat[0:2,0:2]
+            self._mat_uv_to_xy = np.dot(xy_mat[0:2,0:2], self._mat_uv_to_xy)
 
             quad_center = surf_center[0:2]
-            self._xy_shift = xy_mat[0:2, 2] - np.dot(self._mat_uv_to_xy, quad_center) + quad_center
+            self._xy_shift = xy_mat[0:2, 2] + np.dot(xy_mat[0:2,0:2], (self._xy_shift - quad_center)) + quad_center
             self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
 
             # transform quad
-            self.quad = np.dot(self.quad, self._mat_uv_to_xy.T) + self._xy_shift
+            self.quad = np.dot(self.quad - quad_center, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2] + quad_center
 
         if z_mat is not None:
+            self._reset_transform_z()
             z_mat = np.array(z_mat)
             assert z_mat.shape == (2,)
             self.z_mat[0] = z_mat[0]
