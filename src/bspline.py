@@ -572,12 +572,13 @@ class Z_Surface:
         self.v_basis = z_surface.v_basis
         # Basis for UV directions.
 
-        self.orig_quad = xy_quad
-        self.quad = None
-        # Boundary quadrilateral.
 
         self._reset_transform_xy(xy_quad)
         self._reset_transform_z()
+
+        self.orig_quad = self.quad
+        # Boundary quadrilateral.
+
         # Set further private attributes, see comment there:
         # _z_mat, _have_z_mat, _xy_shift, _mat_xy_to_uv, _mat_uv_to_xy
 
@@ -596,14 +597,14 @@ class Z_Surface:
         xy_poles = self.uv_to_xy(uv_poles_vec).reshape(U.shape[0], U.shape[1], 2)
         z_poles = self.z_surface.poles.copy()
         if self._have_z_mat:
-            z_poles *= self.z_mat[0]
-            z_poles += self.z_mat[1]
+            z_poles *= self._z_mat[0]
+            z_poles += self._z_mat[1]
         poles = np.concatenate( (xy_poles, z_poles), axis = 2 )
 
         return Surface(basis, poles)
 
     def _reset_transform_z(self):
-        self.z_mat = np.array( [1.0, 0.0] )
+        self.z_mat = self._z_mat = np.array([1.0, 0.0])
         # [ z_scale, z_shift ]
 
         self._have_z_mat = False
@@ -622,19 +623,22 @@ class Z_Surface:
             If no xy_quad is given, we reset to the quad used in constructor.
         :return: None
         """
+
+        self._xy_mat = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
         # Build envelope quadrilateral polygon in XY plane.
         if xy_quad is None:
             xy_quad = self.orig_quad
-        self.quad = np.array(xy_quad, dtype=float)
-        assert self.quad.shape[0] in [3, 4], "Three or four points must be given."
-        assert self.quad.shape[1] == 2
+        xy_quad = np.array(xy_quad, dtype=float)
+        assert xy_quad.shape[0] in [3, 4], "Three or four points must be given."
+        assert xy_quad.shape[1] == 2
 
-        v11 = self.quad[0] + self.quad[2] - self.quad[1]
-        if self.quad.shape[0] == 3:
-            self.quad = np.concatenate( (self.quad, v11[None, :]), axis = 0)
+        v11 = xy_quad[0] + xy_quad[2] - xy_quad[1]
+        if xy_quad.shape[0] == 3:
+            xy_quad = np.concatenate( (xy_quad, v11[None, :]), axis = 0)
 
-        if np.allclose(self.quad[3], v11):
+        if np.allclose(xy_quad[3], v11):
             # linear case
+            self.quad = xy_quad
             self._xy_shift = self.quad[1]
             v_vec = self.quad[0] - self.quad[1]
             u_vec = self.quad[2] - self.quad[1]
@@ -646,6 +650,7 @@ class Z_Surface:
 
         else:
             # bilinear case
+            self.quad = xy_quad
             self.xy_to_uv = self._bilinear_xy_to_uv
             self.uv_to_xy = self._bilinear_uv_to_xy
 
@@ -659,36 +664,39 @@ class Z_Surface:
         :param z_shift: np.array, [ z_scale, z_shift]
         :return: None
         """
-
-        surf_center = self.center()
         if xy_mat is not None:
             self._reset_transform_xy()
+            surf_center = self.center()
             xy_mat = np.array(xy_mat)
             assert xy_mat.shape == (2, 3)
-            self._mat_uv_to_xy = np.dot(xy_mat[0:2,0:2], self._mat_uv_to_xy)
 
+            self._xy_mat = xy_mat
+            self._mat_uv_to_xy = np.dot(xy_mat[0:2,0:2], self._mat_uv_to_xy)
             quad_center = surf_center[0:2]
             self._xy_shift = xy_mat[0:2, 2] + np.dot(xy_mat[0:2,0:2], (self._xy_shift - quad_center)) + quad_center
             self._mat_xy_to_uv = la.inv(self._mat_uv_to_xy)
-
             # transform quad
             self.quad = np.dot(self.quad - quad_center, xy_mat[0:2,0:2].T) + xy_mat[0:2, 2] + quad_center
 
+
         if z_mat is not None:
             self._reset_transform_z()
+            surf_center = self.center()
             z_mat = np.array(z_mat)
             assert z_mat.shape == (2,)
-            self.z_mat[0] = z_mat[0]
+
+            self.z_mat = z_mat
+            self._z_mat[0] = z_mat[0]
             z_center = surf_center[2]
-            self.z_mat[1] = z_mat[1] + (1 - self.z_mat[0])*z_center
+            self._z_mat[1] = z_mat[1] + (1 - self._z_mat[0]) * z_center
             self._have_z_mat = True
 
-    def get_xy_matrix(self):
+    def get_transform(self):
         """
-        Return xy_mat of curent XY tranasform.
+        Return additional transform applied through the 'transform' method.
         :return:
         """
-        return np.concatenate((self._mat_uv_to_xy, self._xy_shift[:, None]), axis=1)
+        return (self._xy_mat, self.z_mat)
 
     def apply_z_transform(self):
         """
@@ -698,9 +706,9 @@ class Z_Surface:
         """
         if self._have_z_mat:
             self.z_surface = self.z_surface.deep_copy()
-            self.z_surface.poles *= self.z_mat[0]
-            self.z_surface.poles += self.z_mat[1]
-            self.z_mat = np.array([1.0, 0.0])
+            self.z_surface.poles *= self._z_mat[0]
+            self.z_surface.poles += self._z_mat[1]
+            self._z_mat = np.array([1.0, 0.0])
             self._have_z_mat = False
 
 
@@ -758,7 +766,7 @@ class Z_Surface:
         :return: D-dimensional numpy array. D - is dimension given by dimension of poles.
         """
         z = self.z_surface.eval(u, v)
-        z = self.z_mat[0] * z + self.z_mat[1]
+        z = self._z_mat[0] * z + self._z_mat[1]
         uv_points = np.array([[u, v]])
         x, y = self.uv_to_xy( uv_points )[0]
         return np.array( [x, y, z] )
@@ -773,8 +781,8 @@ class Z_Surface:
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
         if self._have_z_mat:
-            z_points *= self.z_mat[0]
-            z_points += self.z_mat[1]
+            z_points *= self._z_mat[0]
+            z_points += self._z_mat[1]
 
         xy_points = self.uv_to_xy(uv_points)
         return np.concatenate( (xy_points, z_points), axis = 1)
@@ -799,8 +807,8 @@ class Z_Surface:
         assert uv_points.shape[1] == 2
         z_points = self.z_surface.eval_array(uv_points)
         if self._have_z_mat:
-            z_points *= self.z_mat[0]
-            z_points += self.z_mat[1]
+            z_points *= self._z_mat[0]
+            z_points += self._z_mat[1]
         return z_points.reshape(-1)
 
 
@@ -826,7 +834,7 @@ class Z_Surface:
         xyz_box = np.empty( (2, 3) )
         xyz_box[0, 0:2] = np.amin(self.quad, axis=0)
         xyz_box[1, 0:2] = np.amax(self.quad, axis=0)
-        xyz_box[:, 2] = self.z_mat[0]*self.z_surface.aabb()[:,0] + self.z_mat[1]
+        xyz_box[:, 2] = self._z_mat[0] * self.z_surface.aabb()[:, 0] + self._z_mat[1]
         return xyz_box
 
 
