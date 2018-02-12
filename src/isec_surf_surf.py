@@ -15,20 +15,37 @@ class IsecPoint:
     """
     Point as the result of intersection with correspondind coordinates on both surfaces
     """
-    def __init__(self, surf1, iu1, iv1, uv1, surf2, iu2, iv2, uv2):
+    def __init__(self, surf1, iu1, iv1, uv1, boundary_flag,surf2, iu2, iv2, uv2,XYZ):
+
         self.surf1 = surf1
         self.iu1 = iu1
         self.iv1 = iv1
         self.uv1 = uv1
+        self.boundary_flag = boundary_flag
+
 
         self.surf2 = surf2
         self.iu2 = iu2
         self.iv2 = iv2
         self.uv2 = uv2
 
-        self.tol = 1
-        self.R3_coor = 1
 
+        self.tol = 1
+        self.R3_coor = XYZ
+
+
+    def add_patches(self, sum_idx):
+
+        n = self.iu1.__len__()
+
+        if sum_idx == 0:
+            for i in range(n):
+                self.iu1.append(self.iu1[0]+1)
+                self.iv1.append(self.iv1[i])
+        elif sum_idx == 1:
+            for i in range(n):
+                self.iu1.append(self.iu1[i])
+                self.iv1.append(self.iv1[0]+1)
 
 class IsecCurveSurf:
     """
@@ -56,6 +73,7 @@ class IsecCurveSurf:
         surf_poles = surf.poles[iu:iu + 3, iv:iv + 3, :]
         t_poles = curv.poles[it:it + 3, :]
 
+
         uf = surf.u_basis.eval_vector(iu, uvt[0, 0])
         vf = surf.v_basis.eval_vector(iv, uvt[1, 0])
         ufd = surf.u_basis.eval_diff_vector(iu, uvt[0, 0])
@@ -64,13 +82,18 @@ class IsecCurveSurf:
         tfd = curv.basis.eval_diff_vector(it, uvt[2, 0])
 
         dXYZt = np.tensordot(tfd, t_poles, axes=([0], [0]))
+        #print(dXYZt)
         dXYZu1 = self._energetic_inner_product(ufd, vf, surf_poles)
         dXYZv1 = self._energetic_inner_product(uf, vfd, surf_poles)
         J = np.column_stack((dXYZu1, dXYZv1, -dXYZt))
 
         XYZ1 = self._energetic_inner_product(uf, vf, surf_poles)
-        XYZ2 = np.tensordot(tf, t_poles, axes=([0], [1]))
+        XYZ2 = np.tensordot(tf, t_poles, axes=([0], [0]))
+        #print(XYZ2)
+        #return
+        XYZ2 = XYZ2[:, None]
         XYZ1 = XYZ1[:, None]
+
         deltaXYZ = XYZ1 - XYZ2
 
         return J, deltaXYZ
@@ -85,27 +108,70 @@ class IsecCurveSurf:
         :param max_it: maximum number of iteration
         :param rel_tol: relative tolerance (absolute in parametric space)
         :param abs_tol: absolute tolerance (in R3 space)
-        :return: uvt: vector of initial guess of local coordinates [u,v,t] (array 3x1), conv as "0" if the methog does not achive desired accuracy
-         or "1" if the methog achive desired accuracy
+        :return: uvt: vector of initial guess of local coordinates [u,v,t] (array 3x1),
+        conv as "0" if the methog does not achive desired accuracy
+                "1" if the methog achive desired accuracy
+        flag as intersection specification
         """
 
         conv = 0
+        flag = -1
 
         ui = self._compute_bounds(self.surf.u_basis.knots, iu)
         vi = self._compute_bounds(self.surf.v_basis.knots, iv)
         ti = self._compute_bounds(self.curv.basis.knots, it)
 
+        #print('IC=',uvt)
         for i in range(max_it):
             J, deltaXYZ = self._compute_jacobian_and_delta(uvt, iu, iv, it)
             uvt = uvt - la.solve(J, deltaXYZ)
+            #print('new')
+            #print(uvt)
             test, uvt = self._range_test(uvt, ui, vi, ti, 0.0)
 
+            #print(uvt)
+            #print( test)
+
+
+
+        #print(ui,vi,ti)
+        #print(test)
+        #print(uvt)
         test, uvt = self._range_test(uvt, ui, vi, ti, rel_tol)
-
+        #print(test)
+        #print(uvt)
+        # abs_tol
         if test == 1:
-            conv = self._test_intesection_tolerance(uvt, iu, iv, it, abs_tol)
+            conv, XYZ = self._test_intesection_tolerance(uvt, iu, iv, it, abs_tol)
+        #print(conv)
 
-        return uvt, conv
+        if conv == 1:
+            flag = self._boundary_intersection(uvt[2,0],ti)
+
+        #print('conv,flag =',conv,flag)
+        #print('end')
+        return uvt, conv, flag, XYZ
+
+    @staticmethod
+    def _boundary_intersection(t,ti):
+        """
+
+        :param t: parameter value
+        :param it: interval array (2x1)
+        :return:
+        flag as "0" corresponds to lower bound of the curve
+                "1" corresponds to upper bound of the curve
+                "-1" corresponds to the boundary points of the curve
+        """
+
+        if ti[0] == t:
+            flag = 0
+        elif ti[1] == t:
+            flag = 1
+        else:
+            flag = -1
+
+        return flag
 
     @staticmethod
     def _compute_bounds(knots, idx):
@@ -174,12 +240,13 @@ class IsecCurveSurf:
 
         surf_R3 = self.surf.eval_local(uvt[0, 0], uvt[1, 0], iu, iv)
         curv_R3 = self.curv.eval_local(uvt[2, 0], it)
+        XYZ = (surf_R3 + curv_R3)/2
         dist = la.norm(surf_R3 - curv_R3)
-
+        #print('distance =', dist)
         if dist <= abs_tol:
             conv = 1
 
-        return conv
+        return conv, XYZ
 
     def get_initial_condition(self, iu, iv, it):
         """
@@ -224,7 +291,7 @@ class IsecCurveSurf:
         return xyz
 
 class IsecSurfSurf:
-    def __init__(self, surf1, surf2, nt=2, max_it=10, rel_tol = 1e-4, abs_tol = 1e-6):
+    def __init__(self, surf1, surf2, nt=2, max_it=10, rel_tol = 1e-6, abs_tol = 1e-4):
         self.surf1 = surf1
         self.surf2 = surf2
         self.box1, self.tree1 = self.bounding_boxes(self.surf1)
@@ -255,7 +322,8 @@ class IsecSurfSurf:
                     for j in range(0, 3):
                         patch_poles[n_points, :, i_patch] = surf.poles[iu + i, iv + j, :]
                         n_points += 1
-                assert i_patch == (iu * surf.v_basis.n_intervals + iv)
+                #assert i_patch == (iu * surf.v_basis.n_intervals + iv)
+                assert i_patch == self._patch_pos2id(surf,iu,iv)
                 i_patch += 1
 
         boxes = [bih.AABB(patch_poles[:, :, p].tolist()) for p in range(n_patch)]
@@ -273,15 +341,64 @@ class IsecSurfSurf:
         :return:
         """
 
-        point_list = self.get_intersections(self.surf1, self.surf2, self.tree2,)  # patches of surf 2 with respect threads of the surface 1
+        point_list1 = self.get_intersections(self.surf1, self.surf2, self.tree2,)  # patches of surf 2 with respect threads of the surface 1
         point_list2 = self.get_intersections(self.surf2, self.surf1, self.tree1) # patches of surf 1 with respect threads of the surface 2
 
-        print(point_list.__len__())
-        print(point_list2.__len__())
+        print('points')
+        for point in point_list1:
+            print(point.uv1)
+        print('points2')
+        for point in point_list2:
+            print(point.uv2)
+        print(point_list1.__len__(),point_list2.__len__())
 
 
+        return     point_list1, point_list2
+
+        #print(point_list1.__len__(),point_list2.__len__())
+        #connected_points = self.connect_points(point_list1,point_list2)
 
 
+    def connect_points(self,point_list1,point_list2):
+
+        patch_point_list1, boundary_points1 = self.make_patch_point_list(point_list1,point_list2)
+        patch_point_list2, boundary_points2 = self.make_patch_point_list(point_list2,point_list1)
+
+        print(boundary_points2)
+
+        #self._make_orderings(patch_point_list1, boundary_points1,boundary_points2)
+
+
+        return patch_point_list2
+
+
+    #@staticmethod
+    def make_patch_point_list(self,point_list,point_list2):
+
+        surf1 = point_list[0].surf1
+
+        list_len = surf1.u_basis.n_intervals * surf1.v_basis.n_intervals
+        patch_points = []
+        boundary_points = []
+
+        for i in range(list_len):
+            patch_points.append([[],[]])
+
+
+        for point in point_list:
+            for i_patch in range(point.iu1.__len__()):
+                id = self._patch_pos2id(surf1,point.iu1[i_patch],point.iv1[i_patch])
+                patch_points[id][0].append(point)
+            if point.boundary_flag == 1:
+                boundary_points.append(point)
+
+        for point in point_list2:
+            for i_patch in range(point.iu2.__len__()):
+                id = self._patch_pos2id(surf1, point.iu2[i_patch], point.iv2[i_patch])
+                patch_points[id][1].append(point)
+
+
+        return patch_points, boundary_points
 
     @staticmethod
     def _main_threads(surf,sum_idx):
@@ -310,9 +427,9 @@ class IsecSurfSurf:
         elif sum_idx == 1:
             curv_pol = poles[:, 0, :]
 
-        iw = [0]
+
         w_val.append(0.0)
-        patches.append(iw)
+        patches.append([0])
 
         curv = bs.Curve(curv_basis, curv_pol)
         curves.append(curv)
@@ -333,18 +450,34 @@ class IsecSurfSurf:
             curves.append(curv)
 
         if sum_idx == 0:
-            curv_pol = poles[fix_basis.n_intervals+1, :, :]
+            curv_pol = poles[poles.shape[sum_idx]-1,:, :]
+            #print(poles.shape[sum_idx]-1,fix_basis.n_intervals - 1)
         elif sum_idx == 1:
-            curv_pol = poles[:, fix_basis.n_intervals+1, :]
+            curv_pol = poles[:,poles.shape[sum_idx]-1 , :]  # fix_basis.n_intervals - 1
+            #print(poles.shape[sum_idx] - 1,fix_basis.n_intervals - 1)
 
         w_val.append(1.0)
-        patches.append(fix_basis.n_intervals-1)
+        patches.append([fix_basis.n_intervals-1])
 
         curv = bs.Curve(curv_basis, curv_pol)
         curves.append(curv)
 
         return curves, w_val, patches
 
+
+    @staticmethod
+    def _patch_pos2id(surf,iu,iv):
+
+        id = iu * surf.v_basis.n_intervals + iv
+        return id
+
+    @staticmethod
+    def _patch_id2pos(surf,id):
+
+        iu = int(np.floor(id / surf.v_basis.n_intervals))
+        iv = int(id - (iu * surf.v_basis.n_intervals))
+
+        return iu, iv
 
     def get_intersections(self,surf1,surf2,tree2):
         """
@@ -357,37 +490,71 @@ class IsecSurfSurf:
         """
 
         point_list = []
+        crossing  = np.zeros([surf1.u_basis.n_intervals+1,surf1.v_basis.n_intervals+1])
+        patch_points = np.zeros([surf1.u_basis.n_intervals,surf1.v_basis.n_intervals,4])
+
 
         for sum_idx in range(2):
             curves, w_val, patches = self._main_threads(surf1, sum_idx)
             curve_id = -1
             for curve in curves:
+                lastflag = 0
                 curve_id += 1
+                interval_id = -1
+                #conv = 0
                 for it in range(curve.basis.n_intervals):
+                    interval_id += 1
                     curv_surf_isec = IsecCurveSurf(surf2, curve)
                     boxes = bih.AABB(curve.poles[it:it+3, :].tolist())
                     uv1 = np.zeros([2,1])
+                    #print(w_val[curve_id])
                     uv1[sum_idx,0] = w_val[curve_id]
                     intersectioned_patches2 = tree2.find_box(boxes)
+                    print("curve_id=", curve_id)
+                    print("sum_idx=", sum_idx)
+                    #print("intersectioned_patches2=",intersectioned_patches2)
                     for ipatch2 in intersectioned_patches2:
-                        iu2 = int(np.floor(ipatch2 / surf2.v_basis.n_intervals))
-                        iv2 = int(ipatch2 - (iu2 * surf2.v_basis.n_intervals))
+                        iu2, iv2 = self._patch_id2pos(surf2,ipatch2)
                         uvt = curv_surf_isec.get_initial_condition(iu2, iv2, it)
-                        uvt,  conv = curv_surf_isec.get_intersection(uvt, iu2, iv2, it, self.max_it, self.rel_tol, self.abs_tol)
-                        # boundary flag set
+                        uvt,  conv, flag, XYZ  = curv_surf_isec.get_intersection(uvt, iu2, iv2, it, self.max_it, self.rel_tol, self.abs_tol)
                         if conv == 1:
-                            #distance control
-                            uv1[1-sum_idx,0] = uvt[2,0]
-                            if sum_idx == 0:
-                                point = IsecPoint(surf1, patches[curve_id], it, uv1, surf2, iu2, iv2, uvt[0:1,:])
-                            elif sum_idx == 1:
-                                point = IsecPoint(surf1, it,patches[curve_id], uv1, surf2, iu2, iv2, uvt[0:1, :])
-
-                            point_list.append(point)
-
+                            if self._already_found(crossing,interval_id,flag,curve_id,sum_idx) == 0: # not to add the same point duplicitly (when v is fixed)
+                                print('uvt=', uv1[sum_idx,0],uvt[2,0])
+                                print('flag,lastflag', flag,lastflag)
+                                print('it=',it)
+                                if np.logical_and(flag == 0, lastflag == 1) == 1: # not to add the same point duplicitly (when u is fixed)
+                                    print('not add')
+                                    point_list[- 1].add_patches(sum_idx)  # extend point data
+                                    crossing[curve_id,interval_id+flag] = 1 # crossing intersection mark
+                                else: # add point
+                                    uv1[1-sum_idx,0] = uvt[2,0]
+                                    if np.logical_or(np.logical_and(flag == 0, it == 0),np.logical_and(flag == 1, it == curve.basis.n_intervals-1)):
+                                        boundary_flag = 1
+                                    else:
+                                        boundary_flag = 0
+                                    if sum_idx == 0:
+                                        # [it]
+                                        point = IsecPoint(surf1, patches[curve_id], [it,it], uv1, boundary_flag,surf2, [iu2], [iv2], uvt[0:2,:],XYZ)
+                                    elif sum_idx == 1:
+                                        point = IsecPoint(surf1, [it,it],patches[curve_id], uv1, boundary_flag,surf2, [iu2], [iv2], uvt[0:2, :],XYZ)
+                                    point_list.append(point)
+                                    lastflag = flag
         return point_list
 
+    @staticmethod
+    def _already_found(crossing,interval_id,flag,curve_id,sum_idx):
 
+        found = 0
+
+        if np.logical_or(flag ==0,flag == 1) == 1:
+            if np.logical_and(crossing[interval_id+flag,curve_id] == 1,sum_idx == 1) == 1:
+                found = 1
+
+        return found
+
+
+
+# np.logical_not(np.logical_and(crossing[interval_id+flag,curve_id] == 1,sum_idx == 1))
     '''
     Calculation and representation of intersection of two B-spline surfaces.
 
