@@ -34,18 +34,20 @@ class IsecPoint:
         self.R3_coor = XYZ
 
 
-    def add_patches(self, sum_idx):
+    def add_patches(self, sum_idx,flag):
 
         n = self.iu1.__len__()
 
+        direction = 2*flag -1
+
         if sum_idx == 0:
             for i in range(n):
-                self.iu1.append(self.iu1[0]+1)
+                self.iu1.append(self.iu1[0]+direction)
                 self.iv1.append(self.iv1[i])
         elif sum_idx == 1:
             for i in range(n):
                 self.iu1.append(self.iu1[i])
-                self.iv1.append(self.iv1[0]+1)
+                self.iv1.append(self.iv1[0]+direction)
 
 class IsecCurveSurf:
     """
@@ -159,9 +161,9 @@ class IsecCurveSurf:
         :param t: parameter value
         :param it: interval array (2x1)
         :return:
-        flag as "0" corresponds to lower bound of the curve
+        flag as "-1" corresponds to lower bound of the curve
                 "1" corresponds to upper bound of the curve
-                "-1" corresponds to the boundary points of the curve
+                "0" corresponds to the boundary points of the curve
         """
 
         if ti[0] == t:
@@ -491,23 +493,28 @@ class IsecSurfSurf:
 
         point_list = []
         crossing  = np.zeros([surf1.u_basis.n_intervals+1,surf1.v_basis.n_intervals+1])
-        patch_points = np.zeros([surf1.u_basis.n_intervals,surf1.v_basis.n_intervals,4])
 
 
         for sum_idx in range(2):
+            if sum_idx == 1:
+                print(crossing)
             curves, w_val, patches = self._main_threads(surf1, sum_idx)
             curve_id = -1
             for curve in curves:
-                lastflag = 0
                 curve_id += 1
                 interval_id = -1
-                #conv = 0
                 for it in range(curve.basis.n_intervals):
                     interval_id += 1
+                    if self._already_found(crossing,interval_id,curve_id,sum_idx) == 1:
+                        #print('continue')
+                        continue
                     curv_surf_isec = IsecCurveSurf(surf2, curve)
                     boxes = bih.AABB(curve.poles[it:it+3, :].tolist())
                     uv1 = np.zeros([2,1])
-                    #print(w_val[curve_id])
+                    if np.logical_or(it == 0, it == curve.basis.n_intervals - 1):
+                        interval_list = [it]
+                    else:
+                        interval_list = [it, it]
                     uv1[sum_idx,0] = w_val[curve_id]
                     intersectioned_patches2 = tree2.find_box(boxes)
                     print("curve_id=", curve_id)
@@ -518,37 +525,51 @@ class IsecSurfSurf:
                         uvt = curv_surf_isec.get_initial_condition(iu2, iv2, it)
                         uvt,  conv, flag, XYZ  = curv_surf_isec.get_intersection(uvt, iu2, iv2, it, self.max_it, self.rel_tol, self.abs_tol)
                         if conv == 1:
-                            if self._already_found(crossing,interval_id,flag,curve_id,sum_idx) == 0: # not to add the same point duplicitly (when v is fixed)
-                                print('uvt=', uv1[sum_idx,0],uvt[2,0])
-                                print('flag,lastflag', flag,lastflag)
-                                print('it=',it)
-                                if np.logical_and(flag == 0, lastflag == 1) == 1: # not to add the same point duplicitly (when u is fixed)
-                                    print('not add')
-                                    point_list[- 1].add_patches(sum_idx)  # extend point data
-                                    crossing[curve_id,interval_id+flag] = 1 # crossing intersection mark
-                                else: # add point
-                                    uv1[1-sum_idx,0] = uvt[2,0]
-                                    if np.logical_or(np.logical_and(flag == 0, it == 0),np.logical_and(flag == 1, it == curve.basis.n_intervals-1)):
-                                        boundary_flag = 1
-                                    else:
-                                        boundary_flag = 0
-                                    if sum_idx == 0:
-                                        # [it]
-                                        point = IsecPoint(surf1, patches[curve_id], [it,it], uv1, boundary_flag,surf2, [iu2], [iv2], uvt[0:2,:],XYZ)
-                                    elif sum_idx == 1:
-                                        point = IsecPoint(surf1, [it,it],patches[curve_id], uv1, boundary_flag,surf2, [iu2], [iv2], uvt[0:2, :],XYZ)
-                                    point_list.append(point)
-                                    lastflag = flag
+                            #check second surf
+                            #else break
+                            if np.logical_or(np.logical_and(flag == 0, it == 0),
+                                             np.logical_and(flag == 1, it == curve.basis.n_intervals - 1)):
+                                boundary_flag = 1
+                            else:
+                                boundary_flag = 0
+
+                            uv1[1 - sum_idx, 0] = uvt[2, 0]
+                            if sum_idx == 0:
+                                point = IsecPoint(surf1, patches[curve_id], interval_list, uv1, boundary_flag, surf2,
+                                                  [iu2], [iv2], uvt[0:2, :], XYZ)
+                            elif sum_idx == 1:
+                                point = IsecPoint(surf1, interval_list, patches[curve_id], uv1, boundary_flag, surf2,
+                                                  [iu2], [iv2], uvt[0:2, :], XYZ)
+                            point_list.append(point)
+
+                            if boundary_flag == 0:
+                                point_list[- 1].add_patches(sum_idx, flag) # move to constructor
+
+                            if np.logical_or(flag == 0,flag == 1):
+                                if sum_idx == 0:
+                                    crossing[curve_id, interval_id + flag] = 1
+                                    break
+                                elif sum_idx == 1:
+                                    crossing[interval_id + flag,curve_id] = 1 # xxx
+                                    break
+
+
         return point_list
 
     @staticmethod
-    def _already_found(crossing,interval_id,flag,curve_id,sum_idx):
+    def _already_found(crossing,interval_id,curve_id,sum_idx):
 
         found = 0
 
-        if np.logical_or(flag ==0,flag == 1) == 1:
-            if np.logical_and(crossing[interval_id+flag,curve_id] == 1,sum_idx == 1) == 1:
-                found = 1
+
+        if sum_idx == 0:
+            for i in range(2):
+                if crossing[interval_id + i,curve_id] == 1:
+                    found = 1
+        elif sum_idx == 1:
+            for i in range(2):
+                if crossing[curve_id, interval_id + i] == 1:
+                    found = 1
 
         return found
 
