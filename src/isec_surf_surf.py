@@ -1,6 +1,8 @@
 import sys
+import os
 
-build_path = "/home/jiri/Soft/Geomop/Intersections/external/bih/build"
+src_dir = os.path.dirname(os.path.abspath(__file__))
+build_path = os.path.join(src_dir, "../external/bih/build")
 sys.path += [build_path]
 print(sys.path)
 
