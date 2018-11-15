@@ -21,16 +21,16 @@ class TestSurface:
 
 
         def function(x):
-            return math.sin(x[0]*4) * math.cos(x[1]*4)
+            return math.sin(x[0]*4) * math.cos(x[1] * 4)
 
         def function2(x):
-            return math.cos(x[0]*4) * math.sin(x[1]*4)
+            return math.cos(x[0]*4) * math.sin(x[1] * 4)
 
         def function3(x):
-            return (-x[0]+ x[1] +4 +3+math.cos(3*x[0]))
+            return (-x[0] + x[1] + 4 + 3 + math.cos(3 * x[0]))
 
         def function4(x):
-            return (2*x[0]- x[1] +3+math.cos(3*x[0])  )
+            return (2 * x[0] - x[1] + 3 + math.cos(3 * x[0]))
 
         u1_int = 4
         v1_int = 4
@@ -79,9 +79,9 @@ class TestSurface:
         approx = bsa.SurfaceApprox(fc)
         approx2 = bsa.SurfaceApprox(fc2)
          ##!!!
-        surfz = approx.compute_approximation(nuv=np.array([10, 12]))
+        surfz = approx.compute_approximation(nuv=np.array([11, 26]))
         #surfz.make_linear_poles()
-        surfz2 = approx2.compute_approximation(nuv = np.array([6, 20]))
+        surfz2 = approx2.compute_approximation(nuv = np.array([20, 16]))
 
         surfzf = surfz.make_full_surface()
         surfzf2 = surfz2.make_full_surface()
@@ -117,7 +117,7 @@ class TestSurface:
 
     #def boudingbox(self):
     #    SurfSurf = IsecSurfSurf.bounding_boxes()
-    @pytest.mark.skip
+    #@pytest.mark.skip
     def test_isec(self):
 
 
