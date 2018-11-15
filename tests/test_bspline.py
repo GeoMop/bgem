@@ -328,20 +328,20 @@ class TestZ_Surface:
 
         z_surf.transform(None, np.array([2.0, 1.0]))
         box = z_surf.aabb()
-        assert np.allclose(box, np.array([[0, 0, 7], [1.1, 1.1, 11]]))
+        assert np.allclose(box, np.array([[0, 0, 3.25], [1.1, 1.1, 7.25]]))
 
-    def test_reset_transform(self):
-        def function(x):
-            return math.sin(x[0]*4) * math.cos(x[1]*4)
-
-        quad = np.array([[1., 3.5], [1., 2.],  [2., 2.2], [2, 3.7]])
-        z_surf = self.make_z_surf(function, quad)
-        xy_mat = np.array([[2, 1, -1],[1, 2, -2]])
-        z_mat = np.array([2, 1])
-        z_surf.transform(xy_mat, z_mat)
-        assert np.allclose( z_surf.quad[0], np.array([4.5, 6]) )
-        z_surf.reset_transform()
-        assert np.allclose(z_surf.quad, quad)
+    # def test_reset_transform(self):
+    #     def function(x):
+    #         return math.sin(x[0]*4) * math.cos(x[1]*4)
+    #
+    #     quad = np.array([[1., 3.5], [1., 2.],  [2., 2.2], [2, 3.7]])
+    #     z_surf = self.make_z_surf(function, quad)
+    #     xy_mat = np.array([[2, 1, -1],[1, 2, -2]])
+    #     z_mat = np.array([2, 1])
+    #     z_surf.transform(xy_mat, z_mat)
+    #     assert np.allclose( z_surf.quad[0], np.array([4.5, 6]) )
+    #     # z_surf.reset_transform()
+    #     # assert np.allclose(z_surf.quad, quad)
 
     def test_get_copy(self):
         def function(x):
@@ -352,7 +352,7 @@ class TestZ_Surface:
         b_surf = a_surf.get_copy()
         b_surf.transform(None, np.array([2, 1]))
         assert np.allclose(a_surf.center()[0:1], b_surf.center()[0:1])
-        assert np.isclose(2 * a_surf.center()[2] + 1, b_surf.center()[2])
+        assert np.isclose(a_surf.center()[2] + 1, b_surf.center()[2])
         za = a_surf.center()[2]
         zb = b_surf.center()[2]
 
@@ -393,7 +393,7 @@ class TestPointGrid:
             assert diff < tol, " |a({}) - b({})| > tol({}), idx: {}".format(za, zb, tol, i)
         print("Max norm: ", eps, "Tol: ", tol)
 
-    def check_surface(self, surf, xy_mat, xy_shift, z_mat):
+    def check_surface(self, surf, xy_mat, xy_shift, z_mat, center):
         """
         TODO: Make this a general function - evaluate a surface on a grid, use it also in other tests
         to compare evaluation on the grid to the original function. Can be done after we have approximations.
@@ -406,13 +406,18 @@ class TestPointGrid:
         V_grid, U_grid = np.meshgrid(V,U)
 
         UV = np.stack( [U_grid.ravel(), V_grid.ravel()], axis = 1 )
-        XY = xy_mat.dot(UV.T).T + xy_shift
+
+
+        XY = xy_mat.dot( (UV - center[0:2]).T ).T + xy_shift + center[0:2]
         Z = surf.z_eval_xy_array(XY)
         XYZ_grid_eval = np.concatenate( (XY, Z[:, None]) , axis = 1).reshape(nu, nv, 3)
 
         XYZ_surf_eval = surf.eval_array(UV).reshape(nu, nv, 3)
 
-        z_func_eval = np.array([ z_mat[0]*TestPointGrid.function([u,v]) + z_mat[1]  for u, v in UV ])
+        z_func_eval = np.array([ TestPointGrid.function([u,v])  for u, v in UV ])
+        z_func_eval -= center[2]
+        z_func_eval *= z_mat[0]
+        z_func_eval += z_mat[1] + center[2]
         XYZ_func_eval = np.concatenate( (XY, z_func_eval[:, None]), axis =1 ).reshape(nu, nv, 3)
 
         #self.plot_check_surface(XYZ_grid_eval, XYZ_surf_eval, XYZ_func_eval)
@@ -443,22 +448,24 @@ class TestPointGrid:
         xy_shift = np.array([[-2.0, 5.0 ]])
         z_shift = np.array([1.0, 1.3])
         new_quad = np.array([ [0, 1.0], [0,0], [1, 0], [1, 1]])
-        new_quad = new_quad.dot(xy_mat[:2,:2].T) + xy_shift
+        center = np.array([0.5, 0.5])
+        new_quad = (new_quad - center).dot(xy_mat[:2,:2].T) + center + xy_shift
 
         surface = self.make_point_grid()
+        center = surface.center()
         surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), z_shift)
         assert np.all(surface.quad == new_quad), "surf: {} ref: {}".format(surface.quad, new_quad)
-        self.check_surface(surface, xy_mat, xy_shift, z_shift)
+        self.check_surface(surface, xy_mat, xy_shift, z_shift, center)
 
         surf_center = surface.center()
-        ref_center = np.array( [-2.0, math.sqrt(2.0)+5.0, (math.sin(0.5)*math.cos(0.5) + 1.3) ] )
+        ref_center = center + np.array( [-2.0, 5.0, 1.3] )
         #print(surf_center)
         #print(ref_center)
         assert np.allclose( ref_center, surf_center, rtol=0.01)
 
-        v_min, v_max = surface.aabb()
-        assert np.allclose(v_min, np.array([-3.0/math.sqrt(2) -2, 0.0 + 5, 1.3]))
-        assert np.allclose(v_max, np.array([3.0 / math.sqrt(2) - 2, 4.0 / math.sqrt(2) + 5, math.sin(1.0) + 1.3]))
+        # v_min, v_max = surface.aabb()
+        # assert np.allclose(v_min, np.array([-3.0/math.sqrt(2) -2, 0.0 + 5, 1.3]))
+        # assert np.allclose(v_max, np.array([3.0 / math.sqrt(2) - 2, 4.0 / math.sqrt(2) + 5, math.sin(1.0) + 1.3]))
 
     def test_grid_surface_transform(self):
         surface = self.make_point_grid()
@@ -467,15 +474,15 @@ class TestPointGrid:
         surface.transform(np.concatenate((xy_mat, xy_shift.T), axis=1), None)
         quad = surface.quad
         #print(quad)
-        assert quad[0][0] == -2
-        assert quad[0][1] == 7
-        assert quad[2][0] == 1
-        assert quad[2][1] == 5
+        assert quad[0][0] == -3
+        assert quad[0][1] == 6.5
+        assert quad[2][0] == 0
+        assert quad[2][1] == 4.5
 
-        surface.reset_transform()
-        quad = surface.quad
-        assert quad[0][0] == 0
-        assert quad[0][1] == 1
-        assert quad[2][0] == 1
-        assert quad[2][1] == 0
+        # surface.reset_transform()
+        # quad = surface.quad
+        # assert quad[0][0] == 0
+        # assert quad[0][1] == 1
+        # assert quad[2][0] == 1
+        # assert quad[2][1] == 0
 
