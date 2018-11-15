@@ -11,7 +11,7 @@ import numpy as np
 import numpy.linalg as la
 
 import bspline as bs
-import IsecPoint as IP
+import isec_point as IP
 import iseccurvesurf as ICS
 
 
@@ -176,7 +176,7 @@ class IsecSurfSurf:
             if n_points > 2:
                 print('problem')
 
-            if
+            #if
 
 
             for i in range(0,2):
@@ -199,7 +199,7 @@ class IsecSurfSurf:
                                         pt[k] += 1
                             if np.sum(pt) > 1:
                                 print('problem')
-                            else:
+                            #else:
 #
 #            #found_start
 #            end_found = 0
