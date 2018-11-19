@@ -6,7 +6,7 @@ class IsecPoint:
     """
     Point as the result of intersection with correspondind coordinates on both surfaces
     """
-    def __init__(self, surf1, iu1, iv1, uv1, boundary_flag, flag ,sum_idx, surf2, iu2, iv2, uv2,XYZ):
+    def __init__(self, surf1, iu1, iv1, uv1, boundary_flag, flag, sum_idx, surf2, iu2, iv2, uv2, XYZ):
 
         self.surf1 = surf1
         self.iu1 = iu1
@@ -23,19 +23,18 @@ class IsecPoint:
 
         self.tol = 1 # implement
         self.R3_coor = XYZ
-
         self.connected = 0
 
 
         if boundary_flag == 1:
-            self.add_patches(sum_idx,flag[2])
+            self.add_patches(sum_idx, flag[2])
 
-        if np.logical_or(flag[0]!=-1,flag[1]!=-1):
-            self.extend_patches( flag[0:2])
+        if np.logical_or(flag[0] != -1, flag[1] != -1):
+            self.extend_patches(flag[0:2])
 
         # flag
 
-    def belongs_to(self,iu,iv,isurf):
+    def belongs_to(self, iu, iv, isurf):
 
         belongs = 0
         if isurf == 0:
@@ -61,6 +60,10 @@ class IsecPoint:
 
     def connect(self):
         self.connected = 1
+
+    def connected(self):
+        return self.connected
+
 
     def extend_patches(self, flag):
 

@@ -86,8 +86,8 @@ class IsecCurveSurf:
         conv, XYZ = self._test_intesection_tolerance(uvt, iu, iv, it, abs_tol)
 
         if conv == 1:
-            flag[0] = self._patch_boundary_intersection(uvt[0, 0], ui, rel_tol)
-            flag[1] = self._patch_boundary_intersection(uvt[1, 0], vi, rel_tol)
+            flag[0] = self._curve_boundary_intersection(uvt[0, 0], ui, rel_tol)
+            flag[1] = self._curve_boundary_intersection(uvt[1, 0], vi, rel_tol)
             flag[2] = self._curve_boundary_intersection(uvt[2, 0], ti, rel_tol)
 
 
@@ -105,6 +105,9 @@ class IsecCurveSurf:
                 "-1" corresponds to the interior points of the curve
         """
         # interior boundary
+
+        #flag = -1
+
         if abs(ti[0] - t) < rel_tol:
             flag = 0
         elif abs(ti[1] - t) < rel_tol:
