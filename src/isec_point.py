@@ -1,13 +1,30 @@
 
 import numpy as np
+import enum
+
+
+class Axis(enum.Enum):
+    """
+    Axis of the 2d bspline.
+    """
+    u = 0
+    v = 1
+
 
 
 class IsecPoint:
     """
     Point as the result of intersection with correspondind coordinates on both surfaces
+
     """
     def __init__(self, surf1, iu1, iv1, uv1, boundary_flag, flag, sum_idx, surf2, iu2, iv2, uv2, XYZ):
+        """
+        Todo: parameter description.
+        Todo: consider introduction of SurfPoint class or NamedTuple to collect: (surf, iu, iv, uv)
+        Todo: XYZ not used, can possibly be removed
+        Todo: better names for flag and sum_idx, possibly use add_patches direstly not through constructor.
 
+        """
         self.surf1 = surf1
         self.iu1 = iu1
         self.iv1 = iv1
@@ -35,7 +52,14 @@ class IsecPoint:
         # flag
 
     def belongs_to(self, iu, iv, isurf):
+        """
+        Todo: description.
 
+        :param iu:
+        :param iv:
+        :param isurf:
+        :return:
+        """
         belongs = 0
         if isurf == 0:
             for i in range(self.iu1.__len__):

@@ -15,6 +15,8 @@ class IsecCurveSurf:
     def _compute_jacobian_and_delta(self, uvt, iu, iv, it):
         """
         Computes Jacobian matrix and delta vector of the function
+        TODO: better description, what is delta, what is function.
+
         :param uvt: vector of local coordinates [u,v,t] (array 3x1)
         :param iu: index of the knot interval of the coordinate u
         :param iv: index of the knot interval of the coordinate v
@@ -56,6 +58,8 @@ class IsecCurveSurf:
     def get_intersection(self, uvt, iu, iv, it, max_it, rel_tol, abs_tol):
         """
         Main solving method for solving
+        TODO: Say what the method does.
+
         :param uvt: vector of initial guess of local coordinates [u,v,t] (array 3x1)
         :param iu: index of the knot interval of the coordinate u
         :param iv: index of the knot interval of the coordinate v
@@ -63,15 +67,19 @@ class IsecCurveSurf:
         :param max_it: maximum number of iteration
         :param rel_tol: relative tolerance (absolute in parametric space)
         :param abs_tol: absolute tolerance (in R3 space)
-        :return: uvt: vector of initial guess of local coordinates [u,v,t] (array 3x1),
-        conv as "0" if the methog does not achive desired accuracy
-                "1" if the methog achive desired accuracy
-        flag as intersection specification
+        :return:
+            uvt: vector of initial guess of local coordinates [u,v,t] (array 3x1),
+            TODO: here and everywhere use bool instead of int for flags
+            conv as "0" if the methog does not achive desired accuracy
+                    "1" if the methog achive desired accuracy
+            flag as intersection specification
+            XYZ
         """
         conv = 0
         #flag = -1
         flag = -np.ones([3],'int')
 
+        # TODO: use basis.domain instead
         ui = self._compute_bounds(self.surf.u_basis.knots, iu)
         vi = self._compute_bounds(self.surf.v_basis.knots, iv)
         ti = self._compute_bounds(self.curv.basis.knots, it)
@@ -162,6 +170,8 @@ class IsecCurveSurf:
         """
         Test of the entries of uvt, lies in given intervals
         with a given tolerance
+
+        TODO: rewrite using array for bounds, whole function about two lines of code.
         :param uvt: vector of local coordinates [u,v,t] (array 3x1)
         :param ui: knot interval of the coordinate u (array 2x1)
         :param vi: knot interval of the coordinate v (array 2x1)

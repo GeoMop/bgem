@@ -122,7 +122,13 @@ class IsecSurfSurf:
 
 
     def _make_orderings(self,point_list,patch_point_list, boundary_points):
-
+        """
+        TODO: split into smaller functions.
+        :param point_list:
+        :param patch_point_list:
+        :param boundary_points:
+        :return:
+        """
         n_curves = 0
 
         line = []
@@ -242,6 +248,8 @@ class IsecSurfSurf:
     def _main_threads(surf,sum_idx):
         """
         Construction of the main threads
+        Todo: what is "thread", describe.
+        Todo: use eunum to mark u/v direction instead of 'sum_idx'
         :param surf: surface which is used to construction of the main threads
         :param sum_idx: sum_idx == 0 --> u fixed, sum_idx == 1 --> v fixed
         :return: curves as list of curves, w_val as list of value of the fixed local coordinates , patches as list of neighbour patches
@@ -345,6 +353,9 @@ class IsecSurfSurf:
                     boxes = bih.AABB(curve.poles[it:it+3, :].tolist())
                     uv1 = np.zeros([2,1])
                     #if np.logical_or(it == 0, it == curve.basis.n_intervals - 1):
+
+                    # todo: len(patches[curve_id])
+                    # todo: (n+1)*[it]
                     if (patches[curve_id].__len__() == 1):
                         interval_list = [it]
                     else:
