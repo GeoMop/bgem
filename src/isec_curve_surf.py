@@ -118,7 +118,7 @@ class IsecCurveSurf:
         return flag
 
     @staticmethod
-    def _patch_boundary_intersection(t,ti,rel_tol):
+    def _patch_boundary_intersection(t, ti, rel_tol):
         """
 
         :param t: parameter value
@@ -177,15 +177,15 @@ class IsecCurveSurf:
         dt = np.array([ ti[0] - uvt[2, 0],uvt[2, 0] - ti[1]])
 
         for i in range(0, 2):
-            if (du[i] > rel_tol):
+            if du[i] > rel_tol:
                 uvt[0, 0] = ui[i]
 
         for i in range(0, 2):
-            if (dv[i] > rel_tol):
+            if dv[i] > rel_tol:
                 uvt[1, 0] = vi[i]
 
         for i in range(0, 2):
-            if (dt[i] > rel_tol):
+            if dt[i] > rel_tol:
                 uvt[2, 0] = ti[i]
 
         #if np.logical_and(uvt[0, 0] >= ui[0], uvt[0, 0] <= ui[1]):
@@ -209,15 +209,15 @@ class IsecCurveSurf:
 
         conv = 0
 
-        surf_R3 = self.surf.eval_local(uvt[0, 0], uvt[1, 0], iu, iv)
-        curv_R3 = self.curv.eval_local(uvt[2, 0], it)
-        XYZ = (surf_R3 + curv_R3)/2
-        dist = la.norm(surf_R3 - curv_R3)
+        surf_r3 = self.surf.eval_local(uvt[0, 0], uvt[1, 0], iu, iv)
+        curv_r3 = self.curv.eval_local(uvt[2, 0], it)
+        xyz = (surf_r3 + curv_r3)/2
+        dist = la.norm(surf_r3 - curv_r3)
         #print('distance =', dist)
         if dist <= abs_tol:
             conv = 1
 
-        return conv, XYZ
+        return conv, xyz
 
     def get_initial_condition(self, iu, iv, it):
         """
