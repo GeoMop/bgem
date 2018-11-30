@@ -92,6 +92,9 @@ class SplineBasis:
             self.eval_base_vector = self._eval_vector_deg_2
             self.eval_diff_base_vector = self._eval_diff_vector_deg_2
 
+    def in_domain(self, t):
+        """ True if  't' is in the domain of the basis. """
+        return self.domain[0] <= t <= self.domain[1]
 
     def pack_knots(self):
         """
