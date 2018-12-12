@@ -3,7 +3,7 @@ import numpy as np
 import enum
 
 
-class Axis(enum.Enum):
+class Axis(enum.IntEnum):
     """
     Axis of the 2d bspline.
     """
@@ -64,39 +64,32 @@ class IsecPoint:
 
         return belongs
 
-    def n_patches(self):
-
-        niu1 = self.iu1.__len__
-        niv1 = self.iv1.__len__
-        niu2 = self.iu2.__len__
-        niv2 = self.iv2.__len__
-
-        if np.logical_and(np.logical_and(niu1 == niv1), np.logical_and(niu2 == niv2)):
-            n1 = niu1
-            n2 = niu2
-        else:
-            print("problem")  # assert
-
-        same = 0
-        if n1 == n2:
-            same = n1
-
-        return n1, n2, same
-
     def extend_patches(self, flag):
         # extend reference of the patches on the second surface
 
-        if flag[0] != -1:
+        n = 0
+
+        u_bound_low = np.logical_or(flag[0] != 0, self.iu2[0] != 0)
+        u_bound_high = np.logical_or(flag[0] != 1, self.iu2[0] != self.surf2.u_basis.n_intervals - 1)
+        u_bound_neg = np.logical_or(u_bound_low, u_bound_high)
+
+        v_bound_low = np.logical_or(flag[1] != 0, self.iu2[0] != 0)
+        v_bound_high = np.logical_or(flag[1] != 1, self.iu2[0] != self.surf2.v_basis.n_intervals - 1)
+        v_bound_neg = np.logical_or(v_bound_low, v_bound_high)
+
+        if np.logical_and(flag[0] != -1, u_bound_neg):
             direction_u = 2 * flag[0] - 1
             self.iu2.append(self.iu2[0] + direction_u)
             self.iv2.append(self.iv2[0])
+            n = n + 1
 
-        if flag[1] != -1:
+        if np.logical_and(flag[0] != -1, v_bound_neg):
             direction_v = 2 * flag[1] - 1
             self.iu2.append(self.iu2[0])
-            self.iv2.append(self.iv2[0]+ direction_v)
+            self.iv2.append(self.iv2[0] + direction_v)
+            n = n + 1
 
-        if np.logical_and(flag[0] != -1, flag[1] != -1):
+        if n == 2:
             self.iu2.append(self.iu2[0] + direction_u)
             self.iv2.append(self.iv2[0] + direction_v)
 
@@ -104,7 +97,7 @@ class IsecPoint:
         # add neighbour patches in the case when intersection computed
         # using main threads lies on patch boundary
 
-        n = self.iu1.__len__()
+        n = len(self.iu1)
 
         direction = 2 * flag - 1
 

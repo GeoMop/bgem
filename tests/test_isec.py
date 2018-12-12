@@ -130,7 +130,7 @@ class TestSurface:
 
         m = point_list1.__len__() + point_list2.__len__()
 
-        X= np.zeros([m])
+        X = np.zeros([m])
         Y = np.zeros([m])
         Z = np.zeros([m])
 
@@ -138,15 +138,15 @@ class TestSurface:
 
         for point in point_list1:
             i += 1
-            X[i] = point.R3_coor[0]
-            Y[i]= point.R3_coor[1]
-            Z[i]= point.R3_coor[2]
+            X[i] = point.xyz[0]
+            Y[i] = point.xyz[1]
+            Z[i] = point.xyz[2]
 
         for point in point_list2:
             i += 1
-            X[i] = point.R3_coor[0]
-            Y[i]= point.R3_coor[1]
-            Z[i]= point.R3_coor[2]
+            X[i] = point.xyz[0]
+            Y[i] = point.xyz[1]
+            Z[i] = point.xyz[2]
 
 
 

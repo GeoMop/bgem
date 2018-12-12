@@ -83,7 +83,14 @@ class IsecSurfSurf:
         #assert point_list1.__len__() == 9
         #assert point_list2.__len__() == 9
 
-        connected_points = self._connect_points(point_list1, point_list2)
+        #connected_points = self._connect_points(point_list1, point_list2)
+
+
+
+        print(len(point_list1))
+        print(len(point_list2))
+
+
 
         return point_list1, point_list2
 
@@ -196,11 +203,6 @@ class IsecSurfSurf:
                 for i in range(0, patch_id.size):
                     next_point = self._get_out_point(point_list, patch_point_list, i_surf, patch_id[i])
 
-       #         n_points = np.zeros([len(next_point)], dtype=int)
-       #         for i in range(0, len(next_point)):
-       #             n_points[i] = len(next_point[i])
-
-      #          if np.sum(n_points) == 1:
 
                 n_points = len(next_point)
 
@@ -209,7 +211,7 @@ class IsecSurfSurf:
                 else:
                     print('problem')   # should be solved
 
-                if n_points == 1:  # full cut (two sides, no points between)
+                if n_points == 1:  # full cut (two sides cut, no points between)
                     in_point = line[n_curves][-1]
                     if np.logical_and(in_point.iu2[0] == next_point.iu2[0], in_point.iv2[0] == next_point.iv2[0]):  # belongs to the same patch on the second surface
                         # should be improved
@@ -282,66 +284,107 @@ class IsecSurfSurf:
         return patch_points, boundary_points
 
     @staticmethod
-    def _main_threads(surf,sum_idx):
+    def _main_threads(surf, axis):
         """
         Construction of the main threads
         Todo: what is "thread", describe.
         Todo: use eunum to mark u/v direction instead of 'sum_idx'
         :param surf: surface which is used to construction of the main threads
-        :param sum_idx: sum_idx == 0 --> u fixed, sum_idx == 1 --> v fixed
+        :param axis: sum_idx == 0 --> u fixed, sum_idx == 1 --> v fixed
         :return: curves as list of curves, w_val as list of value of the fixed local coordinates , patches as list of neighbour patches
         """
 
         poles = surf.poles
 
-        if sum_idx == 0:
+        if axis == IP.Axis.u:
             fix_basis = surf.u_basis
             curv_basis = surf.v_basis
-        elif sum_idx == 1:
+        elif axis == IP.Axis.v:
             fix_basis = surf.v_basis
             curv_basis = surf.u_basis
 
         curves = []
         w_val = []
         patches = []
+        w_valx = []
 
-        if sum_idx == 0:
-            curv_pol = poles[0, :, :]
-        elif sum_idx == 1:
-            curv_pol = poles[:, 0, :]
+        w_valx.append(0)
+        for iw in range(0, fix_basis.n_intervals):
+             w_valx.append(fix_basis.knots[iw + 2])
 
-        w_val.append(0.0)
-        patches.append([0])
 
-        curv = bs.Curve(curv_basis, curv_pol)
-        curves.append(curv)
-
-        for iw in range(1, fix_basis.n_intervals):
+        for iw in range(0, fix_basis.n_intervals):
             w1f = fix_basis.eval_vector(iw, fix_basis.knots[iw + 2])
-            if sum_idx == 0:
-                surf_pol = poles[iw:iw + 3, :, :]
-                curv_pol = np.tensordot(w1f, surf_pol, axes=([0], [sum_idx]))
-            elif sum_idx == 1:
-                surf_pol = poles[:, iw:iw + 3, :]
-                curv_pol = np.tensordot(w1f, surf_pol, axes=([0], [sum_idx]))
+            ind = [slice(0, surf.u_basis.size), slice(0, surf.v_basis.size), slice(0, 3)]
+            ind[axis] = slice(iw, iw+3)
+            surf_pol = poles[tuple(ind)]
+            curv_pol = np.tensordot(w1f, surf_pol, axes=([0], [axis]))
             w_val.append(fix_basis.knots[iw + 2])
-            patches.append([iw-1, iw])
-
+            if iw != 0:
+                patches.append([iw-1, iw])
+            elif iw == 0:
+                patches.append([0])
+            elif iw == fix_basis.n_intervals:
+                patches.append([fix_basis.n_intervals-1])
             curv = bs.Curve(curv_basis, curv_pol)
             curves.append(curv)
 
-        if sum_idx == 0:
-            curv_pol = poles[poles.shape[sum_idx]-1,:, :]
-            #print(poles.shape[sum_idx]-1,fix_basis.n_intervals - 1)
-        elif sum_idx == 1:
-            curv_pol = poles[:,poles.shape[sum_idx]-1 , :]  # fix_basis.n_intervals - 1
-            #print(poles.shape[sum_idx] - 1,fix_basis.n_intervals - 1)
+
+        if axis == IP.Axis.u:
+            curv_pol = poles[poles.shape[axis] - 1, :, :]
+
+        elif axis == IP.Axis.v:
+            curv_pol = poles[:, poles.shape[axis] - 1, :]
 
         w_val.append(1.0)
         patches.append([fix_basis.n_intervals-1])
 
         curv = bs.Curve(curv_basis, curv_pol)
         curves.append(curv)
+
+        return curves, w_val, patches
+
+    @staticmethod
+    def _main_threadsx(surf, axis):
+        """
+        Construction of the main threads
+        Todo: what is "thread", describe.
+        Todo: use eunum to mark u/v direction instead of 'sum_idx'
+        :param surf: surface which is used to construction of the main threads
+        :param axis: sum_idx == 0 --> u fixed, sum_idx == 1 --> v fixed
+        :return: curves as list of curves, w_val as list of value of the fixed local coordinates , patches as list of neighbour patches
+        """
+
+        poles = surf.poles
+
+        if axis == IP.Axis.u:
+            fix_basis = surf.u_basis
+            curv_basis = surf.v_basis
+        elif axis == IP.Axis.v:
+            fix_basis = surf.v_basis
+            curv_basis = surf.u_basis
+
+        curves = []
+        w_val = []
+        patches = []
+        patch = []
+
+        patch.append(0)
+        for iw in range(0, fix_basis.n_intervals):
+            patch.append(iw)
+
+        for iw in range(0, fix_basis.n_intervals+1):
+            w1f = fix_basis.eval_vector(patch[iw], fix_basis.knots[iw + 2])
+            print(iw)
+            ind = [slice(0, surf.u_basis.size), slice(0, surf.v_basis.size), slice(0, 3)]
+            ind[axis] = slice(patch[iw], patch[iw] + 3)
+            surf_pol = poles[tuple(ind)]
+            curv_pol = np.tensordot(w1f, surf_pol, axes=([0], [axis]))
+            w_val.append(fix_basis.knots[iw + 2])
+            curv = bs.Curve(curv_basis, curv_pol)
+            curves.append(curv)
+
+        print(w_val)
 
         return curves, w_val, patches
 
@@ -373,48 +416,50 @@ class IsecSurfSurf:
         crossing = np.zeros([surf1.u_basis.n_intervals + 1, surf1.v_basis.n_intervals + 1])
         #print([surf1.u_basis.n_intervals+1,surf1.v_basis.n_intervals+1])
 
-        for sum_idx in range(2): # sum_idx = 0 ==> fixed u, sum_idx = 1 ==> fixed v
-            curves, w_val, patches = self._main_threads(surf1, sum_idx)
+        for axis in [IP.Axis.u, IP.Axis.v]:
+        #for axis in [0, 1]:
+        #for axis in range(2): # axis = 0 ==> fixed u, axis = 1 ==> fixed v
+            curves, w_val, patches = self._main_threads(surf1, axis)
             curve_id = -1
+            print(axis)
             for curve in curves:
                 curve_id += 1
                 interval_id = -1
                 for it in range(curve.basis.n_intervals):
                     interval_id += 1
-                    if self._already_found(crossing,interval_id,curve_id,sum_idx) == 1:
+                    if self._already_found(crossing, interval_id, curve_id, axis) == 1:
                         print('continue')
                         #print(crossing)
                         print(point.xyz)
                         continue
                     curv_surf_isec = ICS.IsecCurveSurf(surf2, curve)
                     boxes = bih.AABB(curve.poles[it:it+3, :].tolist())
-                    uv1 = np.zeros([2,1])
+                    uv1 = np.zeros([2, 1])
                     #if np.logical_or(it == 0, it == curve.basis.n_intervals - 1):
-                    if patches[curve_id].__len__() == 1:
+                    if len(patches[curve_id]) == 1: #!!
 
-                    # todo: len(patches[curve_id])
                     # todo: (n+1)*[it]
                         interval_list = [it]
                     else:
                         interval_list = [it, it]
-                    uv1[sum_idx,0] = w_val[curve_id]
+                    uv1[axis, 0] = w_val[curve_id]
                     intersectioned_patches2 = tree2.find_box(boxes)
                     #print("curve_id=", curve_id)
-                    #print("sum_idx=", sum_idx)
+                    #print("axis=", axis)
                     #print("intersectioned_patches2=",intersectioned_patches2)
                     for ipatch2 in intersectioned_patches2:
                         iu2, iv2 = self._patch_id2pos(surf2, ipatch2)
-                        uvt = curv_surf_isec.get_initial_condition(iu2, iv2, it)
-                        uvt,  conv, flag, XYZ = curv_surf_isec.get_intersection(uvt, iu2, iv2, it, self.max_it,
-                                                                            self.rel_tol, self.abs_tol)
+                        #uvt = curv_surf_isec.get_initial_condition(iu2, iv2, it)
+                        uvt,  conv, flag, XYZ = curv_surf_isec.get_intersection(iu2, iv2, it, self.max_it,
+                                                                                self.rel_tol, self.abs_tol)
                         if conv == 1:
                             #check second surf
                             #if point_list.__len__() !=0:
 
 
 
-                            if np.logical_or(np.logical_or(curve_id == 0, curve_id == curves.__len__() - 1),    # boundary threads
-                                             np.logical_or(flag[2] == 0, flag[2] == 1)):                       #  & start/ stop points
+                            if np.logical_or(np.logical_or(curve_id == 0, curve_id == len(curves) - 1),  # boundary threads
+                                             np.logical_or(flag[2] == 0, flag[2] == 1)):                 #  & start/ stop points
                                 surface_boundary_flag = 1
                             else:
                                 surface_boundary_flag = 0
@@ -422,11 +467,12 @@ class IsecSurfSurf:
                             add_patches = 0
                             if np.logical_or(flag[2] == 0, flag[2] == 1):
                                 add_patches = 1
-                                if np.logical_and(flag[2] == 0, interval_id == 0, np.logical_or(curve_id == 0, curve_id == curve.basis.n_intervals -1)):
+                                if np.logical_and(flag[2] == 0, interval_id == 0, np.logical_or(curve_id == 0, curve_id == curve.basis.n_intervals - 1)):
                                     add_patches = 0
-                                if np.logical_and(flag[2] == 1, interval_id == curve.basis.n_intervals -1, np.logical_or(curve_id == 0, curve_id == curve.basis.n_intervals -1)):
+                                if np.logical_and(flag[2] == 1, interval_id == curve.basis.n_intervals - 1, np.logical_or(curve_id == 0, curve_id == curve.basis.n_intervals - 1)):
                                     add_patches = 0
 
+                            extend_patches = 0
 
 
 
@@ -434,26 +480,26 @@ class IsecSurfSurf:
 
                                 # np.logical_or(it == 0, it == curve.basis.n_intervals - 1)
 
-                            uv1[1 - sum_idx, 0] = uvt[2, 0]
-                            if sum_idx == 0:
+                            uv1[1 - axis, 0] = uvt[2, 0]
+                            if axis == 0:
                                 point = IP.IsecPoint(surf1, patches[curve_id], interval_list, uv1, add_patches, surface_boundary_flag, flag,
-                                                  sum_idx, surf2, [iu2], [iv2], uvt[0:2, :], XYZ)
-                            elif sum_idx == 1:
+                                                     axis, surf2, [iu2], [iv2], uvt[0:2, :], XYZ)
+                            elif axis == 1:
                                 point = IP.IsecPoint(surf1, interval_list, patches[curve_id], uv1, add_patches, surface_boundary_flag, flag,
-                                                  sum_idx, surf2, [iu2], [iv2], uvt[0:2, :], XYZ)
+                                                     axis, surf2, [iu2], [iv2], uvt[0:2, :], XYZ)
 
                             point_list.append(point)
 
                             #if boundary_flag == 0:
-                            #    point_list[- 1].add_patches(sum_idx, flag[2]) # move to constructor
+                            #    point_list[- 1].add_patches(axis, flag[2]) # move to constructor
                             #print('flag')
                             #print(flag.shape)
                             #print(flag[2])
-                            if np.logical_or(flag[2] == 0,flag[2] == 1):
-                                if sum_idx == 0:
+                            if np.logical_or(flag[2] == 0, flag[2] == 1):
+                                if axis == 0:
                                     crossing[curve_id, interval_id + flag[2]] = 1
-                                elif sum_idx == 1:
-                                    crossing[interval_id + flag[2],curve_id] = 1 # xxx
+                                elif axis == 1:
+                                    crossing[interval_id + flag[2], curve_id] = 1  # xxx
                                 break
 
 

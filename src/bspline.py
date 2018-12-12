@@ -202,7 +202,6 @@ class SplineBasis:
             return 1.0
         return self._basis(self.degree, i_base, t)
 
-
     def eval_diff(self, i_base, t):
         assert 0 <= i_base < self.size
         deg = self.degree
@@ -445,7 +444,7 @@ class Surface:
         """
         u_basis = SplineBasis(degree[0], knots[0])
         v_basis = SplineBasis(degree[1], knots[1])
-        return cls( (u_basis, v_basis), poles, rational)
+        return cls((u_basis, v_basis), poles, rational)
 
 
     def __init__(self, basis, poles, rational=False):
@@ -519,11 +518,6 @@ class Surface:
         iu = self.u_basis.find_knot_interval(u)
         iv = self.v_basis.find_knot_interval(v)
         return self.eval_local(u, v, iu, iv)
-
-
-
-
-
 
     def deep_copy(self):
         u_basis = copy.copy(self.u_basis)
