@@ -373,7 +373,10 @@ class IsecSurfSurf:
         crossing = np.zeros([surf1.u_basis.n_intervals + 1, surf1.v_basis.n_intervals + 1])
         #print([surf1.u_basis.n_intervals+1,surf1.v_basis.n_intervals+1])
 
+        # replace sum_idx by the dirction vector, i.e.
+        # for thread_direction in np.eye(2):
         for sum_idx in range(2): # sum_idx = 0 ==> fixed u, sum_idx = 1 ==> fixed v
+            # TODO: make _main_threads to be a generator yielding (icurve,
             curves, w_val, patches = self._main_threads(surf1, sum_idx)
             curve_id = -1
             for curve in curves:

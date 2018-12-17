@@ -11,6 +11,16 @@ class Axis(enum.Enum):
     v = 1
 
 
+class SurfPoint:
+    """
+    Class to represent a point on the surface including the patch coordinates.
+    TODO: Use this to pass surface points to IsecPoint and at other places.
+    """
+    def __init__(self, surf, iuv, uv):
+        self.surf = surf
+        self.iuv = iuv
+        self.uv = uv
+
 
 class IsecPoint:
     """
@@ -24,6 +34,7 @@ class IsecPoint:
         Todo: XYZ not used, can possibly be removed
         Todo: better names for flag and sum_idx, possibly use add_patches direstly not through constructor.
 
+        TODO: replace surface_boundary_flag by a method SurfPoint.is_on_surf_boundary which use 'iuv' to check if the point is on the boundary.
         """
         self.surf1 = surf1
         self.iu1 = iu1
