@@ -31,12 +31,12 @@ class IsecCurveSurf:
         t_poles = curv.poles[it:it + 3, :]
 
 
-        uf = surf.u_basis.eval_vector(iu, uvt[0, 0])
-        vf = surf.v_basis.eval_vector(iv, uvt[1, 0])
-        ufd = surf.u_basis.eval_diff_vector(iu, uvt[0, 0])
-        vfd = surf.v_basis.eval_diff_vector(iv, uvt[1, 0])
-        tf = curv.basis.eval_vector(it, uvt[2, 0])
-        tfd = curv.basis.eval_diff_vector(it, uvt[2, 0])
+        uf = surf.u_basis.eval_vector(iu, uvt[0])
+        vf = surf.v_basis.eval_vector(iv, uvt[1])
+        ufd = surf.u_basis.eval_diff_vector(iu, uvt[0])
+        vfd = surf.v_basis.eval_diff_vector(iv, uvt[1])
+        tf = curv.basis.eval_vector(it, uvt[2])
+        tfd = curv.basis.eval_diff_vector(it, uvt[2])
 
         dXYZt = np.tensordot(tfd, t_poles, axes=([0], [0]))
         #print(dXYZt)
@@ -76,19 +76,21 @@ class IsecCurveSurf:
         conv = 0
         flag = -np.ones([3], 'int')
 
-        # TODO: use basis.domain instead
+        # patch bounds
         ui = self.surf.u_basis.knots[iu + 2:iu + 4]
         vi = self.surf.v_basis.knots[iv + 2:iv + 4]
         ti = self.curv.basis.knots[it + 2:it + 4]
 
-        min_bounds = np.array([[self.surf.u_basis.knots[iu + 2]], [self.surf.v_basis.knots[iv + 2]], [self.curv.basis.knots[it + 2]]])
-        max_bounds = np.array([[self.surf.u_basis.knots[iu + 3]], [self.surf.v_basis.knots[iv + 3]], [self.curv.basis.knots[it + 3]]])
+        min_bounds = np.array([self.surf.u_basis.knots[iu + 2], self.surf.v_basis.knots[iv + 2], self.curv.basis.knots[it + 2]])
+        max_bounds = np.array([self.surf.u_basis.knots[iu + 3], self.surf.v_basis.knots[iv + 3], self.curv.basis.knots[it + 3]])
         uvt = (min_bounds + max_bounds)/2
 
         for i in range(max_it):
             J, delta_xyz = self._compute_jacobian_and_delta(uvt, iu, iv, it)
             if la.norm(delta_xyz) < abs_tol:
                 break
+
+            delta_xyz = delta_xyz.flatten()
             uvt = uvt - la.solve(J, delta_xyz)
             uvt = np.maximum(uvt, min_bounds)
             uvt = np.minimum(uvt, max_bounds)
@@ -96,9 +98,9 @@ class IsecCurveSurf:
         conv, xyz = self._test_intesection_tolerance(uvt, iu, iv, it, abs_tol)
 
         if conv == 1:
-            flag[0] = self._curve_boundary_intersection(uvt[0, 0], ui, rel_tol)
-            flag[1] = self._curve_boundary_intersection(uvt[1, 0], vi, rel_tol)
-            flag[2] = self._curve_boundary_intersection(uvt[2, 0], ti, rel_tol)
+            flag[0] = self._curve_boundary_intersection(uvt[0], ui, rel_tol)
+            flag[1] = self._curve_boundary_intersection(uvt[1], vi, rel_tol)
+            flag[2] = self._curve_boundary_intersection(uvt[2], ti, rel_tol)
 
 
         return uvt, conv, flag, xyz
@@ -141,8 +143,8 @@ class IsecCurveSurf:
 
         conv = 0
 
-        surf_r3 = self.surf.eval_local(uvt[0, 0], uvt[1, 0], iu, iv)
-        curv_r3 = self.curv.eval_local(uvt[2, 0], it)
+        surf_r3 = self.surf.eval_local(uvt[0], uvt[1], iu, iv)
+        curv_r3 = self.curv.eval_local(uvt[2], it)
         xyz = (surf_r3 + curv_r3)/2
         dist = la.norm(surf_r3 - curv_r3)
         #print('distance =', dist)
