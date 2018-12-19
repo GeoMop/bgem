@@ -457,7 +457,7 @@ class Surface:
         :param basis: (u_basis, v_basis) SplineBasis objects for U and V parameter axis.
         :param rational: True for rational B-spline, i.e. NURB. Use weighted poles.
         """
-        self.u_basis, self.v_basis = basis
+        self.basis = list(basis)
         # Surface basis for U and V axis.
 
         self.poles = np.array(poles, dtype=float)
@@ -475,7 +475,13 @@ class Surface:
             self._weights = poles[:, :, self.dim]
             self._poles = (poles[:, :, 0:self.dim].T * self._weights.T ).T
 
+    @property
+    def u_basis(self):
+        return self.basis[0]
 
+    @property
+    def v_basis(self):
+        return self.basis[1]
 
 
     def eval_local(self, u, v, iu, iv):
