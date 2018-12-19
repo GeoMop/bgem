@@ -73,8 +73,6 @@ class IsecCurveSurf:
             flag as intersection specification
             XYZ
         """
-        conv = 0
-        flag = -np.ones([3], 'int')
 
         # patch bounds
         ui = self.surf.u_basis.knots[iu + 2:iu + 4]
@@ -97,37 +95,7 @@ class IsecCurveSurf:
 
         conv, xyz = self._test_intesection_tolerance(uvt, iu, iv, it, abs_tol)
 
-        if conv == 1:
-            flag[0] = self._curve_boundary_intersection(uvt[0], ui, rel_tol)
-            flag[1] = self._curve_boundary_intersection(uvt[1], vi, rel_tol)
-            flag[2] = self._curve_boundary_intersection(uvt[2], ti, rel_tol)
-
-
-        return uvt, conv, flag, xyz
-
-    @staticmethod
-    def _curve_boundary_intersection(t,ti,rel_tol):
-        """
-
-        :param t: parameter value
-        :param it: interval array (2x1)
-        :return:
-        flag as "0" corresponds to lower bound of the curve
-                "1" corresponds to upper bound of the curve
-                "-1" corresponds to the interior points of the curve
-        """
-        # interior boundary
-
-        #flag = -1
-
-        if abs(ti[0] - t) < rel_tol:
-            flag = 0
-        elif abs(ti[1] - t) < rel_tol:
-            flag = 1
-        else:
-            flag = -1
-
-        return flag
+        return uvt, conv, xyz
 
     def _test_intesection_tolerance(self, uvt, iu, iv, it, abs_tol):
         """
