@@ -146,6 +146,13 @@ class SplineBasis:
         assert 0 <= idx <= self.n_intervals, "Evaluation out of spline domain; t: {} min: {} max: {}".format(t, self.knots[0], self.knots[-1])
         return min(idx, self.n_intervals - 1)   # deals with t == self.knots[-1]
 
+    def knot_interval_bounds(self, i_interval):
+        """
+        Bounds for given knot interval.
+        :param i_interval: index of the interval
+        :return: (min, max) of the interval
+        """
+        return (self.knots[i_interval + self.degree], self.knots[i_interval + self.degree + 1])
 
 
     def _basis(self, deg, idx, t):
