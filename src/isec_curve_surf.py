@@ -1,4 +1,4 @@
-
+j
 import numpy as np
 import numpy.linalg as la
 
@@ -97,6 +97,7 @@ class IsecCurveSurf:
             uvt = np.maximum(uvt, min_bounds)
             uvt = np.minimum(uvt, max_bounds)
 
+        # Is this call necessary? there is the same check using deltaXYZ in the loop.
         conv, xyz = self._test_intesection_tolerance(uvt, iuvt, abs_tol)
 
         if conv:
