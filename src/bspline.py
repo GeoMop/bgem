@@ -503,8 +503,6 @@ class Surface:
             #print("val: {}".format(value.shape))
             return np.inner( value, v_base_vec)
 
-
-
     def eval(self, u, v):
         """
         Evaluate a B-spline surface for paramaters u,v. Check and fix range of 'u, v'.
@@ -532,7 +530,7 @@ class Surface:
         :return: Numpy array N x D; D is dimension of the curve.
         """
         assert uv_points.shape[1] == 2
-        return np.array( [ self.eval(u, v) for u, v in uv_points] )
+        return np.array([self.eval(u, v) for u, v in uv_points])
 
     def aabb(self):
         """

@@ -20,7 +20,6 @@ class SurfacePoint:
 
         self.surface_boundary_flag = self.extend_patches()
 
-
     def extend_patches(self):
         """
         add reference to the neighboring patches (if point lies on patches interface)
@@ -36,7 +35,7 @@ class SurfacePoint:
         interface_flag[0], boundary_flag[0] = self._curve_boundary_intersection(self.uv[0], ui)
         interface_flag[1], boundary_flag[1] = self._curve_boundary_intersection(self.uv[1], vi)
 
-        surface_boundary_flag =  np.logical_and(boundary_flag[0], boundary_flag[1])
+        surface_boundary_flag = np.logical_or(boundary_flag[0], boundary_flag[1])
 
         n = 0
 
@@ -48,7 +47,7 @@ class SurfacePoint:
             n = n + 1
 
         if boundary_flag[1] == 0:
-            iuv = np.zeros([2], dtype=int) # ask
+            iuv = np.zeros([2], dtype=int)
             iuv[0] = self.iuv[0][0]
             iuv[1] = self.iuv[0][1] + interface_flag[1]
             self.iuv.append(iuv)
@@ -67,12 +66,12 @@ class SurfacePoint:
         """
 
         :param t: parameter value as double
-        :param ti: paramater interval as numpy array (2x1)
+        :param ti: parameter interval as numpy array (2x1)
         :return:
         interface_flag as   "-1" corresponds to lower bound of the curve
                             "1" corresponds to upper bound of the curve
                             "0" corresponds to the interior points of the curve
-        boundary_flag as    "1" if parameter correspons to the surface boudary, i.e, equal to 0 or 1
+        boundary_flag as    "1" if parameter corresponds to the surface boundary, i.e, equal to 0 or 1
                             "0" otherwise
 
         """
