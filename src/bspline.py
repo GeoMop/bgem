@@ -146,6 +146,13 @@ class SplineBasis:
         assert 0 <= idx <= self.n_intervals, "Evaluation out of spline domain; t: {} min: {} max: {}".format(t, self.knots[0], self.knots[-1])
         return min(idx, self.n_intervals - 1)   # deals with t == self.knots[-1]
 
+    def knot_interval_bounds(self, i_interval):
+        """
+        Bounds for given knot interval.
+        :param i_interval: index of the interval
+        :return: (min, max) of the interval
+        """
+        return (self.knots[i_interval + self.degree], self.knots[i_interval + self.degree + 1])
 
 
     def _basis(self, deg, idx, t):
@@ -457,7 +464,7 @@ class Surface:
         :param basis: (u_basis, v_basis) SplineBasis objects for U and V parameter axis.
         :param rational: True for rational B-spline, i.e. NURB. Use weighted poles.
         """
-        self.u_basis, self.v_basis = basis
+        self.basis = list(basis)
         # Surface basis for U and V axis.
 
         self.poles = np.array(poles, dtype=float)
@@ -475,7 +482,13 @@ class Surface:
             self._weights = poles[:, :, self.dim]
             self._poles = (poles[:, :, 0:self.dim].T * self._weights.T ).T
 
+    @property
+    def u_basis(self):
+        return self.basis[0]
 
+    @property
+    def v_basis(self):
+        return self.basis[1]
 
 
     def eval_local(self, u, v, iu, iv):
