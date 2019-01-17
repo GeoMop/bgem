@@ -25,9 +25,12 @@ class SurfacePoint:
         add reference to the neighboring patches (if point lies on patches interface)
         :return:
         """
-
         ui = self.surf.u_basis.knots[self.iuv[0][0] + 2:self.iuv[0][0] + 4]
         vi = self.surf.v_basis.knots[self.iuv[0][1] + 2:self.iuv[0][1] + 4]
+
+        # does not work
+        #ui = self.surf.u_basis.knot_interval_bounds(self.iuv[0][0])
+        #vi = self.surf.u_basis.knot_interval_bounds(self.iuv[0][1])
 
         interface_flag = np.zeros([2], 'int')
         boundary_flag = np.zeros([2], 'int')

@@ -1,4 +1,4 @@
-j
+
 import numpy as np
 import numpy.linalg as la
 
@@ -11,8 +11,8 @@ class IsecCurveSurf:
         self.surf = surf
         self.curv = curv
 
-
-    def _compute_jacobian_and_delta(self, uvt, iuvt):
+    #def _compute_jacobian_and_delta(self, uvt, iu, iv, it):
+    def _compute_jacobian_and_coordinates(self, uvt, iuvt):
         """
         Computes Jacobian matrix and delta vector of the function
         TODO: better description, what is delta, what is function.
@@ -24,7 +24,7 @@ class IsecCurveSurf:
 
         surf = self.surf
         curv = self.curv
-        iu,iv,it = iuvt
+        iu, iv, it = iuvt
         surf_poles = surf.poles[iu:iu + 3, iv:iv + 3, :]
         t_poles = curv.poles[it:it + 3, :]
 
@@ -37,21 +37,13 @@ class IsecCurveSurf:
         tfd = curv.basis.eval_diff_vector(it, uvt[2])
 
         dXYZt = np.tensordot(tfd, t_poles, axes=([0], [0]))
-        #print(dXYZt)
         dXYZu1 = self._energetic_inner_product(ufd, vf, surf_poles)
         dXYZv1 = self._energetic_inner_product(uf, vfd, surf_poles)
         J = np.column_stack((dXYZu1, dXYZv1, -dXYZt))
-
         XYZ1 = self._energetic_inner_product(uf, vf, surf_poles)
         XYZ2 = np.tensordot(tf, t_poles, axes=([0], [0]))
-        #print(XYZ2)
-        #return
-        XYZ2 = XYZ2[:]
-        XYZ1 = XYZ1[:]
 
-        deltaXYZ = XYZ1 - XYZ2
-
-        return J, deltaXYZ
+        return J, XYZ1, XYZ2
 
     def get_intersection(self, iu, iv, it, max_it, rel_tol, abs_tol):
         """
@@ -71,68 +63,28 @@ class IsecCurveSurf:
             flag as intersection specification
             XYZ
         """
-        iuvt  = (iu, iv, it)
 
-        # patch bounds
-        # TODO: remove after curve_boundary_intersection is moved into SurfacePoint
-        ui = self.surf.u_basis.knots[iu + 2:iu + 4]
-        vi = self.surf.v_basis.knots[iv + 2:iv + 4]
-        ti = self.curv.basis.knots[it + 2:it + 4]
 
-        uvt_basis = [self.surf.u_basis, self.surf.v_basis, self.curv.basis]
-        bounds = [basis.knot_interval_bounds(iuvt[axis]) for axis, basis in enumerate(uvt_basis)]
-        bounds = np.array(bounds).T     # shape (2, 3)
-        uvt = np.average(bounds, axis=0)
+        min_bounds = np.array([self.surf.u_basis.knots[iu + 2], self.surf.v_basis.knots[iv + 2], self.curv.basis.knots[it + 2]])
+        max_bounds = np.array([self.surf.u_basis.knots[iu + 3], self.surf.v_basis.knots[iv + 3], self.curv.basis.knots[it + 3]])
+        uvt = (min_bounds + max_bounds)/2
+
+        iuvt = (iu, iv, it)
 
         for i in range(max_it):
-            J, delta_xyz = self._compute_jacobian_and_delta(uvt, iuvt)
+            J, xyz1, xyz2 = self._compute_jacobian_and_coordinates(uvt, iuvt)
+            delta_xyz = xyz1 - xyz2
+            conv = (la.norm(delta_xyz) <= abs_tol)
             if la.norm(delta_xyz) < abs_tol:
                 break
 
-
-            delta_xyz = delta_xyz
+            delta_xyz = delta_xyz.flatten()
             uvt = uvt - la.solve(J, delta_xyz)
-            # project to patch bounds
             uvt = np.maximum(uvt, min_bounds)
             uvt = np.minimum(uvt, max_bounds)
 
-        # Is this call necessary? there is the same check using deltaXYZ in the loop.
-        conv, xyz = self._test_intesection_tolerance(uvt, iuvt, abs_tol)
-
+        xyz = (xyz1 + xyz2) / 2
         return uvt, conv, xyz
-
-    def _test_intesection_tolerance(self, uvt, iuvt, abs_tol):
-        """
-        Test of the tolerance of the intersections in R3
-        :param uvt: vector of local coordinates [u,v,t] (array 3x1)
-        :param iu: index of the knot interval of the coordinate u
-        :param iv: index of the knot interval of the coordinate v
-        :param it: index of the knot interval of the coordinate t
-        :param abs_tol: given absolute tolerance in R^3 space
-        :return:
-        conv - is_converged
-        xyz - average intersection point
-        """
-        surf_r3 = self.surf.eval_local(uvt[0], uvt[1], iuvt[0], iuvt[1])
-        curv_r3 = self.curv.eval_local(uvt[2], iuvt[2])
-        xyz = (surf_r3 + curv_r3)/2
-        dist = la.norm(surf_r3 - curv_r3)
-        #print('distance =', dist)
-
-        conv =  (dist <= abs_tol)
-        return conv, xyz
-
-    # @staticmethod
-    # def _get_mean_value(knots, int):
-    #     """
-    #     Computes mean value of the local coordinate in the given interval
-    #     :param knots: knot vector
-    #     :param idx: index of the patch
-    #     :return: mean
-    #     """
-    #     mean = (knots[int + 2] + knots[int + 3])/2
-    #
-    #     return mean
 
     @staticmethod
     def _energetic_inner_product(u, v, surf_poles):
@@ -142,13 +94,13 @@ class IsecCurveSurf:
         :param v: vector of nonzero basis function in v
         :param X: tensor of poles in x,y,z
         :return: xyz as array (3x1)
-
-        TODO: replace function call
         """
-        #uX = np.tensordot(u, surf_poles, axes=([0], [0]))
-        #xyz = np.tensordot(uX, v, axes=([0], [0]))
-        # surf_poles have shape (Nu, Nv, 3)
-        xyz = u @ surf_poles.T @ v
+        uX = np.tensordot(u, surf_poles, axes=([0], [0]))
+        xyz = np.tensordot(uX, v, axes=([0], [0]))
+
+        #surf_poles have shape (Nu, Nv, 3)
+        #xyz = u @ surf_poles.T @ v
+
         return xyz
 
 
