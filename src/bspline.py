@@ -1103,7 +1103,7 @@ def make_function_grid(fn, nu, nv):
     Z = np.apply_along_axis(fn, 1, points_uv)
     points = np.stack([X.ravel(), Y.ravel(), Z], 1)
 
-    return points.reshape( (nu, nv, 3) )
+    return points.reshape((nu, nv, 3))
 
 
 

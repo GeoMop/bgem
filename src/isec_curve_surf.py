@@ -17,11 +17,6 @@ class IsecCurveSurf:
         self.surf = surf
         self.curv = curv
 
-
-
-
-
-
     def _compute_jacobian_and_coordinates(self, uvt, iuvt):
         """
         Computes Jacobian matrix and xyz coordinates, for given local parameters uvt
@@ -66,10 +61,12 @@ class IsecCurveSurf:
         :param abs_tol: absolute tolerance (in R3 space)
         :return:
             uvt: vector of initial guess of local coordinates [u,v,t] (array 3x1),
-            conv as "0" if the method does not achieve desired accuracy
+            conv: as "0" if the method does not achieve desired accuracy
                     "1" if the method achieve desired accuracy
-            flag as intersection specification
-            xyz as coordinates in R3
+            xyz: as coordinates in R3
+            direction: where "0" corresponds to the intersection on the lover bound of the local interval
+                        where "1" corresponds to the intersection on the upper bound of the local interval
+                        where "-1" corresponds to the intersection inside local interval
         """
 
         min_bounds = np.array([self.surf.u_basis.knots[iu + 2], self.surf.v_basis.knots[iv + 2], self.curv.basis.knots[it + 2]])
@@ -95,6 +92,7 @@ class IsecCurveSurf:
             uvt = np.minimum(uvt, max_bounds)
 
         xyz = (xyz1 + xyz2) / 2
+
         return uvt, conv, xyz
 
     def bounding_boxes(self, surf):
@@ -115,17 +113,13 @@ class IsecCurveSurf:
                     for j in range(0, 3):
                         patch_poles[n_points, :, i_patch] = surf.poles[iu + i, iv + j, :]
                         n_points += 1
-                #assert i_patch == (iu * surf.v_basis.n_intervals + iv)
                 assert i_patch == self._patch_pos2id(surf,iu,iv)
                 i_patch += 1
 
         boxes = [bih.AABB(patch_poles[:, :, p].tolist()) for p in range(n_patch)]
-        # print(patch_poles[:, :, 0])
         tree.add_boxes(boxes)
         tree.construct()
-        # print(boxes)
-        # for b in boxes:
-        #    print(b.min()[0:2],b.max()[0:2])
+
         return boxes, tree
 
 
@@ -140,31 +134,20 @@ class IsecCurveSurf:
         """
 
         point_list = []
-        crossing = np.zeros([surf.u_basis.n_intervals + 1, surf.v_basis.n_intervals + 1])
 
         interval_id = -1
         for it in range(curv.basis.n_intervals):
             interval_id += 1
-            if self._already_found(crossing, interval_id, curve_id, axis) == 1:
-                #print('continue')
-                #print(point.xyz)
-                continue
-            #curv_surf_isec = ICS.IsecCurveSurf(surf, curv)
             boxes = bih.AABB(curv.poles[it:it+3, :].tolist())
             intersectioned_patches2 = tree.find_box(boxes)
-            #print("curve_id=", curve_id)
-            #print("axis=", axis)
-            #print("intersectioned_patches2=",intersectioned_patches2)
+
             for ipatch2 in intersectioned_patches2:
                 iu2, iv2 = self._patch_id2pos(surf, ipatch2)
-                uvt,  conv, xyz = self.get_intersection(iu2, iv2, it, self.max_it,
-                                                                    self.rel_tol, self.abs_tol)
+                uvt,  conv, xyz = self.get_intersection(iu2, iv2, it, self.max_it, self.rel_tol, self.abs_tol)
                 if conv == 1:
                     # Point A
                     t_a = uvt[2]
-                    it_a = np.zeros([1], dtype=int)
                     it_a = it
-
                     curv_point = CP.CurvePoint(curv, it_a, t_a)
 
                     # Point B
@@ -174,13 +157,6 @@ class IsecCurveSurf:
 
                     point = IP.IsecPoint(curv_point, surf_point, xyz)
                     point_list.append(point)
-
-                    if np.logical_or(uvt[2] == 0, uvt[2] == 1):
-                        direction = int(uvt[2])
-                        ind = [curve_id, curve_id]
-                        ind[1-axis] = interval_id + direction
-                        crossing[tuple(ind)] = 1
-                        break  #?
 
         return point_list
 

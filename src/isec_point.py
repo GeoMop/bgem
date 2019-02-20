@@ -17,7 +17,7 @@ class IsecPoint:
     """
     def __init__(self, surface_point_a, surface_point_b, xyz):
         """
-
+        TODO: variable paramaterers - curve point / surface point
         :param surface_point_a: surface point
         :param surface_point_b: surface point
         :param xyz: array of global coordinates as numpy array 3x1

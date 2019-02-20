@@ -75,22 +75,19 @@ class TestSurface:
 
 
 
-        #approx = bsa.SurfaceApprox(fc)
+
         approx = bsa.SurfaceApprox(fc)
         approx2 = bsa.SurfaceApprox(fc2)
-         ##!!!
         surfz = approx.compute_approximation(nuv=np.array([11, 26]))
-        #surfz.make_linear_poles()
-        surfz2 = approx2.compute_approximation(nuv = np.array([20, 16]))
-
+        surfz2 = approx2.compute_approximation(nuv=np.array([20, 16]))
+        #surfz = approx.compute_approximation(nuv=np.array([3, 5]))
+        #surfz2 = approx2.compute_approximation(nuv=np.array([2, 4]))
         surfzf = surfz.make_full_surface()
         surfzf2 = surfz2.make_full_surface()
 
 
         myplot.plot_surface_3d(surfzf, poles=False)
         myplot.plot_surface_3d(surfzf2, poles=False)
-
-        #class SurfaceApprox:
 
         #return surface_extrude, surface_extrude2, myplot
         return surfzf, surfzf2, myplot
