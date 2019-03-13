@@ -95,18 +95,6 @@ class IsecSurfSurf:
         return id
 
     @staticmethod
-    def _patch_pos2id2(surf_point, k):
-
-        iu = surf_point.iuv[k][0]
-        iv = surf_point.iuv[k][1]
-        v_int = surf_point.surf.v_basis.n_intervals
-
-        id = iu * v_int + iv
-        return id
-
-
-
-    @staticmethod
     def _patch_id2pos(surf, patch_id):
 
         iu = int(np.floor(patch_id / surf.v_basis.n_intervals))
@@ -223,8 +211,6 @@ class IsecSurfSurf:
 
         return point_list
 
-
-
     @staticmethod
     def _already_found(crossing, interval_id, curve_id, axis):
 
@@ -265,12 +251,16 @@ class IsecSurfSurf:
         boundary_points.append(boundary_points1)
         boundary_points.append(boundary_points2)
 
-        # line = self._make_orderings(point_list,patch_point_list, boundary_points)
+
         line = []
+        #line = self._make_orderings(point_list,patch_point_list, boundary_points)
+
+        #print(len(line[0]))
 
         return line
 
-    def make_patch_point_list(self, point_list):
+    @staticmethod
+    def make_patch_point_list(point_list):
 
         surf = point_list[0].surface_point_a.surf
 
@@ -281,18 +271,19 @@ class IsecSurfSurf:
         for i in range(list_len):
             patch_points.append([])
 
-        idp = -1
+        point_id = -1
         for point in point_list:
-            idp += 1
-            for i_patch in range(point.surface_point_a.iuv.__len__()):
-                id = self._patch_pos2id2(point.surface_point_a, i_patch)
-                patch_points[id].append(idp)
+            point_id += 1
+            patch_id = point.surface_point_a.patch_id()
+            for patch in patch_id:
+                patch_points[patch].append(point_id)
             if point.surface_point_a.surface_boundary_flag == 1:
-                boundary_points.append(idp)
+                boundary_points.append(point_id)
 
         return patch_points, boundary_points
 
-    def _get_start_point(self, boundary_points, point_list):
+    @staticmethod
+    def _get_start_point(boundary_points, point_list):
         """
         Returns first unconnected boundary point from the list
         :param boundary_points: list of the id's of the boundary points
@@ -307,18 +298,8 @@ class IsecSurfSurf:
                     i_surf = i
                     return point, i_surf
 
-    def _get_patch_id(self, point):
-        """
-        :param point: as isec_point
-        :return: neighbouring patches id's
-        """
-        patch_id = np.zeros([len(point.surface_point_a.iuv)], dtype=int)
-        for k in range(0, len(point.surface_point_a.iuv)):
-            patch_id[k] = self._patch_pos2id2(point.surface_point_a, k)
-
-        return patch_id
-
-    def _get_out_point(self, point_list, patch_point_list, i_surf, patch_id):
+    @staticmethod
+    def _get_out_point(point_list, patch_point_list, i_surf, patch_id):
 
         # patch_pos = self._patch_pos2id(surf, patch_id)
         next_point = []
@@ -334,25 +315,30 @@ class IsecSurfSurf:
 
         return next_point
 
-    def _get_out_point2(self, point_list, patch_point_list, i_surf, patch_id):
+    @staticmethod
+    def _get_out_point2(point_list, patch_point_list, i_surf, patch_id):
         """
 
         :param point_list: list of all points
         :param patch_point_list:
         :param i_surf: index of the surface "0" or "1"
-        :param patch_id:
+        :param patch_id: as numpy array of integers
         :return:
         """
 
         next_point = []
         for p_id in patch_id:
-            for id_point in patch_point_list[i_surf][p_id]:
-                point = point_list[i_surf][id_point]
-                patch_id2 = self._get_patch_id(point)
+            for point_id in patch_point_list[i_surf][p_id]:
+                patch_id2 = point_list[i_surf][point_id].surface_point_a.patch_id()
+                #isec_point = point_list[i_surf][point_id]
+                #surf_point = isec_point.surface_point_a
+                #patch_id2 = surf_point.get_patch_id()
                 for p2_id in patch_id2:
                     if p2_id == p_id:
-                        if point.connected == 0:
-                            next_point.append(point)
+                        if point_list[i_surf][point_id].connected == 0:
+                        #if isec_point.connected == 0:
+                            #next_point.append(isec_point)
+                            next_point.append(point_list[i_surf][point_id])
         return next_point
 
     def _make_orderings(self, point_list, patch_point_list, boundary_points):
@@ -391,8 +377,8 @@ class IsecSurfSurf:
         while end_found == 0:
 
             # get ID's of all corresponding patches
-            patch_id = self._get_patch_id(line[n_curves][-1])
-
+            last_point = line[n_curves][-1]
+            patch_id = last_point.surface_point_a.patch_id()
             next_point = self._get_out_point2(point_list, patch_point_list, i_surf, patch_id)
 
             # for i in range(0, patch_id.size):
@@ -409,16 +395,29 @@ class IsecSurfSurf:
                 in_point = line[n_curves][-1]
 
                 #points_between = 0
-                line[n_curves].append(next_point)
-                line_surf_info[n_curves].append(i_surf)
-                if next_point.surface_boundary_flag == 1:
+
+                patch2_id = last_point.surface_point_b.patch_id()
+                points2 = self._get_out_point2(point_list, patch_point_list, 1-i_surf, patch2_id)
+
+
+                if len(points2) == 1:
+                    next_point = points2[0]
+                    line[n_curves].append(next_point)
+                    line_surf_info[n_curves].append(1-i_surf)
+
+                if next_point.boundary_flag == 1:
                     end_found = 1
                 ##
-                patch_id = self._patch_pos2id2(in_point.surface_point_b, 0)
+
+                patch_id = in_point.surface_point_b.patch_id()
+                # get_points
+
                 inter_points = self._get_out_point(point_list, patch_point_list, 1 - i_surf, patch_id)
                 if len(inter_points) == 0:
                     continue
                 dist = self._compute_distances(in_point, next_point, inter_points)
+            elif n_points > 1:
+                a = 1
 
 
 
