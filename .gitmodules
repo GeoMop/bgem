@@ -1,3 +1,0 @@
-[submodule "external/bih"]
-	path = external/bih
-	url = git@github.com:flow123d/bih.git
