@@ -85,7 +85,6 @@ class SurfacePoint:
             if np.logical_or(self.uv[i] == 0, self.uv[i] == 1):
                 self.boundary_flag[i] = 1
 
-    #@staticmethod
     def patch_id(self):
         """
         Determines ID's of all neighboring patches
@@ -99,7 +98,7 @@ class SurfacePoint:
         for i in range(k):
             iu = self.iuv[i][0]
             iv = self.iuv[i][1]
-            v_int = self.surf.v_basis.n_intervals
-            patch_id[i] = iu * v_int + iv
+            patch_id[i] = self.surf.patch_pos2id(iu, iv)
+
         return patch_id
 

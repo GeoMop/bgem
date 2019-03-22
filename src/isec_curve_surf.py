@@ -5,6 +5,7 @@ import bih
 
 import bspline as bs
 import isec_point as IP
+import isec_curv_surf_point as ICSP
 import curve_point as CP
 import surface_point as SP
 
@@ -95,33 +96,6 @@ class IsecCurveSurf:
 
         return uvt, conv, xyz
 
-    def bounding_boxes(self, surf):
-        """
-        Compute bounding boxes and construct BIH tree for a given surface
-        :param surf:
-        :return:
-        """
-        tree = bih.BIH()
-        n_patch = (surf.u_basis.n_intervals) * (surf.v_basis.n_intervals)
-
-        patch_poles = np.zeros([9, 3, n_patch])
-        i_patch = 0
-        for iu in range(surf.u_basis.n_intervals):
-            for iv in range(surf.v_basis.n_intervals):
-                n_points = 0
-                for i in range(0, 3):
-                    for j in range(0, 3):
-                        patch_poles[n_points, :, i_patch] = surf.poles[iu + i, iv + j, :]
-                        n_points += 1
-                assert i_patch == self._patch_pos2id(surf,iu,iv)
-                i_patch += 1
-
-        boxes = [bih.AABB(patch_poles[:, :, p].tolist()) for p in range(n_patch)]
-        tree.add_boxes(boxes)
-        tree.construct()
-
-        return boxes, tree
-
 
     def get_intersections(self, surf, curv, tree):
         """
@@ -134,15 +108,15 @@ class IsecCurveSurf:
         """
 
         point_list = []
+        crossing = np.zeros([curv.basis.n_intervals + 1])
 
-        interval_id = -1
         for it in range(curv.basis.n_intervals):
-            interval_id += 1
-            boxes = bih.AABB(curv.poles[it:it+3, :].tolist())
-            intersectioned_patches2 = tree.find_box(boxes)
-
+            if self._already_found(crossing, it) == 1:  # ?
+                print('continue')
+                continue
+            intersectioned_patches2 = tree.find_box(curv.boxes[it])
             for ipatch2 in intersectioned_patches2:
-                iu2, iv2 = self._patch_id2pos(surf, ipatch2)
+                iu2, iv2 = surf.patch_id2pos(ipatch2)
                 uvt,  conv, xyz = self.get_intersection(iu2, iv2, it, self.max_it, self.rel_tol, self.abs_tol)
                 if conv == 1:
                     # Point A
@@ -155,8 +129,19 @@ class IsecCurveSurf:
                     iuv_b = np.array([iu2, iv2])
                     surf_point = SP.SurfacePoint(surf, iuv_b, uv_b)
 
-                    point = IP.IsecPoint(curv_point, surf_point, xyz)
+                    point = ICSP.IsecCurvSurfPoint(curv_point, surf_point, xyz)
                     point_list.append(point)
+
+                    if curv_point.interface_flag != 0:
+                        ind = it + int(0.5 * (curv_point.interface_flag + 1))
+                        crossing[tuple(ind)] = 1
 
         return point_list
 
+    @staticmethod
+    def _already_found(crossing, it):
+
+        found = 0
+        if np.logical_or(crossing[it] == 1, crossing[it +1] == 1):
+            found = 1
+        return found

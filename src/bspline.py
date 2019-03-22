@@ -11,10 +11,24 @@ In future:
 - implement degree increasing and knot insertion
 """
 
+import os
+import sys
+
+src_dir = os.path.dirname(os.path.abspath(__file__))
+build_path = os.path.join(src_dir, "../external/bih/build")
+sys.path += [build_path]
+print(sys.path)
+
+import bih
+
 
 import numpy as np
 import numpy.linalg as la
 import copy
+
+
+
+
 
 __author__ = 'Jan Brezina <jan.brezina@tul.cz>, Jiri Hnidek <jiri.hnidek@tul.cz>, Jiri Kopal <jiri.kopal@tul.cz>'
 
@@ -383,6 +397,10 @@ class Curve:
             self._weights = poles[:, self.dim]
             self._poles = (poles[:, 0:self.dim].T * self._weights ).T
 
+        # BIH tree
+        self._boxes = None
+        self._tree = None
+
 
     def eval_local(self, t, it):
         """
@@ -431,6 +449,31 @@ class Curve:
         """
         return np.array( [np.amin(self.poles, axis=0), np.amax(self.poles, axis=0)] )
 
+    def bounding_boxes(self):
+        """
+        Compute bounding boxes and construct BIH tree for a given curve
+        :param self:
+        :return:
+        """
+        tree = bih.BIH()
+        boxes = [bih.AABB(self.poles[it:it + 3, :].tolist()) for it in range(self.basis.n_intervals)]
+        tree.add_boxes(boxes)
+        tree.construct()
+
+        self._tree = tree
+        self._boxes = boxes
+
+    @property
+    def boxes(self):
+        if self._boxes == None:
+            self.bounding_boxes()
+        return self._boxes
+
+    @property
+    def tree(self):
+        if self._tree == None:
+            self.bounding_boxes()
+        return self._tree
 
 class Surface:
     """
@@ -470,6 +513,10 @@ class Surface:
         self.poles = np.array(poles, dtype=float)
         self.dim = len(self.poles[0,0,:]) - rational
         # Surface dimension, D.
+
+        # BIH tree
+        self._boxes = None
+        self._tree = None
 
 
         # Surface poles matrix: Nu x Nv x (D+r)
@@ -553,6 +600,56 @@ class Surface:
         """
         return np.array( [np.amin(self.poles, axis=(0,1)), np.amax(self.poles, axis=(0,1))] )
 
+
+    def bounding_boxes(self):
+        """
+        Compute bounding boxes and construct BIH tree for a given surface
+        :param surf:
+        :return:
+        """
+        tree = bih.BIH()
+        n_patch = self.u_basis.n_intervals * self.v_basis.n_intervals
+
+        patch_poles = np.zeros([9, 3, n_patch])
+        i_patch = 0
+        for iu in range(self.u_basis.n_intervals):
+            for iv in range(self.v_basis.n_intervals):
+                n_points = 0
+                for i in range(0, 3):
+                    for j in range(0, 3):
+                        patch_poles[n_points, :, i_patch] = self.poles[iu + i, iv + j, :]
+                        n_points += 1
+                assert i_patch == self.patch_pos2id(iu, iv)
+                i_patch += 1
+
+        boxes = [bih.AABB(patch_poles[:, :, p].tolist()) for p in range(n_patch)]
+        tree.add_boxes(boxes)
+        tree.construct()
+
+        self._tree = tree
+        self._boxes = boxes
+
+    @property
+    def boxes(self):
+        if self._boxes == None:
+            self.bounding_boxes()
+        return self._boxes
+
+    @property
+    def tree(self):
+        if self._tree == None:
+            self.bounding_boxes()
+        return self._tree
+
+    def patch_pos2id(self, iu, iv):
+        id = iu * self.v_basis.n_intervals + iv
+        return id
+
+    def patch_id2pos(self, patch_id):
+        iu = int(np.floor(patch_id / self.v_basis.n_intervals))
+        iv = int(patch_id - (iu * self.v_basis.n_intervals))
+
+        return iu, iv
 
 class Z_Surface:
     """

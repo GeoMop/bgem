@@ -21,8 +21,6 @@ class IsecSurfSurf:
     def __init__(self, surf1, surf2, nt=2, max_it=10, rel_tol = 1e-16, abs_tol = 1e-14):
         self.surf1 = surf1
         self.surf2 = surf2
-        self.box1, self.tree1 = self.bounding_boxes(self.surf1)
-        self.box2, self.tree2 = self.bounding_boxes(self.surf2)
         self.nt = nt
         self.max_it = max_it
         self.abs_tol = abs_tol
@@ -31,44 +29,14 @@ class IsecSurfSurf:
         self._ipoint_list = []  # append
         # tolerance
 
-    def bounding_boxes(self, surf):
-        """
-        Compute bounding boxes and construct BIH tree for a given surface
-        :param surf:
-        :return:
-        """
-        tree = bih.BIH()
-        n_patch = (surf.u_basis.n_intervals) * (surf.v_basis.n_intervals)
-
-        patch_poles = np.zeros([9, 3, n_patch])
-        i_patch = 0
-        for iu in range(surf.u_basis.n_intervals):
-            for iv in range(surf.v_basis.n_intervals):
-                n_points = 0
-                for i in range(0, 3):
-                    for j in range(0, 3):
-                        patch_poles[n_points, :, i_patch] = surf.poles[iu + i, iv + j, :]
-                        n_points += 1
-                #assert i_patch == (iu * surf.v_basis.n_intervals + iv)
-                assert i_patch == self._patch_pos2id(surf,iu,iv)
-                i_patch += 1
-
-        boxes = [bih.AABB(patch_poles[:, :, p].tolist()) for p in range(n_patch)]
-        # print(patch_poles[:, :, 0])
-        tree.add_boxes(boxes)
-        tree.construct()
-        # print(boxes)
-        # for b in boxes:
-        #    print(b.min()[0:2],b.max()[0:2])
-        return boxes, tree
 
     def get_intersection(self):
         """
         Main method to get intersection points
         :return:
         """
-        point_list1 = self.get_intersections(self.surf1, self.surf2, self.tree2)  # patches of surf 2 with respect threads of the surface 1
-        point_list2 = self.get_intersections(self.surf2, self.surf1, self.tree1) # patches of surf 1 with respect threads of the surface 2
+        point_list1 = self.get_intersections(self.surf1, self.surf2)  # patches of surf 2 with respect threads of the surface 1
+        point_list2 = self.get_intersections(self.surf2, self.surf1) # patches of surf 1 with respect threads of the surface 2
 
         #print('points')
         #for point in point_list1:
@@ -88,19 +56,7 @@ class IsecSurfSurf:
         return point_list1, point_list2
 
 
-    @staticmethod
-    def _patch_pos2id(surf, iu, iv):
 
-        id = iu * surf.v_basis.n_intervals + iv
-        return id
-
-    @staticmethod
-    def _patch_id2pos(surf, patch_id):
-
-        iu = int(np.floor(patch_id / surf.v_basis.n_intervals))
-        iv = int(patch_id - (iu * surf.v_basis.n_intervals))
-
-        return iu, iv
 
 
     @staticmethod
@@ -144,7 +100,7 @@ class IsecSurfSurf:
 
         return curves, w_val, patch
 
-    def get_intersections(self, surf1, surf2, tree2):
+    def get_intersections(self, surf1, surf2):
         """
         Tries to compute intersection of the main curves from surface1 and patches of the surface2 which have a
          non-empty intersection of corresponding bonding boxes
@@ -154,6 +110,8 @@ class IsecSurfSurf:
         :return: point_list as list of points of intersection
         """
 
+        tree2 = surf2.tree
+
         point_list = []
         crossing = np.zeros([surf1.u_basis.n_intervals + 1, surf1.v_basis.n_intervals + 1])
 
@@ -162,18 +120,15 @@ class IsecSurfSurf:
             curve_id = -1
             for curve in curves:
                 curve_id += 1
-                interval_id = -1
-                interval_intersections = 0
+                #interval_intersections = 0
                 for it in range(curve.basis.n_intervals):
-                    interval_id += 1
-                    if self._already_found(crossing, interval_id, curve_id, axis) == 1: #?
+                    if self._already_found(crossing, it, curve_id, axis) == 1: #?
                         print('continue')
                         continue
                     curv_surf_isec = ICS.IsecCurveSurf(surf2, curve)
-                    boxes = bih.AABB(curve.poles[it:it+3, :].tolist())
-                    intersectioned_patches2 = tree2.find_box(boxes)
+                    intersectioned_patches2 = tree2.find_box(curve.boxes[it])
                     for ipatch2 in intersectioned_patches2:
-                        iu2, iv2 = self._patch_id2pos(surf2, ipatch2)
+                        iu2, iv2 = surf2.patch_id2pos(ipatch2)
                         uvt,  conv, xyz = curv_surf_isec.get_intersection(iu2, iv2, it, self.max_it,
                                                                             self.rel_tol, self.abs_tol)
                         if conv == 1:
@@ -193,18 +148,20 @@ class IsecSurfSurf:
 
                             point = IP.IsecPoint(surf_point_a, surf_point_b, xyz)
 
-                            if interval_intersections == 0:
-                                point_list.append(point)
-                                interval_intersections += 1
-                            else:
-                                a = 1
+                            point_list.append(point)
+
+                            #if interval_intersections == 0:
+                            #    point_list.append(point)
+                            #    interval_intersections += 1
+                            #else:
+                            #    a = 1
                                 #check
 
 
                             direction = surf_point_a.interface_flag[1-axis]
                             if direction != 0:
                                 ind = [curve_id, curve_id]
-                                ind[1-axis] = interval_id + int(0.5 * (direction + 1))
+                                ind[1-axis] = it + int(0.5 * (direction + 1))
                                 crossing[tuple(ind)] = 1
                             #break  # we consider only one point as an intersection of segment of a curve and a patch
                             #check duplicities
@@ -262,7 +219,7 @@ class IsecSurfSurf:
     @staticmethod
     def make_patch_point_list(point_list):
 
-        surf = point_list[0].surface_point_a.surf
+        surf = point_list[0].surface_point[0].surf
 
         list_len = surf.u_basis.n_intervals * surf.v_basis.n_intervals
         patch_points = []
@@ -274,10 +231,10 @@ class IsecSurfSurf:
         point_id = -1
         for point in point_list:
             point_id += 1
-            patch_id = point.surface_point_a.patch_id()
+            patch_id = point.surface_point[0].patch_id()
             for patch in patch_id:
                 patch_points[patch].append(point_id)
-            if point.surface_point_a.surface_boundary_flag == 1:
+            if point.surface_point[0].surface_boundary_flag == 1:
                 boundary_points.append(point_id)
 
         return patch_points, boundary_points
