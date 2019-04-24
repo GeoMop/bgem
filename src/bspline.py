@@ -11,23 +11,10 @@ In future:
 - implement degree increasing and knot insertion
 """
 
-import os
-import sys
-
-src_dir = os.path.dirname(os.path.abspath(__file__))
-build_path = os.path.join(src_dir, "../external/bih/build")
-sys.path += [build_path]
-print(sys.path)
-
 import bih
-
-
 import numpy as np
 import numpy.linalg as la
 import copy
-
-
-
 
 
 __author__ = 'Jan Brezina <jan.brezina@tul.cz>, Jiri Hnidek <jiri.hnidek@tul.cz>, Jiri Kopal <jiri.kopal@tul.cz>'

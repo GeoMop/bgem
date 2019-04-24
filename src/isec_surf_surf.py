@@ -1,14 +1,4 @@
-import sys
-import os
-
-src_dir = os.path.dirname(os.path.abspath(__file__))
-build_path = os.path.join(src_dir, "../external/bih/build")
-sys.path += [build_path]
-print(sys.path)
-
-import bih
 import numpy as np
-
 import bspline as bs
 import isec_point as IP
 import surface_point as SP
