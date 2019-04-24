@@ -7,18 +7,20 @@ Intersections
 [![Test Coverage](https://codeclimate.com/github/GeoMop/Intersections/badges/coverage.svg)](https://codeclimate.com/github/GeoMop/Intersections/coverage)
 
 
-Computing intersections of B-spline curves and surfaces.
+B-spline modelling library.
 
-Library focus on fast intersection algorithms for non-degenerate intersections of B-spline curves and surfaces
-of small degree (especially quadratic). 
+Features:
+- representation of B-spline curves and surfaces
+- approximation by B-spline curves and surfaces
+- intersections
+- 3D modelling using BREP format and B-splines
+- focused on fast algorithms 
+ 
 
 Requirements
 ------------
 
-* g++ 4.x or newer
-* cmake 3.x
-
-In order to install BIH package locally for development just run the 'bih_install.sh' script.
+* BIH package
 
 Theory
 ------
