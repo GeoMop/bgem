@@ -11,7 +11,7 @@ import bspline_plot as bp
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
-class TestSurface:
+class xTestSurface:
 
     def plot_extrude(self):
         #fig1 = plt.figure()
@@ -156,5 +156,149 @@ class TestSurface:
         #print(surf1.poles[:,:,1])
         #print(surf1.u_basis.n_intervals)
         #print(surf1.u_basis.knots)
+
+
+class SurfApprox:
+
+    def __init__(self, f, xr, yr, xp, yp, kx, ky, fn):
+        """
+         :param f: plane vector as numpy array 4x1
+         :param xr: x range as double
+         :param yr: y range as double
+         :param xp: number of sample points in x range as double
+         :param yp: number of sample points in y range as double
+         :param kx: x control points as double
+         :param ky: y control points as double
+         :return:
+         """
+        self.f = f
+        self.xr = xr
+        self.yr = yr
+        self.xp = xp
+        self.yp = yp
+        self.kx = kx
+        self.ky = ky
+        self.err = None
+        self.surfz = None
+        self.fn = fn
+
+        self.err, self.surfz = self.surf_app()
+
+    def surf_app(self):
+
+        fc = np.zeros([self.xp * self.yp, 3])
+        for i in range(self.xp):
+            for j in range(self.yp):
+                x = i / self.xp * self.xr
+                y = j / self.yp * self.yr
+                z = -(self.f[0] * x + self.f[1] * y + self.f[3]) / self.f[2] + self.fn(3 * x)
+                fc[i + j * self.yp, :] = [x, y, z]
+
+        approx = bsa.SurfaceApprox(fc)
+        surfz = approx.compute_approximation(nuv=np.array([self.kx, self.ky]))
+        err = approx.error
+        surfzf = surfz.make_full_surface()
+        return err, surfzf
+
+
+class TestIsecx:
+
+    def test(self):
+        f1 = np.array([-1, 1, -1, 7])
+        f2 = np.array([2, -1, -1, 3])
+
+        def cosx(x):
+            return math.cos(3 * x)
+
+        a = 5
+        b = 7
+        #xd = 100
+        #yd = 100
+        #x1k = 11
+        #y1k = 26
+        #x2k = 20
+        #y2k = 16
+
+
+        xd = 20
+        yd = 20
+        x1k = 3
+        y1k = 5
+        x2k = 4
+        y2k = 6
+
+
+        sapp1 = SurfApprox(f1, a, b, xd, yd, x1k, y1k, cosx)
+        sapp2 = SurfApprox(f2, a, b, xd, yd, x2k, y2k, cosx)
+        ist = IntersectTest(sapp1, sapp2)
+        ist.test_isec()
+
+
+class IntersectTest:
+
+    def __init__(self, surfapprox, surfapprox2):
+        self.surfapprox = surfapprox
+        self.surfapprox2 = surfapprox2
+
+
+    def plot(self):
+
+        myplot = bp.Plotting((bp.PlottingPlotly()))
+        myplot.plot_surface_3d(self.surfapprox.surfz, poles=False)
+        myplot.plot_surface_3d(self.surfapprox2.surfz, poles=False)
+        #myplot.scatter_3d(X, Y, Z)
+        myplot.show() # view
+        #return surfzf, surfzf2, myplot, err
+
+    def test_isec(self):
+
+
+        def icurv1(x):
+            return (- x[2] + 0.5 * x[0] + 5 + math.cos(3 * x[0]))
+
+        def icurv2(x):
+            return ((3 * x[0] - 2 * x[1] - 4) / math.sqrt(13))
+
+
+        def pcurv(x):
+            return ((3 * x[0] - 2 * x[1] - 4) / math.sqrt(13))
+
+        #surf1, surf2, myplot, err = self.plot_extrude()
+
+        self.plot()
+
+        isec = iss.IsecSurfSurf(self.surfapprox.surfz, self.surfapprox2.surfz)
+        point_list1, point_list2 = isec.get_intersection()
+
+        m = len(point_list1) + len(point_list2)
+
+        X = np.zeros([m])
+        Y = np.zeros([m])
+        Z = np.zeros([m])
+
+        i = -1
+
+        tol =  self.surfapprox.err + self.surfapprox2.err
+
+        for point in point_list1:
+            i += 1
+            X[i] = point.xyz[0]
+            Y[i] = point.xyz[1]
+            Z[i] = point.xyz[2]
+            d1 = icurv1([X[i], Y[i], Z[i]])
+            d2 = icurv2([X[i], Y[i]])
+          #  assert math.sqrt(d1*d1 + d2*d2) < tol, "intersection point tolerance has been exceeded."
+
+
+        for point in point_list2:
+            i += 1
+            X[i] = point.xyz[0]
+            Y[i] = point.xyz[1]
+            Z[i] = point.xyz[2]
+            d1 = icurv1([X[i], Y[i], Z[i]])
+            d2 = icurv2([X[i], Y[i]])
+          #  assert math.sqrt(d1 * d1 + d2 * d2) < tol, "intersection point tolerance has been exceeded."
+
+
 
 

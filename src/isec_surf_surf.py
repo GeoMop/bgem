@@ -201,7 +201,9 @@ class IsecSurfSurf:
 
         line = []
         #line = self._make_orderings(point_list,patch_point_list, boundary_points)
+        line = self._make_point_orderings(point_list, patch_point_list, boundary_points)
 
+        print(line)
         #print(len(line[0]))
 
         return line
@@ -332,6 +334,52 @@ class IsecSurfSurf:
                             next_point.append(point_list[i_surf][point_id])
         return next_point
 
+    def _make_point_orderings(self, point_list, patch_point_list, boundary_points):
+        """
+        TODO: split into smaller functions.
+        :param point_list:
+        :param patch_point_list:
+        :param boundary_points:
+        :return:
+        """
+        n_curves = 0
+
+        line = [[]]
+        line_surf_info = [[]]
+
+
+
+        # obtain start point
+        point, i_surf = self._get_start_point(boundary_points, point_list)
+        point.connected = 1
+        line[n_curves].append(point)
+        line_surf_info[n_curves].append(i_surf)
+
+        # n_unconnected_points -= 1
+        end_found = 0
+
+
+        while end_found == 0:
+
+            # get ID's of all corresponding patches
+            last_point = line[n_curves][-1]
+
+            patch_id = last_point.surface_point[0].patch_id()
+            next_point, patch_id = self._get_out_point2x(point_list, patch_point_list, i_surf, patch_id)
+
+            # for i in range(0, patch_id.size):
+            #    next_point = self._get_out_point(point_list, patch_point_list, i_surf, patch_id[i])
+
+            n_points = len(next_point)
+
+            if n_points == 0:  # end inside
+                end_found = 1
+            elif n_points == 1:  # full cut (two sides cut, no points between)
+                line[n_curves].append(next_point[0])
+            else:
+                print("problem")
+
+        return line
 
 
     def _make_orderings(self, point_list, patch_point_list, boundary_points):
