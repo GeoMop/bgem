@@ -160,42 +160,45 @@ class xTestSurface:
 
 class SurfApprox:
 
-    def __init__(self, f, xr, yr, xp, yp, kx, ky, fn):
+    def __init__(self, plane_coefficients, x_length, y_length, x_n_samples, y_n_samples, x_n_control_points, y_n_control_points, additive_function):
         """
-         :param f: plane vector as numpy array 4x1
-         :param xr: x range as double
-         :param yr: y range as double
-         :param xp: number of sample points in x range as double
-         :param yp: number of sample points in y range as double
-         :param kx: x control points as double
-         :param ky: y control points as double
+         :param plane_normal_vector: plane vector as numpy array 4x1
+         :param x_size: x range as double
+         :param y_size: y range as double
+         :param x_n_samples: number of sample points in x range as double
+         :param y_n_samples: number of sample points in y range as double
+         :param x_n_control_points: x control points as double
+         :param y_n_control_points: y control points as double
          :return:
          """
-        self.f = f
-        self.xr = xr
-        self.yr = yr
-        self.xp = xp
-        self.yp = yp
-        self.kx = kx
-        self.ky = ky
+        self.plane_coefficients = plane_coefficients
+        self.x_length = x_length
+        self.y_length = y_length
+        self.x_n_samples = x_n_samples
+        self.y_n_samples = y_n_samples
+        self.x_n_control_points = x_n_control_points
+        self.y_n_control_points = y_n_control_points
         self.err = None
         self.surfz = None
-        self.fn = fn
+        self.additive_function = additive_function
+
+        def surfzf(X):
+            return -(self.plane_coefficients[0] * X[0] + self.plane_coefficients[1] * X[1] + self.plane_coefficients[3]) / self.plane_coefficients[2] + self.additive_function(3 * X[0])
+
+        self.surfzf = surfzf
 
         self.err, self.surfz = self.surf_app()
 
     def surf_app(self):
 
-        fc = np.zeros([self.xp * self.yp, 3])
-        for i in range(self.xp):
-            for j in range(self.yp):
-                x = i / self.xp * self.xr
-                y = j / self.yp * self.yr
-                z = -(self.f[0] * x + self.f[1] * y + self.f[3]) / self.f[2] + self.fn(3 * x)
-                fc[i + j * self.yp, :] = [x, y, z]
+        fc = np.zeros([self.x_n_samples * self.y_n_samples, 3])
+        for i in range(self.x_n_samples):
+            for j in range(self.y_n_samples):
+                fc[i + j * self.y_n_samples, 0:2] = [i / self.x_n_samples * self.x_length, j / self.y_n_samples * self.y_length]
+                fc[i + j * self.y_n_samples, 2] = self.surfzf(fc[i + j * self.y_n_samples, 0:2])
 
         approx = bsa.SurfaceApprox(fc)
-        surfz = approx.compute_approximation(nuv=np.array([self.kx, self.ky]))
+        surfz = approx.compute_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]))
         err = approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf
@@ -204,32 +207,39 @@ class SurfApprox:
 class TestIsecx:
 
     def test(self):
-        f1 = np.array([-1, 1, -1, 7])
-        f2 = np.array([2, -1, -1, 3])
+        plane_coefficients1 = np.array([-1, 1, -1, 7])
+        plane_coefficients2 = np.array([2, -1, -1, 3])
 
         def cosx(x):
             return math.cos(3 * x)
 
-        a = 5
-        b = 7
-        #xd = 100
-        #yd = 100
-        #x1k = 11
-        #y1k = 26
-        #x2k = 20
-        #y2k = 16
+        x_length = 5
+        y_length = 7
+        #x_n_samples = 100
+        #y_n_samples = 100
+        #x1_n_control_points = 11
+        #y1_n_control_points = 26
+        #x2_n_control_points = 20
+        #y2_n_control_points = 16
 
 
-        xd = 20
-        yd = 20
-        x1k = 3
-        y1k = 5
-        x2k = 4
-        y2k = 6
+        x_n_samples = 20
+        y_n_samples = 20
 
 
-        sapp1 = SurfApprox(f1, a, b, xd, yd, x1k, y1k, cosx)
-        sapp2 = SurfApprox(f2, a, b, xd, yd, x2k, y2k, cosx)
+        x1_n_control_points = 11
+        y1_n_control_points = 10
+        x2_n_control_points = 13
+        y2_n_control_points = 11
+
+        #x1_n_control_points = 11
+        #y1_n_control_points = 10
+        #x2_n_control_points = 10
+        #y2_n_control_points = 11
+
+
+        sapp1 = SurfApprox(plane_coefficients1, x_length, y_length, x_n_samples, y_n_samples, x1_n_control_points, y1_n_control_points, cosx)
+        sapp2 = SurfApprox(plane_coefficients2, x_length, y_length, x_n_samples, y_n_samples, x2_n_control_points, y2_n_control_points, cosx)
         ist = IntersectTest(sapp1, sapp2)
         ist.test_isec()
 
@@ -253,51 +263,46 @@ class IntersectTest:
     def test_isec(self):
 
 
-        def icurv1(x):
-            return (- x[2] + 0.5 * x[0] + 5 + math.cos(3 * x[0]))
+        plane_coefficients1 = self.surfapprox.plane_coefficients
+        plane_coefficients2 = self.surfapprox2.plane_coefficients
+        additive_function = self.surfapprox.additive_function
 
-        def icurv2(x):
-            return ((3 * x[0] - 2 * x[1] - 4) / math.sqrt(13))
+        a = plane_coefficients1[0] - plane_coefficients2[0]
+        b = plane_coefficients1[1] - plane_coefficients2[1]
+        d = plane_coefficients1[3] - plane_coefficients2[3]
 
 
-        def pcurv(x):
-            return ((3 * x[0] - 2 * x[1] - 4) / math.sqrt(13))
+        def xp(y):
+            return -(b * y + d) / a
 
-        #surf1, surf2, myplot, err = self.plot_extrude()
+        def yp(x):
+            return -(a * x + d) / b
+
+
+        def srf(x):
+            xpp = xp(x[1])
+            ypp = yp(x[0])
+            x_avg = (xpp + x[0]) / 2
+            y_avg = (ypp + x[1]) / 2
+            X = np.array([x_avg, y_avg, 0])
+            X[2] = self.surfapprox.surfzf(X[0:2])
+            return X
 
         self.plot()
 
         isec = iss.IsecSurfSurf(self.surfapprox.surfz, self.surfapprox2.surfz)
         point_list1, point_list2 = isec.get_intersection()
 
-        m = len(point_list1) + len(point_list2)
-
-        X = np.zeros([m])
-        Y = np.zeros([m])
-        Z = np.zeros([m])
-
-        i = -1
-
-        tol =  self.surfapprox.err + self.surfapprox2.err
-
-        for point in point_list1:
-            i += 1
-            X[i] = point.xyz[0]
-            Y[i] = point.xyz[1]
-            Z[i] = point.xyz[2]
-            d1 = icurv1([X[i], Y[i], Z[i]])
-            d2 = icurv2([X[i], Y[i]])
-          #  assert math.sqrt(d1*d1 + d2*d2) < tol, "intersection point tolerance has been exceeded."
 
 
-        for point in point_list2:
-            i += 1
-            X[i] = point.xyz[0]
-            Y[i] = point.xyz[1]
-            Z[i] = point.xyz[2]
-            d1 = icurv1([X[i], Y[i], Z[i]])
-            d2 = icurv2([X[i], Y[i]])
-          #  assert math.sqrt(d1 * d1 + d2 * d2) < tol, "intersection point tolerance has been exceeded."
+        tol = self.surfapprox.err + self.surfapprox2.err
+        points = point_list1 + point_list2
+
+        #print(tol)
+        for point in points:
+            #print(np.linalg.norm(point.xyz - srf(point.xyz)))
+            assert(np.linalg.norm(point.xyz - srf(point.xyz)) < tol), "intersection point tolerance has been exceeded."
+
 
 
 

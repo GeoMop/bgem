@@ -203,7 +203,12 @@ class IsecSurfSurf:
         #line = self._make_orderings(point_list,patch_point_list, boundary_points)
         line = self._make_point_orderings(point_list, patch_point_list, boundary_points)
 
+        print('ahoj')
         print(line)
+        #curve_from_grid
+        # test funkce pro ruzne parametry - moznosti volby S, kontrola tolerance - jak? task? pocet knotu
+
+        print(len(line[0]))
         #print(len(line[0]))
 
         return line
@@ -220,14 +225,14 @@ class IsecSurfSurf:
         for i in range(list_len):
             patch_points.append([])
 
-        point_id = -1
+        point_pos = -1
         for point in point_list:
-            point_id += 1
+            point_pos += 1
             patch_id = point.surface_point[0].patch_id()
             for patch in patch_id:
-                patch_points[patch].append(point_id)
+                patch_points[patch].append(point_pos)
             if point.surface_point[0].surface_boundary_flag == 1:
-                boundary_points.append(point_id)
+                boundary_points.append(point_pos)
 
         return patch_points, boundary_points
 
@@ -277,10 +282,16 @@ class IsecSurfSurf:
 
         next_point = []
         id_patch = []
+        pd = -1
         for p_id in patch_id:
+            pd += 1
+            next_point.append([])
+            id_patch.append([])
             for point_id in patch_point_list[i_surf][p_id]:
+
                 if point_list[i_surf][point_id].connected == 0:
-                    next_point.append(point_list[i_surf][point_id])
+
+                    next_point[pd].append(point_list[i_surf][point_id])
                     id_patch.append(p_id)
         return next_point, id_patch
 
@@ -299,7 +310,7 @@ class IsecSurfSurf:
         id_patch = []
         for p_id in patch_id:
             for point_id in patch_point_list[i_surf][p_id]:
-                patch_id2 = point_list[i_surf][point_id].surface_point_a.patch_id()
+                patch_id2 = point_list[i_surf][point_id].surface_point[0].patch_id()
                 #isec_point = point_list[i_surf][point_id]
                 #surf_point = isec_point.surface_point_a
                 #patch_id2 = surf_point.get_patch_id()
@@ -334,7 +345,124 @@ class IsecSurfSurf:
                             next_point.append(point_list[i_surf][point_id])
         return next_point
 
+    @staticmethod
+    def _get_out_points(point_list, patch_point_list, i_surf, patch_id):
+        """
+
+        :param point_list: list of all points
+        :param patch_point_list:
+        :param i_surf: index of the surface "0" or "1"
+        :param patch_id: as numpy array of integers
+        :return:
+        """
+
+        next_point = []
+        for p_id in patch_id:
+            for point_pos in patch_point_list[i_surf][p_id]:
+                if point_list[i_surf][point_pos].connected == 0:
+                    found = 0
+                    for pids in next_point:
+                        if pids == point_pos:
+                            found == 1
+                    if found == 0:
+                        next_point.append(point_pos)
+
+        return next_point
+
+
+    def _free_point(self, point_list):
+
+        i = -1
+        for point in point_list:
+            i += 1
+            if point.connected == 0:
+                return i
+        return -1
+
+
     def _make_point_orderings(self, point_list, patch_point_list, boundary_points):
+        """
+        TODO: split into smaller functions.
+        :param point_list:
+        :param patch_point_list:
+        :param boundary_points:
+        :return:
+        """
+        n_curves = 0
+        i_surf = 1
+        line = []
+
+
+
+        while self._free_point(point_list[i_surf]) != -1:
+
+            line.append([])
+            end_found = np.zeros([2])
+             # obtain start point
+            pos = self._free_point(point_list[i_surf])
+            point = point_list[i_surf][pos]
+
+            point.connected = 1
+            line[n_curves].append(point)
+
+
+
+
+            while end_found[1] == 0:
+
+                pid = line[n_curves][-1].surface_point[0].patch_id()
+                #pid = point.surface_point[0].patch_id()
+                next_point_pos = self._get_out_points(point_list, patch_point_list, i_surf, pid)
+                n_points = len(next_point_pos)
+                print(n_points)
+                if n_points == 0:
+                    if end_found[0] == 0:
+                        end_found[0] = 1
+                        line[n_curves].reverse()
+                    elif end_found[0] == 1:
+                        end_found[1] = 1
+                elif n_points == 1:
+                    point = point_list[i_surf][next_point_pos[0]]
+                    point.connected = 1
+                    line[n_curves].append(point)
+                elif (np.logical_and(n_points >= 2, n_points <= 4) == 1):
+                    print('2')
+                    k = -1
+                    for pos in next_point_pos:
+                        patch_id = point_list[i_surf][pos].surface_point[0].patch_id()
+                        k += 1
+                        found = np.zeros([len(next_point_pos)])
+                        for patches in patch_id:
+                            for patches_prev in pid:
+                                if patches == patches_prev:
+                                    found[k] += 1
+
+                        # interface curve
+                        for npatch in found:
+                            if npatch == 2:
+                                point = point_list[i_surf][pos]
+                                point.connected = 1
+                                line[n_curves].append(point)
+                                break
+
+                        for npatch in found:
+                            if npatch == 1:
+                                point = point_list[i_surf][pos]
+                                point.connected = 1
+                                line[n_curves].append(point)
+                                break
+                        # test
+                        break
+            n_curves += 1
+            print('start')
+            for points in line[n_curves-1]:
+                print(points.surface_point[1].surface_boundary_flag)
+            print('stop')
+
+        return line
+
+
+    def _make_point_orderingsx(self, point_list, patch_point_list, boundary_points):
         """
         TODO: split into smaller functions.
         :param point_list:
@@ -348,36 +476,40 @@ class IsecSurfSurf:
         line_surf_info = [[]]
 
 
+        for g in range(0,2):
+            # obtain start point
+            point, i_surf = self._get_start_point(boundary_points, point_list)
+            point.connected = 1
+            line[n_curves].append(point)
+            line_surf_info[n_curves].append(i_surf)
 
-        # obtain start point
-        point, i_surf = self._get_start_point(boundary_points, point_list)
-        point.connected = 1
-        line[n_curves].append(point)
-        line_surf_info[n_curves].append(i_surf)
-
-        # n_unconnected_points -= 1
-        end_found = 0
+            # n_unconnected_points -= 1
+            end_found = 0
 
 
-        while end_found == 0:
+            while end_found == 0:
 
-            # get ID's of all corresponding patches
-            last_point = line[n_curves][-1]
+                # get ID's of all corresponding patches
+                last_point = line[n_curves][-1]
 
-            patch_id = last_point.surface_point[0].patch_id()
-            next_point, patch_id = self._get_out_point2x(point_list, patch_point_list, i_surf, patch_id)
+                patch_id = last_point.surface_point[0].patch_id()
+                next_point, patch_id = self._get_out_point2x(point_list, patch_point_list, i_surf, patch_id)
 
-            # for i in range(0, patch_id.size):
-            #    next_point = self._get_out_point(point_list, patch_point_list, i_surf, patch_id[i])
+                # for i in range(0, patch_id.size):
+                #    next_point = self._get_out_point(point_list, patch_point_list, i_surf, patch_id[i])
 
-            n_points = len(next_point)
+                n_points = len(next_point)
 
-            if n_points == 0:  # end inside
-                end_found = 1
-            elif n_points == 1:  # full cut (two sides cut, no points between)
-                line[n_curves].append(next_point[0])
-            else:
-                print("problem")
+                if n_points == 0:  # end inside
+                    end_found = 1
+                elif n_points == 1:  # full cut (two sides cut, no points between)
+                    line[n_curves].append(next_point[0])
+                    next_point[0].connected = 1
+                else:
+                    print("problem")
+            n_curves += 1
+
+
 
         return line
 
@@ -419,7 +551,7 @@ class IsecSurfSurf:
 
             # get ID's of all corresponding patches
             last_point = line[n_curves][-1]
-            patch_id = last_point.surface_point_a.patch_id()
+            patch_id = last_point.surface_point[0].patch_id()
             next_point, patch_id = self._get_out_point2x(point_list, patch_point_list, i_surf, patch_id)
 
             # for i in range(0, patch_id.size):
@@ -428,28 +560,31 @@ class IsecSurfSurf:
             n_points = len(next_point)
 
             if n_points == 0: #end inside
-                 bp1_id = last_point.surface_point_b.patch_id()
+                 bp1_id = last_point.surface_point[1].patch_id()
                  next_point, patch_id = self._get_out_point2x(point_list, patch_point_list, 1-i_surf, bp1_id)
                  if len(next_point) == 0:
                     end_found = 1
                  elif len(next_point) == 1:
                     point = next_point[0]
+                    point.connected = 1
                     line[n_curves].append(point)
                     line_surf_info[n_curves].append(1 - i_surf)
+
                  elif len(next_point) == 2:
                     for points in next_point:
                         if (np.linalg.norm(points.xyz-last_point.xyz)/(2*np.linalg.norm(points.xyz+last_point.xyz))) < abs_tol:
                             points.connected = 1
                         else:
-                            line[n_curves].append(point)
+                            points.connected = 1
+                            line[n_curves].append(points)
                             line_surf_info[n_curves].append(1-i_surf)
 
                  # i_surf swap
 
-            elif n_points == 1: #
+            elif n_points == 1:
                 next_point = next_point[0]
-                p1_id = last_point.surface_point_b.patch_id()
-                p2_id = next_point.surface_point_b.patch_id()
+                p1_id = last_point.surface_point[1].patch_id()
+                p2_id = next_point.surface_point[1].patch_id()
                 same = 0
                 for id1 in p1_id:
                     for id2 in p2_id:
@@ -463,19 +598,15 @@ class IsecSurfSurf:
                 #    last_point.connected = 1
                 #    line[n_curves].append(last_point)
                 #else:
-
-
-
-
             else:
                 print('problem')  # should be solved
 
             if n_points == 1:  # full cut (two sides cut, no points between)
                 in_point = line[n_curves][-1]
-
+                next_point.connected = 1
                 #points_between = 0
 
-                patch2_id = last_point.surface_point_b.patch_id()
+                patch2_id = last_point.surface_point[1].patch_id()
                 points2 = self._get_out_point2(point_list, patch_point_list, 1-i_surf, patch2_id)
 
 
@@ -488,7 +619,7 @@ class IsecSurfSurf:
                     end_found = 1
                 ##
 
-                patch_id = in_point.surface_point_b.patch_id()
+                patch_id = in_point.surface_point[1].patch_id()
                 # get_points
 
                 inter_points = self._get_out_point(point_list, patch_point_list, 1 - i_surf, patch_id)
