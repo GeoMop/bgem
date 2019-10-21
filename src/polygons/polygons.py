@@ -455,7 +455,7 @@ class PolygonDecomposition:
         return result
 
 
-    def add_line_for_points(self, a_pt, b_pt, omit={}):
+    def add_line_for_points(self, a_pt, b_pt, omit=set()):
         """
         Same as add_line, but for known end points.
         :param a_pt:
@@ -469,6 +469,8 @@ class PolygonDecomposition:
         points that are closer then tolerance. This may produce an error later on.
         However healing this is nontrivial, since we have to merge two segments.
         """
+        if a_pt == b_pt:
+            return []
         box = aabb_lookup.make_aabb([a_pt.xy, b_pt.xy], margin=self.tolerance)
         candidates = self.segments_lookup.intersect_candidates(box)
         candidate_pt = {pt for seg_id in candidates for pt in self.segments[seg_id].vtxs}
