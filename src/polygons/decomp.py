@@ -157,14 +157,14 @@ class Decomposition:
     ###############################
     # Public invertible operations.
 
-    def add_free_point(self, point, poly, id=None):
+    def add_free_point(self, point, poly):
         """
         :param point: XY array
         :return: Point instance
         """
 
         pt = Point(point, poly)
-        self.points.append(pt, id)
+        self.points.append(pt)
         poly.free_points.add(pt)
         return pt
 

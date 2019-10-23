@@ -612,12 +612,16 @@ class PolygonDecomposition:
     # These are invertible operations.
 
     def _add_point(self, pt, poly, id=None):
-        pt = self.decomp.add_free_point(pt, poly, id)
+        self.decomp.points.hint_id = id
+        pt = self.decomp.add_free_point(pt, poly)
+        self.decomp.points.hint_id = None
         self.points_lookup.add_object(pt.id, aabb_lookup.make_aabb([pt.xy], margin=self.tolerance))
         return pt
 
-    def _add_segment(self, a_pt, b_pt):
+    def _add_segment(self, a_pt, b_pt, id=None):
+        self.decomp.segments.hint_id = id
         seg = self.decomp.new_segment(a_pt, b_pt)
+        self.decomp.segments.hint_id = None
         self.segments_lookup.add_object(seg.id, aabb_lookup.make_aabb([a_pt.xy, b_pt.xy], margin=self.tolerance))
         return seg
 
@@ -629,8 +633,10 @@ class PolygonDecomposition:
         self.segments_lookup.rm_object(seg.id)
         self.decomp.delete_segment(seg)
 
-    def _split_segment(self, seg, mid_pt):
+    def _split_segment(self, seg, mid_pt, id=None):
+        self.decomp.segments.hint_id = id
         new_seg = self.decomp.split_segment(seg, mid_pt)
+        self.decomp.segments.hint_id = None
         self.segments_lookup.add_object(new_seg.id,
                                         aabb_lookup.make_aabb([new_seg.vtxs[0].xy, new_seg.vtxs[1].xy],
                                                               margin=self.tolerance))
