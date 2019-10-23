@@ -31,6 +31,16 @@ class AABB_Lookup:
         self.n_boxes = 0
         self.boxes = np.full((init_size, 4), self.inf)
 
+        self.n_added = 0
+        # Number of added boxes. (new slot for each)
+        self.n_removed = 0
+        # Number of removed boxes. (empty slot for each)
+        # This is sort of measure of the sparsity of the lookup table.
+        # We assume that the sparsity will be minimal.
+        # TODO: If we encounter sparse lookup tables in practice, we should
+        # use map between IDs and table lines and rebuild the map and table
+        # once there is say over 20% empty lines.
+
     def add_object(self, id, box):
         """
         Add a new object as set of boxes. Any original box with same ID is replaced.
@@ -38,6 +48,7 @@ class AABB_Lookup:
         :param box: np array [min_x, min_y, max_x, max_y]
         :return: None
         """
+        self.n_added += 1
         boxes_size = self.boxes.shape[0]
         while id >= boxes_size:
             # double the size
@@ -47,6 +58,10 @@ class AABB_Lookup:
         self.boxes[id, :] = box
 
     def rm_object(self, id):
+        self.n_removed += 1
+        if self.n_removed > 0.2 * self.n_added and self.n_added > 1024:
+            # Only big sparse tables matters.
+            print("Warning: Too sparse AABB lookup.")
         self.boxes[id, :] = self.inf
 
     def closest_candidates(self, point):

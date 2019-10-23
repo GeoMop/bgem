@@ -329,11 +329,6 @@ class PolygonDecomposition:
             return obj
         elif dim == 1:
             seg = obj
-            seg_len = np.linalg.norm(seg.vector)
-            if t*seg_len < self.tolerance:
-                return seg.vtxs[out_vtx]
-            elif (1-t)*seg_len < self.tolerance:
-                return seg.vtxs[in_vtx]
             mid_pt, new_seg = self._point_on_segment(seg, t)
             return mid_pt
         else:
@@ -533,19 +528,23 @@ class PolygonDecomposition:
 
 
     def _point_on_segment(self, seg, t):
+        """
+        Split the segment with snapping.
+        :param seg:
+        :param t:
+        :return:
+        """
         seg_size = np.linalg.norm(seg.vector)
         if t * seg_size < self.tolerance:
             mid_pt = seg.vtxs[out_vtx]
             new_seg = seg
-        elif t * seg_size > seg_size - self.tolerance:
+        elif (1 - t) * seg_size < self.tolerance:
             mid_pt = seg.vtxs[in_vtx]
             new_seg = seg
         else:
             xy_point = seg.parametric(t)
             mid_pt = self._add_point(xy_point, self.decomp.outer_polygon)
-            new_seg = self.decomp.split_segment(seg, mid_pt)
-            self.segments_lookup.add_object(new_seg.id,
-                aabb_lookup.make_aabb([new_seg.vtxs[0].xy, new_seg.vtxs[1].xy], margin=self.tolerance))
+            new_seg = self._split_segment(seg, mid_pt)
 
         return (mid_pt, new_seg)
 
@@ -566,9 +565,10 @@ class PolygonDecomposition:
         candidates = self.segments_lookup.intersect_candidates(box)
         for seg_id in candidates:
             seg = self.segments[seg_id]
-            # proper intersection
             (t0, t1) = self.seg_intersection(seg, a_pt.xy, b_pt.xy)
+
             if t1 is not None:
+                # Proper intersection: t0, t1 are inside (fixed tol 1e-10) their segments
                 mid_pt, new_seg = self._point_on_segment(seg, t0)
                 line_division[t1] = (mid_pt, seg, new_seg)
         return line_division
@@ -607,8 +607,9 @@ class PolygonDecomposition:
         self._rm_point(point)
 
     #################################
-    # Internal interface for adding and removing points and segments to Decomposition.
-    # We need it to keep lookup up to date.
+    # The only methods that change the state of the Decomposition
+    # and update aabb lookup objects consistently.
+    # These are invertible operations.
 
     def _add_point(self, pt, poly, id=None):
         pt = self.decomp.add_free_point(pt, poly, id)
@@ -627,6 +628,18 @@ class PolygonDecomposition:
     def _rm_segment(self, seg):
         self.segments_lookup.rm_object(seg.id)
         self.decomp.delete_segment(seg)
+
+    def _split_segment(self, seg, mid_pt):
+        new_seg = self.decomp.split_segment(seg, mid_pt)
+        self.segments_lookup.add_object(new_seg.id,
+                                        aabb_lookup.make_aabb([new_seg.vtxs[0].xy, new_seg.vtxs[1].xy],
+                                                              margin=self.tolerance))
+        return new_seg
+
+    def _join_segments(self, mid_pt, seg0, seg1):
+        self.points_lookup.rm_object(seg1.id)
+        self.decomp.join_segment(mid_pt, seg0, seg1)
+        return mid_pt
 
     #################################
     # Segment calculations.
@@ -649,10 +662,11 @@ class PolygonDecomposition:
     @staticmethod
     def seg_intersection(seg, a, b):
         """
-        Find intersection of 'self' and (a,b) edges.
-        :param a: start vtx of edge1
-        :param b: end vtx of edge1
+        Find intersection of the 'self' segment and the line (a,b).
+        :param a: start vtx of the line segment
+        :param b: end vtx of the line segment
         :return: (t0, t1) Parameters of the intersection for 'self' and other edge.
+
         """
 
         mat = np.array([ seg.vector, a - b])
@@ -672,7 +686,7 @@ class PolygonDecomposition:
         # if (np.abs(t1) < eps or np.abs(1-t1) < eps) and (-eps < t0 < 1+eps):
         #     # one of new points close to the segment, should not happend
         #     assert False
-        if 0 + eps < t0 < 1-eps  and 0 + eps < t1 < 1 - eps:
+        if 0 + eps < t0 < 1 - eps and 0 + eps < t1 < 1 - eps:
             return (t0, t1)
         else:
             # TODO: catch also case of existing close points

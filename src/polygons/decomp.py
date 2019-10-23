@@ -284,9 +284,10 @@ class Decomposition:
 
     def join_segments(self, mid_point, seg0, seg1):
         """
-        Join splited segment, return free mid point.
-        Has to be destroyed explicitly.
-        TODO: replace by del_segment and 2x new_segment
+        Join splited segments, return free mid point.
+        seg0 is used for the joined segment, seg1 is removed
+        Point has to be deleted explicitly using 'remove_free_point'.
+        return mid_pt
         """
         if seg0.vtxs[in_vtx] == mid_point:
             seg0_out_vtx, seg0_in_vtx = out_vtx, in_vtx
