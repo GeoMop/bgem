@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.linalg as la
 import enum
+import undo
 from . import aabb_lookup
 from . import decomp
 
@@ -19,6 +20,20 @@ in_vtx = left_side = 1
 # vertex where edge comes in; side where next segment is connected through the in_vtx
 out_vtx = right_side = 0
 # vertex where edge comes out; side where next segment is connected through the out_vtx
+
+
+
+def disable_undo():
+    """Disable undo functionality."""
+    undo.stack()._receiver = None
+
+
+def enable_undo():
+    """Enable undo functionality."""
+    undo.stack().resetreceiver()
+
+
+disable_undo()
 
 
 
@@ -611,41 +626,84 @@ class PolygonDecomposition:
     # and update aabb lookup objects consistently.
     # These are invertible operations.
 
-    def _add_point(self, pt, poly, id=None):
-        self.decomp.points.hint_id = id
+    @undo.undoable
+    def _add_point(self, pt, poly):
+        poly = self.polygons[poly.id]
         pt = self.decomp.add_free_point(pt, poly)
-        self.decomp.points.hint_id = None
         self.points_lookup.add_object(pt.id, aabb_lookup.make_aabb([pt.xy], margin=self.tolerance))
-        return pt
+        yield "Add point", pt
 
-    def _add_segment(self, a_pt, b_pt, id=None):
-        self.decomp.segments.hint_id = id
+        self._rm_point(pt)
+
+    @undo.undoable
+    def _add_segment(self, a_pt, b_pt):
+        a_pt = self.points[a_pt.id]
+        b_pt = self.points[b_pt.id]
         seg = self.decomp.new_segment(a_pt, b_pt)
-        self.decomp.segments.hint_id = None
         self.segments_lookup.add_object(seg.id, aabb_lookup.make_aabb([a_pt.xy, b_pt.xy], margin=self.tolerance))
-        return seg
+        yield "Add segment", seg
 
+        self._rm_segment(seg)
+
+    @undo.undoable
     def _rm_point(self, pt):
+        pt = self.points[pt.id]
         self.points_lookup.rm_object(pt.id)
         self.decomp.remove_free_point(pt)
+        yield "Remove point"
 
+        self._add_point(pt.xy, pt.poly)
+
+    @undo.undoable
     def _rm_segment(self, seg):
+        seg = self.segments[seg.id]
         self.segments_lookup.rm_object(seg.id)
         self.decomp.delete_segment(seg)
+        yield "Remove segment"
 
-    def _split_segment(self, seg, mid_pt, id=None):
-        self.decomp.segments.hint_id = id
+        self._add_segment(seg.vtxs[0], seg.vtxs[1])
+
+    @undo.undoable
+    def _split_segment(self, seg, mid_pt):
+        seg = self.segments[seg.id]
+        mid_pt = self.points[mid_pt.id]
         new_seg = self.decomp.split_segment(seg, mid_pt)
-        self.decomp.segments.hint_id = None
         self.segments_lookup.add_object(new_seg.id,
                                         aabb_lookup.make_aabb([new_seg.vtxs[0].xy, new_seg.vtxs[1].xy],
                                                               margin=self.tolerance))
-        return new_seg
+        yield "Split segment", new_seg
 
+        self._join_segments(mid_pt, seg, new_seg)
+
+    @undo.undoable
     def _join_segments(self, mid_pt, seg0, seg1):
-        self.points_lookup.rm_object(seg1.id)
-        self.decomp.join_segment(mid_pt, seg0, seg1)
-        return mid_pt
+        mid_pt = self.points[mid_pt.id]
+        seg0 = self.segments[seg0.id]
+        seg1 = self.segments[seg1.id]
+        self.segments_lookup.rm_object(seg1.id)
+        self.decomp.join_segments(mid_pt, seg0, seg1)
+        yield "Join segments", mid_pt
+
+        self._split_segment(seg0, mid_pt)
+
+    @undo.undoable
+    def set_attr(self, obj, attr):
+        id_map = None
+        if isinstance(obj, decomp.Point):
+            id_map = self.points
+        elif isinstance(obj, decomp.Segment):
+            id_map = self.segments
+        elif isinstance(obj, decomp.Polygon):
+            id_map = self.polygons
+
+        obj = id_map[obj.id]
+
+        old_attr = obj.attr
+        obj.attr = attr
+
+        yield "Set attr"
+
+        self.set_attr(obj, old_attr)
 
     #################################
     # Segment calculations.

@@ -172,7 +172,7 @@ class Decomposition:
         assert point.poly is not None
         assert point.segment[0] is None
         point.poly.free_points.remove(point)
-        del self.points[point.id]
+        self.points.remove(point)
 
 
     def new_segment(self, a_pt, b_pt):
@@ -365,7 +365,7 @@ class Decomposition:
         wire = segment.wire[left_side]
         polygon = wire.polygon
         polygon.outer_wire.childs.remove(wire)
-        del self.wires[wire.id]
+        self.wires.remove(wire)
         self._destroy_segment(segment)
 
 
@@ -462,7 +462,7 @@ class Decomposition:
         # update parent link to rm_wire
         rm_wire.parent.childs.remove(rm_wire)
         #####################
-        del self.wires[rm_wire.id]
+        self.wires.remove(rm_wire)
 
         return new_seg
 
@@ -665,8 +665,8 @@ class Decomposition:
         segment.disconnect_vtx(in_vtx)
 
         self._destroy_segment(segment)
-        del self.wires[rm_wire.id]
-        del self.polygons[new_polygon.id]
+        self.wires.remove(rm_wire)
+        self.polygons.remove(new_polygon)
 
 
     ###################################
@@ -687,7 +687,7 @@ class Decomposition:
         a, b = seg.point_ids()
         self.pt_to_seg.pop((a, b), None)
         self.pt_to_seg.pop((b, a), None)
-        del self.segments[seg.id]
+        self.segments.remove(seg)
 
 
 
