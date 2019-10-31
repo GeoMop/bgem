@@ -606,3 +606,15 @@ class TestDecomposition:
 
         da.delete_segment(seg)
         da.decomp.check_consistency()
+
+    def test_split_triangle(self):
+        decomp = PolygonDecomposition()
+        pt1 = decomp._add_point([0, 0], decomp.outer_polygon)
+        pt2 = decomp._add_point([2, 0], decomp.outer_polygon)
+        pt3 = decomp._add_point([1, 1], decomp.outer_polygon)
+        mid_pt = decomp._add_point([1, 0], decomp.outer_polygon)
+        seg = decomp._add_segment(pt1, pt2)
+        decomp._add_segment(pt2, pt3)
+        decomp._add_segment(pt3, pt1)
+        new_seg = decomp._split_segment(seg, mid_pt)
+        decomp._join_segments(mid_pt, seg, new_seg)
