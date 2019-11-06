@@ -27,6 +27,7 @@ class IsecPoint:
         self.surface_point.append(surface_point_a)
         self.surface_point.append(surface_point_b)
         self.surface_point = tuple(self.surface_point)
+        self.duplicite_with = None
         #self.surface_point_a = surface_point_a
         #self.surface_point_b = surface_point_b
         self.tol = 1  # have to be implemented

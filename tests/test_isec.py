@@ -227,15 +227,15 @@ class TestIsecx:
         y_n_samples = 20
 
 
-        x1_n_control_points = 11
-        y1_n_control_points = 10
-        x2_n_control_points = 13
-        y2_n_control_points = 11
-
         #x1_n_control_points = 11
         #y1_n_control_points = 10
-        #x2_n_control_points = 10
+        #x2_n_control_points = 13
         #y2_n_control_points = 11
+
+        x1_n_control_points = 11
+        y1_n_control_points = 10
+        x2_n_control_points = 10
+        y2_n_control_points = 11
 
 
         sapp1 = SurfApprox(plane_coefficients1, x_length, y_length, x_n_samples, y_n_samples, x1_n_control_points, y1_n_control_points, cosx)

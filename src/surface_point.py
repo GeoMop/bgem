@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class SurfacePoint:
     """
     Class to represent a point on the surface including the patch coordinates.
@@ -85,20 +84,34 @@ class SurfacePoint:
             if np.logical_or(self.uv[i] == 0, self.uv[i] == 1):
                 self.boundary_flag[i] = 1
 
+    # def patch_id(self):
+    #     """
+    #     Determines ID's of all neighboring patches
+    #     :param surf_point: as surface_point
+    #     :return: as numpy array of integers
+    #     """
+    #
+    #     k = len(self.iuv)
+    #     patch_id = np.zeros(k, dtype=int)
+    #     #patch_id = set()
+    #
+    #
+    #     patch_id = {self.surf.patch_pos2id(iu, iv) for iu,iv in self.iuv}
+    #
+    #     for i in range(k):
+    #         iu = self.iuv[i][0]
+    #         iv = self.iuv[i][1]
+    #         patch_id[i] = self.surf.patch_pos2id(iu, iv)
+    #
+    #     return patch_id
+
     def patch_id(self):
         """
         Determines ID's of all neighboring patches
         :param surf_point: as surface_point
         :return: as numpy array of integers
         """
-
-        k = len(self.iuv)
-        patch_id = np.zeros(k, dtype=int)
-
-        for i in range(k):
-            iu = self.iuv[i][0]
-            iv = self.iuv[i][1]
-            patch_id[i] = self.surf.patch_pos2id(iu, iv)
+        patch_id = set()
+        patch_id = {self.surf.patch_pos2id(iu, iv) for iu, iv in self.iuv}
 
         return patch_id
-
