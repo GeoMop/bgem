@@ -1,8 +1,5 @@
 import numpy as np
-import bspline as bs
-import isec_point as IP
-import surface_point as SP
-import isec_curve_surf as ICS
+from bspline import bspline as bs, isec_curve_surf as ICS, isec_point as IP, surface_point as SP
 import numpy.linalg as la
 
 
@@ -173,6 +170,19 @@ class IsecSurfSurf:
         return found
 
     # Connecting of the points
+
+    class Patch:
+        def __init__(self, own, other):
+            own_surf_point, other_surf_point = own[0]
+            self.own_surf = own_surf_point.surf
+            self.other_surf = other_surf_point.surf
+            self.main_curve_points = own
+            # Intersection points on main curves of the surface of the patch
+            # Results of get_intersections(own_surf, other_surf).
+            self.other_points = other
+            # Intersection points on main curves of the other surface
+
+
 
     def _connect_points(self, point_list1, point_list2):
 
@@ -411,7 +421,7 @@ class IsecSurfSurf:
         line_info = []
         line_surf = []
 
-
+        #
         while self._free_point(point_list[i_surf]) != -1:
 
             line.append([])
@@ -465,8 +475,8 @@ class IsecSurfSurf:
                         elif end_found[0] == 1:
                             end_found[1] = 1
                     else:
-
-                    #zustavam na povrchu
+                        pass
+                #zustavam na povrchu
                 elif len(p2pos) == 1:
                     point2 = point_list[1 - i_surf][p2pos[0]]
                     point2.connected = 1
@@ -479,7 +489,7 @@ class IsecSurfSurf:
                 last_point = line[n_curves][-1]
                 pid2 = last_point.surface_point[1].patch_id()
 
-                if len(p2pos > 0):
+                #if len(p2pos > 0):
 
                 inside_point_pos = self._get_inside_points(point_list, patch_point_listi, i_surf, pid)
                 n_points = len(p1pos)

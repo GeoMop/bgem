@@ -90,9 +90,9 @@ class Wire(idmap.IdObject):
 
     def __repr__(self):
         if self.is_root():
-            return "Wire({}) root, poly: {}, childs: {}". \
+            return "Wire({}) root, polygons: {}, childs: {}". \
                 format(self.id, self.polygon.id, [ch.id for ch in self.childs])
-        return "Wire({}) seg: {} poly: {} parent: {} childs: {}". \
+        return "Wire({}) seg: {} polygons: {} parent: {} childs: {}". \
             format(self.id, (self.segment[0].id, self.segment[1]),
                    self.polygon.id, self.parent.id, [ch.id for ch in self.childs])
 

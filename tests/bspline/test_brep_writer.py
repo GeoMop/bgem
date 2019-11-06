@@ -1,8 +1,5 @@
-import pytest
 import unittest
-import brep_writer as bw
-import sys
-
+from bspline import brep_writer as bw
 
 
 class TestConstructors(unittest.TestCase):

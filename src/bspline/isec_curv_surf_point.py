@@ -1,7 +1,5 @@
-
-import numpy as np
 import enum
-import surface_point as SP
+
 
 class Axis(enum.IntEnum):
     """

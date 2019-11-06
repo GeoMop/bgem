@@ -24,12 +24,12 @@ from polygons.plot_polygons import plot_polygon_decomposition
 #     fig, ax = plt.subplots()
 #
 #     # polygons
-#     for poly in decomp.polygons.values():
-#         poly.displayed = False
+#     for polygons in decomp.polygons.values():
+#         polygons.displayed = False
 #
 #     patches = []
-#     for poly in decomp.polygons.values():
-#         patches.extend( self.plot_polygon(poly) )
+#     for polygons in decomp.polygons.values():
+#         patches.extend( self.plot_polygon(polygons) )
 #     p = mc.PatchCollection(patches, color='blue', alpha=0.2)
 #
 #     ax.add_collection(p)

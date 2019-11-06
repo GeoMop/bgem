@@ -1,12 +1,8 @@
 import numpy as np
 import numpy.linalg as la
-import enum
-import undo
+from bspline import undo
 from . import aabb_lookup
 from . import decomp
-
-from .decomp import PolygonChange
-
 
 # TODO: rename point - > node
 # TODO: careful unification of tolerance usage.

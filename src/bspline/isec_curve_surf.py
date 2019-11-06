@@ -1,13 +1,9 @@
 
 import numpy as np
 import numpy.linalg as la
-import bih
 
-import bspline as bs
-import isec_point as IP
-import isec_curv_surf_point as ICSP
-import curve_point as CP
-import surface_point as SP
+from bspline import curve_point as CP, surface_point as SP, isec_curv_surf_point as ICSP
+
 
 class IsecCurveSurf:
     """

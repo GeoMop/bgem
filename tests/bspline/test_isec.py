@@ -1,15 +1,7 @@
-import pytest
-import isec_surf_surf as iss
-
-import bspline as bs
-import bspline_approx as bsa
+from bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as bp, bspline_approx as bsa
 import numpy as np
 import math
-import bspline_plot as bp
 
-
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
 
 class xTestSurface:
 

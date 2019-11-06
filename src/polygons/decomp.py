@@ -382,8 +382,8 @@ class Decomposition:
         polygon = free_pt.poly
         r_prev, r_next, wire = r_insert
 
-        #assert wire.polygon == free_pt.poly, "point poly: {} insert: {}".format(free_pt.poly, r_insert)
-        # if wire.polygon != free_pt.poly:
+        #assert wire.polygon == free_pt.polygons, "point polygons: {} insert: {}".format(free_pt.polygons, r_insert)
+        # if wire.polygon != free_pt.polygons:
         #     import geomop.plot_polygons as pp
         #     pp.plot_polygon_decomposition(self, [free_pt, r_prev[0].vtxs[r_prev[1]]])
         #     print("False")

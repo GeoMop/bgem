@@ -108,10 +108,10 @@ with open("README.md", "r") as fh:
 
 
 setuptools.setup(
-    name='PyBS',
+    name='pycad',
     version=__version__,
     license='GPL 3.0',
-    description='B-spline modelling library.',
+    description='B-spline modelling CAD and meshing tools.',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='Jan Brezina',
@@ -147,7 +147,7 @@ setuptools.setup(
     # },
 
     # include automatically all files in the template MANIFEST.in
-    # include_package_data=True,
+    include_package_data=True,
     zip_safe=False,
     install_requires=['numpy', 'scipy', 'bih'],
     python_requires='>=3',

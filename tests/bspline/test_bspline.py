@@ -1,10 +1,7 @@
-import pytest
-import bspline as bs
+from bspline import bspline as bs, bspline_plot as bp
 import numpy as np
 import math
-import bspline_plot as bp
 
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 plotting = bp.Plotting()

@@ -180,7 +180,7 @@ def intersect_decompositions(decomps, merge_tol = 1e-10):
     common_decomp = polygons.PolygonDecomposition()
     all_maps = []
     for decomp in decomps:
-        print("frac : {} #pt: {} #seg: {} #wires: {} #poly: {}".format(
+        print("frac : {} #pt: {} #seg: {} #wires: {} #polygons: {}".format(
             len(all_maps),
             len(common_decomp.points),
             len(common_decomp.segments),
