@@ -1,7 +1,14 @@
 import pytest
 import numpy as np
 import numpy.linalg as la
-from polygons.aabb_lookup import *
+
+import sys
+import os
+print("cwg : ", os.getcwd())
+print("test path: ", sys.path)
+
+
+from bgem.polygons.aabb_lookup import *
 
 
 def test_make_aabb():

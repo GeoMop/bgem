@@ -12,7 +12,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import scipy.interpolate
 
-from bspline import bspline as bs
+from bgem.bspline import bspline as bs
 import csv
 
 #logging.basicConfig(level=logging.DEBUG)

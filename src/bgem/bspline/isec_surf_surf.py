@@ -1,6 +1,7 @@
-import numpy as np
-from bspline import bspline as bs, isec_curve_surf as ICS, isec_point as IP, surface_point as SP
+
+from . import bspline as bs, isec_curve_surf as ICS, isec_point as IP, surface_point as SP
 import numpy.linalg as la
+import numpy as np
 
 
 

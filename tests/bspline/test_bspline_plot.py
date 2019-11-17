@@ -1,4 +1,4 @@
-from bspline import bspline as bs, bspline_plot as bp
+from bgem.bspline import bspline as bs, bspline_plot as bp
 import numpy as np
 import math
 

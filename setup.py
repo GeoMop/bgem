@@ -108,7 +108,7 @@ with open("README.md", "r") as fh:
 
 
 setuptools.setup(
-    name='pycad',
+    name='bgem',
     version=__version__,
     license='GPL 3.0',
     description='B-spline modelling CAD and meshing tools.',
@@ -136,9 +136,9 @@ setuptools.setup(
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
     
-    packages = setuptools.find_packages('src'),
+    packages=['bgem', 'bgem.polygons', 'bgem.bspline'], #setuptools.find_packages(where='src'),
     package_dir={'': 'src'},
-    py_modules=[os.path.splitext(os.path.basename(path))[0] for path in glob.glob('src/*.py')],
+    #py_modules=[os.path.splitext(os.path.basename(path))[0] for path in glob.glob('src/*.py')],
     # package_data={
     #     # If any package contains *.txt or *.rst files, include them:
     #     #'': ['*.txt', '*.rst'],

@@ -4,9 +4,9 @@
 
 import numpy as np
 import pytest
-from polygons.decomp import *
-from polygons.polygons import PolygonDecomposition
-from polygons.plot_polygons import plot_polygon_decomposition
+from bgem.polygons.decomp import *
+from bgem.polygons.polygons import PolygonDecomposition
+#from polygons.plot_polygons import plot_polygon_decomposition
 import os
 import sys
 print(sys.path)

@@ -1,5 +1,5 @@
 import unittest
-from bspline import brep_writer as bw
+from bgem.bspline import brep_writer as bw
 
 
 class TestConstructors(unittest.TestCase):

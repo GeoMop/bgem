@@ -4,9 +4,9 @@
 # from matplotlib import patches as mp
 import pytest
 
-from polygons.polygons import *
-from polygons.decomp import PolygonChange
-from polygons.plot_polygons import plot_polygon_decomposition
+from bgem.polygons.polygons import *
+from bgem.polygons.decomp import PolygonChange
+from bgem.polygons.plot_polygons import plot_polygon_decomposition
 #
 # def plot_polygon(self, polygon):
 #     if polygon is None or polygon.displayed or polygon.outer_wire.is_root():

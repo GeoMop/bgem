@@ -1,4 +1,4 @@
-from polygons.polygons import *
+from bgem.polygons.polygons import *
 
 
 enable_undo()

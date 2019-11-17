@@ -1,5 +1,5 @@
-from polygons.polygons import PolygonDecomposition
-import polygons.merge as merge
+from bgem.polygons.polygons import PolygonDecomposition
+import bgem.polygons.merge as merge
 import numpy as np
 import pytest
 # def test_deep_copy(self):

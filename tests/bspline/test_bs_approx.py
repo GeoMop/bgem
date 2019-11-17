@@ -1,5 +1,5 @@
 import numpy as np
-from bspline import bspline as bs, bspline_plot as bs_plot, bspline_approx as bs_approx
+from bgem.bspline import bspline as bs, bspline_plot as bs_plot, bspline_approx as bs_approx
 import math
 #import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D

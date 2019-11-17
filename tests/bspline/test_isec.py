@@ -1,4 +1,4 @@
-from bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as bp, bspline_approx as bsa
+from bgem.bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as bp, bspline_approx as bsa
 import numpy as np
 import math
 
