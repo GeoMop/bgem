@@ -213,7 +213,7 @@ class HealMesh:
 
     @staticmethod
     def read_mesh(mesh_file, node_tol=0.0001):
-        import gmsh_io
+        from . import gmsh_io
         return HealMesh(gmsh_io.GmshIO(mesh_file), mesh_file, node_tol)
 
 

@@ -124,7 +124,7 @@ def test_mesh_size():
     gmsh.finalize()
 
 
-
+@pytest.mark.skip
 def test_tolerances():
     """
     Test effect of varous tolerance options.
@@ -174,7 +174,7 @@ def test_tolerances():
 
 
 
-#@pytest.mark.skip
+@pytest.mark.skip
 def test_boundary_fragment_inconsistency():
     """
     Problem: When fragmenting a boundary of an entity the resulting map may be wrong.

@@ -303,7 +303,8 @@ class TestDecomposition:
         seg1 = sg_e
         mid_point = seg1.vtxs[in_vtx]
         seg0 = sg_e.next[left_side][0]
-        decomp.join_segments(mid_point, seg0, seg1)
+        mid_pt = decomp.join_segments(mid_point, seg0, seg1)
+        decomp.remove_free_point(mid_pt)
         decomp.check_consistency()
 
         # print("Decomp:\n", decomp)
@@ -314,9 +315,6 @@ class TestDecomposition:
         pd.delete_segment(seg_y)
         assert pd.get_last_polygon_changes() == (PolygonChange.join, 1, 2)
 
-        # test add_free_point
-        pd.add_free_point(100, (3.0, 0.3), decomp.outer_polygon.id)
-        pd.remove_free_point(100)
 
 
 
@@ -561,8 +559,8 @@ class TestDecomposition:
        pd.new_segment(pt0, pt2)
        pd.new_segment(pt1, pt2)
        # print(decomp)
-       pt3 = pd.add_free_point(4, (75.7, -35), 0 )
-       pd.new_segment(pt2, pt3)
+       #pt3 = pd.add_free_point(4, (75.7, -35))
+       #pd.new_segment(pt2, pt3)
        #plot_polygon_decomposition(decomp)
 
     def test_complex_wire_remove(self):

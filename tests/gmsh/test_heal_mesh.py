@@ -1,7 +1,7 @@
-import gmsh_io
-import heal_mesh
 import numpy as np
 import pytest
+
+from bgem.gmsh import heal_mesh, gmsh_io
 
 # def test_check_flat_element():
 #     h = 0.01
@@ -43,7 +43,9 @@ def test_check_flat_quad():
     mesh_io.elements[0] = (4, (1,2,3), [0,1,2,3])
 
     hm = heal_mesh.HealMesh(mesh_io)
-    hm._check_flat_tetra(0, 0.01)
+    hm.gamma_tol = 0.01
+    ele = hm._make_element(0)
+    hm._check_flat_tetra(ele)
 
 def test_check_flat_quad_degen():
     h = 0.005
@@ -54,4 +56,6 @@ def test_check_flat_quad_degen():
     mesh_io.elements[0] = (4, (1,2,3), [0,1,2,3])
 
     hm = heal_mesh.HealMesh(mesh_io)
-    hm._check_flat_tetra(0, 0.01)
+    hm.gamma_tol = 0.01
+    ele = hm._make_element(0)
+    hm._check_flat_tetra(ele)

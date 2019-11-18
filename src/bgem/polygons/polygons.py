@@ -97,30 +97,30 @@ class PolygonDecomposition:
     ##################################################################
     # Interface for LayerEditor. Should be changed.
     ##################################################################
-    def add_free_point(self, point_id, xy, polygon_id):
-        """
-        LAYERS
-        :param point_id: ID of point to add.
-        :param xy: point: (X,Y)
-        :param polygon_id: Hit in which polygon place the point.
-        :return: Point instance
-        """
-        #print("add_free_point", point_id, xy, polygon_id)
-        polygon = self.decomp.polygons[polygon_id]
-        assert polygon.contains_point(xy), "Point {} not in polygon: {}.\n{}".format(xy, polygon, self)
-        new_pt = self._add_point(xy, polygon, id = point_id)
-        return new_pt
+    # def add_free_point(self, point_id, xy, polygon_id):
+    #     """
+    #     LAYERS
+    #     :param point_id: ID of point to add.
+    #     :param xy: point: (X,Y)
+    #     :param polygon_id: Hit in which polygon place the point.
+    #     :return: Point instance
+    #     """
+    #     #print("add_free_point", point_id, xy, polygon_id)
+    #     polygon = self.decomp.polygons[polygon_id]
+    #     assert polygon.contains_point(xy), "Point {} not in polygon: {}.\n{}".format(xy, polygon, self)
+    #     new_pt = self._add_point(xy, polygon, id = point_id)
+    #     return new_pt
 
 
-    def remove_free_point(self, point_id):
-        """
-        LAYERS
-        :param: point_id - ID of free point to remove
-        :return: None
-        """
-        point = self.decomp.points[point_id]
-        self._rm_point(point)
- 
+    # def remove_free_point(self, point_id):
+    #     """
+    #     LAYERS
+    #     :param: point_id - ID of free point to remove
+    #     :return: None
+    #     """
+    #     point = self.decomp.points[point_id]
+    #     self._rm_point(point)
+
     def new_segment(self, a_pt, b_pt):
         """
         LAYERS

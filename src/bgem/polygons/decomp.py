@@ -286,7 +286,7 @@ class Decomposition:
         """
         Join splited segments, return free mid point.
         seg0 is used for the joined segment, seg1 is removed
-        Point has to be deleted explicitly using 'remove_free_point'.
+        Resulting middle point is in invalid state and has to be deleted explicitly using 'remove_free_point'.
         return mid_pt
         """
         if seg0.vtxs[in_vtx] == mid_point:
@@ -310,7 +310,15 @@ class Decomposition:
         b_seg1_insert = seg1.vtx_insert_info(seg1_in_vtx)
         seg1.disconnect_vtx(seg1_in_vtx)
         seg1.disconnect_vtx(seg1_out_vtx)
-        seg0.disconnect_vtx(seg0_in_vtx)
+
+        # disconnect middle point fromm seg0 without fixing the point
+        vtx_idx = seg0_in_vtx
+        seg_side_prev = 1 - vtx_idx
+        seg_side_next = vtx_idx
+        prev_seg, prev_side = seg0.previous(seg_side_prev)
+        prev_seg.next[prev_side] = seg0.next[seg_side_next]
+        seg0.next[seg_side_next] = (seg0, seg_side_prev)
+
         seg0.vtxs[seg0_in_vtx] = seg1.vtxs[seg1_in_vtx]
         if b_seg1_insert is None:
             assert seg0.is_dendrite()
@@ -328,6 +336,8 @@ class Decomposition:
         self.pt_to_seg[seg0.point_ids()] = seg0
 
         self._destroy_segment(seg1)
+        mid_point.set_polygon(seg0.wire[left_side].polygon) # any side
+
         return mid_point
 
 

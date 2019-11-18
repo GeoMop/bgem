@@ -1,6 +1,8 @@
 import pytest
-import heal_mesh
 import os
+
+from bgem.gmsh import heal_mesh
+src_dir = os.path.dirname(os.path.realpath(__file__))
 
 mesh_files=[
     #"random_fractures_01.msh",
@@ -10,10 +12,11 @@ mesh_files=[
     "random_fractures_neg_jac_05.msh",
     "random_fractures_neg_jac_06.msh"
 ]
+
 @pytest.mark.parametrize("mesh", mesh_files)
 @pytest.mark.parametrize("tol", [0.003, 0.01, 0.03])
 def test_on_mesh_samples(mesh, tol):
-    mesh_path = os.path.join("meshes", mesh)
+    mesh_path = os.path.join(src_dir, "meshes", mesh)
     hm = heal_mesh.HealMesh.read_mesh(mesh_path, node_tol=tol*0.01)
     hm.heal_mesh(gamma_tol=tol)
     hist, bins, bad_els = hm.quality_statistics(bad_el_tol=tol)

@@ -1,3 +1,3 @@
 
-class TestGeometryOcc:
-    def test_box(self):
+# class TestGeometryOcc:
+#     def test_box(self):
