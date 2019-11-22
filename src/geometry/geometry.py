@@ -30,24 +30,13 @@ Heterogeneous mesh step:
 import os
 import sys
 import subprocess
+from enum import IntEnum
 
 
 
-#geomop_src = os.path.join(os.path.split(os.path.dirname(os.path.realpath(__file__)))[0], "gm_base")
-#intersections_src = os.path.join(os.path.dirname(os.path.realpath(__file__)), "intersections","src")
-#sys.path.append(geomop_src)
-#sys.path.append(intersections_src)
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-
-import gm_base.json_data as js
-import gm_base.geometry_files.format_last as gs
-import gm_base.geometry_files.layers_io as layers_io
-import gm_base.polygons.polygons as polygons
-import gm_base.polygons.merge as merge
-import gm_base.polygons.polygons_io as polygons_io
-import gm_base.geometry_files.bspline_io as bspline_io
-import Geometry.gmsh_io as gmsh_io
+import polygons.polygons as polygons
+import polygons.merge as merge
+from . import gmsh_io as gmsh_io
 import numpy as np
 import numpy.linalg as la
 import math
@@ -144,18 +133,31 @@ class ShapeInfo:
         return bs.Curve(self.curve_z.basis, poles_uv)
 
 
-class Curve(gs.Curve):
-    pass
+# class Curve():
+#     pass
 
 
-class SurfaceApproximation(gs.SurfaceApproximation):
+class SurfaceApproximation():
     """
     TODO: allow user to determine configuration of the approximation
     """
-    pass
+
+    """
+    Serialization class for Z_Surface.
+    """
+    def __init__(self):
+        self.u_knots = []
+        self.v_knots = []
+        self.u_degree = 2
+        self.v_degree = 2
+        self.rational = False
+        self.poles = []
+        self.orig_quad = 4*(2*(0.0,),)
+        self.xy_map = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        self.z_map = [1.0, 0.0]
 
 
-class Surface(gs.Surface):
+class Surface():
     """
     Represents a z(x,y) function surface given by grid of points, but optionaly approximated by a B-spline surface.
     """
@@ -163,7 +165,26 @@ class Surface(gs.Surface):
         """
         Construct a planar surface from a depth.
         """
+        self.grid_file = ""
+        """File with approximated points (grid of 3D points). None for plane"""
+        self.file_skip_lines = 0
+        """Number of header lines to skip. """
+        self.file_delimiter = ' '
+        """ Delimiter of data fields on a single line."""
+        self.name = ""
+        """Surface name"""
+        self.approximation = SurfaceApproximation()
+        """Serialization of the  Z_Surface."""
+        self.regularization = 1.0
+        """Regularization weight."""
+        self.approx_error = 0.0
+        """L-inf error of aproximation"""
+
         self.z_surface = None
+
+    @property
+    def quad(self):
+        return self.approximation.quad
 
     def init(self):
         """
@@ -237,99 +258,41 @@ class Surface(gs.Surface):
         plt.show()
 
 
-
-
-class Segment(gs.Segment):
-    pass
-
-class Polygon(gs.Polygon):
-    pass
-
-class Topology(gs.Topology):
-    pass
-    # """
-    # TODO:
-    # - support for polygons with holes, here and in creation of faces and solids
-    # """
-    # def check(self, nodeset):
-    #     """
-    #     Check that topology is compatible with given nodeset.
-    #     Check and possibly fix orientation of polygons during first call.
-    #     :param nodeset:
-    #     :return:
-    #     """
-    #     if hasattr(self, 'n_nodes'):
-    #         # already checked with other nodeset, just check nodeset size
-    #         assert len(nodeset.nodes) == self.n_nodes, \
-    #             "Nodeset (id: {}) size {} is not compatible with topology (id: {}) with size {}"\
-    #             .format(nodeset.id, len(nodeset.nodes), self.id, self.n_nodes)
-    #         return
-    #
-    #     nodes = nodeset.nodes
-    #     self.n_nodes = len(nodes)
-    #     self.n_segments = len(self.segments)
-    #     for segment in self.segments:
-    #         for nid in segment.node_ids:
-    #             assert 0 <= nid < len(nodes), "Node ID: {} of topology (id: {}) is out of nodeset (id: {}".format(nid, self.id, nodeset.id)
-    #
-    #     for poly in self.polygons:
-    #         self.orient_polygon(poly)
-    #
-    #
-    # def orient_polygon(self, poly):
-    #     """
-    #     Find orientation of polygon segments so that they have same orientation within the polygon.
-    #     TODO: Make orientation counter clock wise.
-    #     :param poly:
-    #     :return:
-    #     """
-    #     last_node = None
-    #     first_node = poly.segment_ids
-    #     oriented_ids = []
-    #     segs = poly.segment_ids
-    #     for i_seg, i_seg_next in zip(segs, segs[1:] + segs[:1]):
-    #         segment = self.segments[i_seg]
-    #         next_segment = self.segments[i_seg_next]
-    #         nodes = segment.node_ids
-    #         if nodes[1] in next_segment.node_ids:
-    #             oriented_ids.append( self.code_oriented_segment(i_seg, False) )
-    #         else:
-    #             assert nodes[0] in next_segment.node_ids, "Wrong order of polygon edges."
-    #             oriented_ids.append(self.code_oriented_segment(i_seg, True))
-    #     poly.segment_ids = oriented_ids
-    #
-    #
-    # def code_oriented_segment(self, id_seg, reversed):
-    #     """
-    #     Coded segment id with orientation.
-    #     :param id_seg:
-    #     :param reversed:
-    #     :return:
-    #     """
-    #     return id_seg + reversed*self.n_segments
-    #
-    #
-    # def orient_segment(self, id_seg):
-    #     """
-    #     Decode segment_id withi polygon to the true segment ID end orientation.
-    #     :param id_seg:
-    #     :return:
-    #     """
-    #     if id_seg >= len(self.segments):
-    #         return id_seg - self.n_segments, True
-    #     else:
-    #         return id_seg, False
-
-class NodeSet(gs.NodeSet):
-    pass
-
-
 class Interface:
     """
     Interfaceis a gluing object between layers joined to a common surface.
     It maps nodes onto surface, create complete decompositions and their intersection, and produce all
     shapes laying on the surface.
     """
+    def __init__(self, surface_id=None, transform_z=(1.0, 0.0), elevation=0.0):
+        self.surface_id = surface_id
+        """Surface index"""
+        self.transform_z = transform_z
+        """Transformation in Z direction (scale and shift)."""
+        self.elevation = elevation
+        """ Representative Z coord of the surface."""
+
+        # Grid polygon should be in SurfaceApproximation, however
+        # what for the case of planar interfaces without surface reference.
+        # self.grid_polygon = 4*(2*(float,))
+        """Vertices of the boundary polygon of the grid."""
+
+        self.decompositions = {}
+        self.decom_counter = 0
+
+    def add_decomposition(self, decomposition):
+        """Adds decomposition to decompositions dictionary. Returns decomposition id."""
+        id = self.decom_counter
+        self.decompositions[id] = decomposition
+        self.decom_counter += 1
+        return id
+
+    def __eq__(self, other):
+        """operators for comparation"""
+        return self.elevation == other.elevation \
+               and self.transform_z == other.transform_z \
+               and self.surface_id != other.surface_id
+
     def init(self, lg):
         """
         Interface is bounded to a single surface.
@@ -340,22 +303,6 @@ class Interface:
         else:
             self._surface = lg.surfaces[self.surface_id]
         self.common_decomp = None
-        self.decompositions = {}
-
-    def add_decomposition(self, nodes, topology):
-        """
-        Related layers (at most two stratum layers and one fracture layer) bound their decompositions given as nodeset
-        and topology to the interface.
-        :param nodes: 2d Nodes
-        :param topology: Topology object.
-        :return: Id of the decomposition within interface. Necessary to get right polygon map later on.
-        """
-        if not topology.id in self.decompositions:
-            decomp = polygons_io.deserialize(nodes, topology)
-            self.decompositions[topology.id] = decomp
-        else:
-            decomp = self.decompositions[topology.id]
-        return decomp
 
     def _finish_init(self):
         """
@@ -596,44 +543,67 @@ class Interface:
         return bs.Curve(curve_xyz.basis, poles_tz)
 
 
+class LayerType(IntEnum):
+    """Layer type"""
+    stratum = 0
+    fracture = 1
+    shadow = 2
 
 
-class InterfaceNodeSet(gs.InterfaceNodeSet):
-
-    def init(self, lg):
-        self.interface = lg.interfaces[self.interface_id]
-        self.nodeset = lg.node_sets[self.nodeset_id]
-        self.topology = lg.topologies[self.nodeset.topology_id]
-        #self.topology.check(self.nodeset)
-
-    def make_interface(self, lg ):
-        self.init(lg)
-        interface = lg.interfaces[self.interface_id]
-        self.decomp = interface.add_decomposition(self.nodeset.nodes, self.topology)
-        return interface
+class TopologyType(IntEnum):
+    given = 0
+    interpolated = 1
 
 
-class InterpolatedNodeSet(gs.InterpolatedNodeSet):
-
-    def make_interface(self, lg):
-        interface = lg.interfaces[self.interface_id]
-        #surface = lg.surfaces[self.interface_id]
-        a, b = self.surf_nodesets
-        a.init(lg)
-        b.init(lg)
-        assert a.topology.id == b.topology.id
-        self.topology = a.topology
-        if a.nodeset_id == b.nodeset_id:
-            self.nodes = a.nodeset.nodes
-        else:
-            assert False, "Interpolation ofr different nodesets not supported yet."
-            assert a.interface_id != b.interface_id
-            self.nodes = interface.interpolate_nodes(a.interface, a.nodeset.nodes, b.interface, b.nodeset.nodes)
-        self.decomp = interface.add_decomposition(self.nodes, self.topology)
-        return interface
+class RegionDim(IntEnum):
+    invalid = -2
+    none = -1
+    point = 0
+    well = 1
+    fracture = 2
+    bulk = 3
 
 
-class Region(gs.Region):
+class TopologyDim(IntEnum):
+    invalid = -1
+    node = 0
+    segment = 1
+    polygon = 2
+
+
+class Region():
+    """Description of disjunct geometri area sorte by dimension (dim=1 well, dim=2 fracture, dim=3 bulk). """
+
+    def __init__(self, color="", name="", dim=RegionDim.invalid, topo_dim=TopologyDim.invalid, boundary=False, not_used=False, mesh_step=0.0):
+        self.color = color
+        """8-bite region color"""
+        self.name = name
+        """region name"""
+        self.dim = dim
+        """ Real dimension of the region. (0,1,2,3)"""
+        self.topo_dim = topo_dim
+        """For backward compatibility. Dimension (0,1,2) in Stratum layer: node, segment, polygon"""
+        self.boundary = boundary
+        """Is boundary region"""
+        self.not_used = not_used
+        """is used """
+        self.mesh_step = mesh_step
+        """mesh step - 0.0 is automatic choice"""
+        self.brep_shape_ids = []
+        """List of shape indexes - in BREP geometry """
+        self.id = None
+        """region's id"""
+
+    def fix_dim(self, extruded):
+
+        if self.topo_dim != TopologyDim.invalid:
+            # old format
+            if self.dim == RegionDim.invalid:
+                self.dim = RegionDim(self.topo_dim + extruded)
+            if self.not_used:
+                return
+            assert self.dim.value == self.topo_dim + extruded, "Region {} , dimension mismatch."
+        assert self.dim != RegionDim.invalid
 
     def init(self, topo_dim, extrude):
         #assert topo_dim == self.topo_dim,
@@ -658,8 +628,19 @@ class Region(gs.Region):
             assert dim == self.dim, "Can not create shape of dim: {} in region '{}' of dim: {}.".format(dim, self.name, self.dim)
         return active
 
-#class GeoLayer(gs.GeoLayer):
-#    pass
+
+class GeoLayer():
+    """Geological layers"""
+
+    def __init__(self):
+        self.name = ""
+        """Layer Name"""
+
+        #self.top = None
+        """Accoding topology type interface node set or interpolated node set"""
+
+        self.layer_type = LayerType.shadow
+
 
 def make_layer_region_maps(layer, regions, extrude):
     """
@@ -670,27 +651,35 @@ def make_layer_region_maps(layer, regions, extrude):
     :param extrude:
     :return:
     """
-    top_decomp = layer.top.decomp
-    #bot_decomp = layer.bottom.decomp
+    top_decomp = layer.d_top
     #assert top_decomp == bot_decomp
 
     id_to_region = []
-    region_id_lists = [layer.node_region_ids, layer.segment_region_ids, layer.polygon_region_ids]
     top_objs = [top_decomp.points.values(), top_decomp.segments.values(), top_decomp.polygons.values()]
-    for dim, (reg_list, obj_list) in enumerate(zip(region_id_lists, top_objs)):
+    for dim, obj_list in enumerate(top_objs):
         reg_map={}
         for obj in obj_list:
-            i_reg = reg_list[obj.index]
+            i_reg = obj.attr.id if (obj.attr is not None) else 0
             regions[i_reg].init(topo_dim=dim, extrude=extrude)
             reg_map[obj.id] = regions[i_reg]
         id_to_region.append(reg_map)
     return id_to_region
 
-class FractureLayer(gs.FractureLayer):
+
+class FractureLayer(GeoLayer):
+    def __init__(self, top_decomp, top_iface):
+        super().__init__()
+
+        self.layer_type = LayerType.fracture
+
+        self.d_top = top_decomp
+        self.i_top = top_iface
+        self.d_id_top = top_iface.add_decomposition(top_decomp)
+
     def init(self, lg):
-        self.i_top = self.top.make_interface(lg)
+        #self.i_top = self.top.make_interface(lg)
         # Top interface.
-        self.topology = self.top.topology
+        #self.topology = self.top.topology
         # Common topology.
         self.regions = make_layer_region_maps(self, lg.regions, False)
         # List of dictionaries.
@@ -706,8 +695,8 @@ class FractureLayer(gs.FractureLayer):
         #for i, i_reg in enumerate(self.node_region_ids):
         #    if self.regions[i_reg].is_active(0):
         #        shapes.append( (self.i_top.vertices[i], i_reg) )
-        decomp = self.top.decomp
-        obj_maps = self.i_top.subobj_lists[self.top.topology.id]
+        decomp = self.d_top
+        obj_maps = self.i_top.subobj_lists[self.d_id_top]
         for seg in decomp.segments.values():
             reg = self.regions[1][seg.id]
             if reg.is_active(1):
@@ -723,16 +712,51 @@ class FractureLayer(gs.FractureLayer):
                     self.i_top.faces[sub_poly_id].set_shape(reg.id, self.i_top, self.i_top)
         return []
 
-class StratumLayer(gs.StratumLayer):
+
+class StratumLayer(GeoLayer):
+    def __init__(self, top_decomp, top_iface, bottom_decomp, bottom_iface):
+        super().__init__()
+
+        #self.bottom = None
+        """ optional, only for stratum type, accoding bottom topology
+        type interface node set or interpolated node set"""
+
+        self.layer_type = LayerType.stratum
+        #self.top_type = self.top.interface_type
+        #self.bottom_type = self.bottom.interface_type
+
+        self.d_top = top_decomp
+        self.i_top = top_iface
+        self.d_id_top = top_iface.add_decomposition(top_decomp)
+        self.d_bot = bottom_decomp
+        self.i_bot = bottom_iface
+        self.d_id_bot = bottom_iface.add_decomposition(bottom_decomp)
+
     def init(self, lg):
-        self.i_top = self.top.make_interface(lg)
-        self.i_bot = self.bottom.make_interface(lg)
-        assert self.top.topology.id == self.bottom.topology.id
-        self.topology = self.top.topology
+        #self.i_top = self.top.make_interface(lg)
+        #self.i_bot = self.bottom.make_interface(lg)
+        assert self.test_topology_compatiblity()
+
+        #self.topology = self.top.topology
+
         self.regions = make_layer_region_maps(self, lg.regions, True)
         #for tdim, reg_list in enumerate([self.node_region_ids, self.segment_region_ids, self.polygon_region_ids]):
         #    for i_reg in reg_list:
         #        self.regions[i_reg].init(topo_dim=tdim, extrude = True)
+
+    def test_topology_compatiblity(self):
+        """Returns True if top and bottom decomposition have compatible topology."""
+        if set(self.d_top.points.keys()) != set(self.d_bot.points.keys()):
+            return False
+
+        segs_top = {k: (v.vtxs[0].id, v.vtxs[1].id) for k, v in self.d_top.segments.items()}
+        segs_bot = {k: (v.vtxs[0].id, v.vtxs[1].id) for k, v in self.d_bot.segments.items()}
+        if segs_top != segs_bot:
+            return False
+
+        # todo: test own topology
+
+        return True
 
     def plot_vert_face(self, v_to_z, si_top, si_bot):
         #import_plotting()
@@ -857,13 +881,13 @@ class StratumLayer(gs.StratumLayer):
 
     def make_shapes(self):
         shapes = []
-        top_subobjs = self.i_top.subobj_lists[self.top.topology.id]
-        bot_subobjs = self.i_bot.subobj_lists[self.bottom.topology.id]
+        top_subobjs = self.i_top.subobj_lists[self.d_id_top]
+        bot_subobjs = self.i_bot.subobj_lists[self.d_id_bot]
 
         vert_edges={}
 
         # TODO: vertical edges and faces
-        for id, pt in self.top.decomp.points.items():
+        for id, pt in self.d_top.points.items():
             assert len(top_subobjs[0][id]) == 1
             assert len(bot_subobjs[0][id]) == 1
             top_new_pt = self.i_top.vertices[top_subobjs[0][id][0]]
@@ -879,11 +903,11 @@ class StratumLayer(gs.StratumLayer):
                 edge_info.set_shape( reg.id, self.i_top, self.i_bot)
             shapes.append(edge_info)
 
-        assert len(vert_edges) == len(self.top.decomp.points) #, "n_vert_edges: %d n_nodes: %d"%(len(vert_edges), self.topology.n_nodes)
-        assert len(vert_edges) == len(self.node_region_ids)
+        assert len(vert_edges) == len(self.d_top.points) #, "n_vert_edges: %d n_nodes: %d"%(len(vert_edges), self.topology.n_nodes)
+        #assert len(vert_edges) == len(self.node_region_ids)
 
         vert_faces = {}
-        for id, segment in self.top.decomp.segments.items():
+        for id, segment in self.d_top.segments.items():
             # make face oriented to the right side of the segment when looking from top
             edge_start = vert_edges[segment.vtxs[0].id]
             edge_end = vert_edges[segment.vtxs[1].id]
@@ -916,10 +940,10 @@ class StratumLayer(gs.StratumLayer):
                 face_info.set_shape(reg.id, self.i_top, self.i_bot)
             shapes.append(face_info)
 
-        assert len(vert_faces) == len(self.top.decomp.segments)
-        assert len(vert_faces) == len(self.segment_region_ids)
+        assert len(vert_faces) == len(self.d_top.segments)
+        #assert len(vert_faces) == len(self.segment_region_ids)
 
-        for id, polygon in self.top.decomp.polygons.items():
+        for id, polygon in self.d_top.polygons.items():
             if polygon.is_outer_polygon():
                 continue
             #segment_ids = polygon.segment_ids  # segment_id > n_segments .. reversed edge
@@ -950,11 +974,33 @@ class StratumLayer(gs.StratumLayer):
 
         return shapes
 
-class UserSupplement(gs.UserSupplement):
-    pass
 
+class LayerGeometry():
 
-class LayerGeometry(gs.LayerGeometry):
+    def __init__(self):
+        #self.version = [0,4,0]
+        """Version of the file format."""
+        self.regions = []
+        """List of regions"""
+        self.layers = []
+        """List of geological layers"""
+        self.surfaces = []
+        """List of B-spline surfaces"""
+        self.interfaces = []
+        """List of interfaces"""
+        self.curves = []
+        """List of B-spline curves,"""
+        #self.topologies = []
+        """List of topologies"""
+        #self.node_sets = []
+        """List of node sets"""
+        #self.supplement = UserSupplement()
+        """Addition data that is used for displaying in layer editor"""
+        #self.decompositions = []
+        """List of decompositions"""
+
+        # add none region
+        self.add_region(not_used=True)
 
     el_type_to_dim = {15: 0, 1: 1, 2: 2, 4: 3}
 
@@ -982,6 +1028,32 @@ class LayerGeometry(gs.LayerGeometry):
         for i, item in enumerate(xlist):
             item.id = i
 
+    def add_region(self, *args, **kwargs):
+        """Creates and adds region to regions list. Returns created region."""
+        id = len(self.regions)
+        region = Region(*args, **kwargs)
+        region.id = id
+        self.regions.append(region)
+        return region
+
+    def add_fracture_layer(self, *args, **kwargs):
+        """Creates and adds fracture layer to layers list. Returns created layer."""
+        layer = FractureLayer(*args, **kwargs)
+        self.layers.append(layer)
+        return layer
+
+    def add_stratum_layer(self, *args, **kwargs):
+        """Creates and adds stratum layer to layers list. Returns created layer."""
+        layer = StratumLayer(*args, **kwargs)
+        self.layers.append(layer)
+        return layer
+
+    def add_interface(self, *args, **kwargs):
+        """Creates and adds interface to interfaces list. Returns created interface."""
+        interface = Interface(*args, **kwargs)
+        self.interfaces.append(interface)
+        return interface
+
     def init(self):
         # keep unique interface per surface
         self.brep_shapes=[]     # Final shapes in top compound to being meshed.
@@ -990,7 +1062,7 @@ class LayerGeometry(gs.LayerGeometry):
         self.set_ids(self.surfaces)
         self.set_ids(self.regions)
         #self.interfaces = [ Interface(surface) for surface in self.surfaces ]
-        self.set_ids(self.topologies)
+        #self.set_ids(self.topologies)
         #self.set_ids(self.nodesets)
 
         # funish initialization of interfaces
@@ -1045,17 +1117,14 @@ class LayerGeometry(gs.LayerGeometry):
         for iface in self.interfaces:
             iface.make_shapes()
 
-        self.split_to_blocks()
-
         # self.vertices={}            # (interface_id, interface_node_id) : bw.Vertex
         # self.extruded_edges = {}    # (layer_id, node_id) : bw.Edge, orented upward, Loacl to Layer
 
         self.all_shapes = []
         self.free_shapes = []
 
-        for block in self.blocks:
-            for layer in block:
-                self.all_shapes += layer.make_shapes()
+        for layer in self.layers:
+            self.all_shapes += layer.make_shapes()
 
         for i_face in self.interfaces:
             for shp in i_face.iter_shapes():
@@ -1163,22 +1232,6 @@ class LayerGeometry(gs.LayerGeometry):
             # for i in xx:
             #    print(i[0][0], i[0][1], i[1])
 
-    def split_to_blocks(self):
-        blocks=[]
-        block=[]
-        last_id=None
-        for layer in self.layers:
-            if last_id == None:
-                last_id = layer.topology.id
-            if layer.topology.id == last_id:
-                block.append(layer)
-            else:
-                last_id = layer.topology.id
-                blocks.append(block)
-                block=[layer]
-        blocks.append(block)
-        self.blocks=blocks
-
     def compute_bounding_box(self):
         min_vtx = np.ones(3) * (np.inf)
         max_vtx = np.ones(3) * (-np.inf)
@@ -1261,11 +1314,11 @@ class LayerGeometry(gs.LayerGeometry):
             for id, char_length in self.vtx_char_length:
                 print(r'Characteristic Length {%s} = %s;' % (id, char_length), file=f)
 
-                gmsh_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../gmsh/gmsh.exe")
+        gmsh_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../gmsh/gmsh.exe")
         if not os.path.exists(gmsh_path):
             gmsh_path = "gmsh"
 
-        process = subprocess.run([gmsh_path, "-3", self.geo_file], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.run([gmsh_path, "-3", "-format", "msh2", self.geo_file], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         stderr = process.stderr.decode('ascii')
         stdout = process.stdout.decode('ascii')
         if process.returncode != 0:
@@ -1401,73 +1454,3 @@ class LayerGeometry(gs.LayerGeometry):
     #
     # def netgen_to_gmsh(self):
     #     pass
-
-
-
-def construct_derived_geometry(gs_obj):
-    if issubclass(gs_obj.__class__, js.JsonData):
-        geo_name = gs_obj.__class__.__name__
-        class_obj = getattr(sys.modules[__name__], geo_name)
-        geo_obj =  class_obj.__new__(class_obj)
-        for key, item in  gs_obj.__dict__.items():
-            item = construct_derived_geometry(item)
-            geo_obj.__dict__[key] = item
-    elif isinstance(gs_obj, (list, tuple)):
-        new_item = [ construct_derived_geometry(i) for i in gs_obj ]
-        geo_obj = gs_obj.__class__(new_item)
-    elif isinstance(gs_obj, dict):
-        for k, v in gs_obj.items():
-            gs_obj[k] = construct_derived_geometry(v)
-        geo_obj = gs_obj
-    else:
-        geo_obj = gs_obj
-    return geo_obj
-
-
-def make_geometry(**kwargs):
-    """
-    TODO: Have LayerGeometry as a class for building geometry, manipulating geometry and meshing.
-    then this function is understood as a top level script to us LayerGemoetry API to perform
-    basic workflow:
-    Read geometry from file or use provided gs.LayerGeometry object.
-    Construct the BREP geometry, call gmsh, postprocess mesh.
-    Write: geo file, brep file, tmp.msh file, msh file
-    """
-    raw_geometry = kwargs.get("geometry", None)
-    layers_file = kwargs.get("layers_file", None)
-    filename_base = ""
-    mesh_step = kwargs.get("mesh_step", 0.0)
-
-    if raw_geometry is None:
-        raw_geometry = layers_io.read_geometry(layers_file)
-        filename_base = os.path.splitext(layers_file)[0]
-    lg = construct_derived_geometry(raw_geometry)
-    lg.filename_base = filename_base
-
-    lg.init()   # initialize the tree with ids and references where necessary
-
-    lg.construct_brep_geometry()
-    lg.make_gmsh_shape_dict()
-    lg.distribute_mesh_step()
-
-    #geom.mesh_netgen()
-    #geom.netgen_to_gmsh()
-
-    lg.call_gmsh(mesh_step)
-    lg.modify_mesh()
-    return lg
-
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('layers_file', help="Input Layers file (JSON).")
-    parser.add_argument("--mesh-step", type=float, default=0.0, help="Maximal global mesh step.")
-    args = parser.parse_args()
-
-    try:
-        make_geometry(layers_file=args.layers_file, mesh_step=args.mesh_step)
-    except ExcGMSHCall as e:
-        print(str(e))
