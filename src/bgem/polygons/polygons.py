@@ -1,6 +1,6 @@
 import numpy as np
 import numpy.linalg as la
-from .. import undo
+from ..external import undo
 from . import aabb_lookup
 from . import decomp
 
