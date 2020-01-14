@@ -136,7 +136,7 @@ setuptools.setup(
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
     
-    packages=['bgem', 'bgem.polygons', 'bgem.bspline'], #setuptools.find_packages(where='src'),
+    packages=['bgem', 'bgem.polygons', 'bgem.bspline', 'bgem.gmsh', 'bgem.external'], #setuptools.find_packages(where='src'),
     package_dir={'': 'src'},
     #py_modules=[os.path.splitext(os.path.basename(path))[0] for path in glob.glob('src/*.py')],
     # package_data={
@@ -149,7 +149,7 @@ setuptools.setup(
     # include automatically all files in the template MANIFEST.in
     include_package_data=True,
     zip_safe=False,
-    install_requires=['numpy', 'scipy', 'bih'],
+    install_requires=['numpy', 'scipy', 'bih', 'gmsh-sdk'],
     python_requires='>=3',
     # extras_require={
     #     # eg:
