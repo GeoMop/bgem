@@ -50,7 +50,13 @@ Decomposition of the plane into disjoint polygons by line segments.
 - support for assignment of regions (or other data) to the shapes (points, segments, polygons)
 - support for undo/redo of the operations
 
- 
+## Installation
+
+'pip install bgem' - install recent release from PyPI into system (need root access / sudo)
+'pip install --user bgem' - install recent release under current user not system wide (no speciall permissions necessary)
+'pip install <DIR>' - install from sources located in <DIR>, copy sources
+'pip install -e <DIR>' - install from sources located in <DIR>, link to editable sources (usefull for debugging)
+
 ## Authors
 
 Jan Březina, Jiří Kopal, Radek Srb, Jana Ehlerová, Jiří Hnídek
