@@ -12,7 +12,7 @@
 Primary focus are hydrogeological applications with geometries including both random fractures and deterministic natural or antropogenic features.
 
 ## Rationale
-GMSH is a mature meshing tool recently complemented by the 'gmsh-sdk' intreface library. However its practical usage (from Python) have several issues:
+GMSH is a mature meshing tool recently complemented by the `gmsh-sdk` intreface library. However its practical usage (from Python) have several issues:
 
 - Geometry bolean operations (based on OCC) doesn't preserve "compatible" geometry, i.e. boundary separation two volumes exists only once. This
   makes major problems in meshing.
@@ -21,7 +21,7 @@ GMSH is a mature meshing tool recently complemented by the 'gmsh-sdk' intreface 
 - Compatible boundary shapes can only be retrieved from the final volume, loosing information about it's parts (e.g. boundary of internal hole vs. outer boundary).
 - The regions (physical groups in GMSH) are composed from the shapes, while the compatible geometry requests a single region per shape. So it seems logical to assigne regions to the shapes.
 - For thousands of regions, the internal GMSH/OCC algorithms are extremaly slow (probably do to quadratic complexity).
-- 'gmsh-sdk' builds on semantics of GMSH scripting language leading to cumbersome usage from Python, namely for Fields and Options.
+- `gmsh-sdk` builds on semantics of GMSH scripting language leading to cumbersome usage from Python, namely for Fields and Options.
 
 
 
@@ -52,13 +52,13 @@ Decomposition of the plane into disjoint polygons by line segments.
 
 ## Installation
 
-'pip install bgem' - install recent release from PyPI into system (need root access / sudo)
+`pip install bgem` - install recent release from PyPI into system (need root access / sudo)
 
-'pip install --user bgem' - install recent release under current user not system wide (no speciall permissions necessary)
+`pip install --user bgem` - install recent release under current user not system wide (no speciall permissions necessary)
 
-'pip install DIR' - install from sources located in DIR, copy sources
+`pip install DIR` - install from sources located in DIR, copy sources
   
-'pip install -e DIR' - install from sources located in DIR, link to editable sources (usefull for debugging)
+`pip install -e DIR` - install from sources located in DIR, link to editable sources (usefull for debugging)
 
 ## Authors
 
