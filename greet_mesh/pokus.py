@@ -33,9 +33,7 @@ def create_box(gmsh_occ, box_geom):
     if rot_z != 0:
         box.rotate([0,0,1], rot_z)
 
-    points = np.array(box_geom["nodes"])
-    barycenter = [np.average(points[:, 0]), np.average(points[:, 1]), np.average(points[:, 2])]
-    box.translate(barycenter)
+    box.translate(box_geom["center"])
     return box
 
 # def create_volume(nodes):
@@ -80,98 +78,102 @@ def create_box(gmsh_occ, box_geom):
 #     return 3, volume
 
 
-def create_plane(nodes):
-    p_tags = []
-    for p in nodes:
-        p_tags.append(gmsh.model.occ.addPoint(p[0], p[1], p[2]))
+def create_plane(gmsh_occ, plane_geom):
+    # points = np.array(fr_geom["nodes"])
 
-    l_tags = []
-    for i in range(0, len(p_tags) - 1):
-        l_tags.append(gmsh.model.occ.addLine(p_tags[i], p_tags[i + 1]))
-    l_tags.append(gmsh.model.occ.addLine(p_tags[len(p_tags) - 1], p_tags[0]))
+    plane = gmsh_occ.make_polygon(plane_geom["nodes"])
 
-    loop = gmsh.model.occ.addCurveLoop(l_tags)
-    polygon = gmsh.model.occ.addPlaneSurface([loop])
-    return 2, polygon
+    return plane
 
 
-def generate_mesh(config_dict):
+def create_cylinder(gmsh_occ, cyl_geom):
+
+    radius = float(cyl_geom["radius"])
+    start = np.array((cyl_geom["start"]))
+    end = np.array((cyl_geom["end"]))
+
+    cylinder = gmsh_occ.cylinder(radius, end-start)
+
+    rot_x = float(cyl_geom["rot_x"])
+    rot_y = float(cyl_geom["rot_y"])
+    rot_z = float(cyl_geom["rot_z"])
+    if rot_x != 0:
+        cylinder.rotate([1, 0, 0], rot_x)
+    if rot_y != 0:
+        cylinder.rotate([0, 1, 0], rot_y)
+    if rot_z != 0:
+        cylinder.rotate([0, 0, 1], rot_z)
+
+    cylinder.translate(cyl_geom["center"])
+
+    return cylinder
+
+def generate_mesh(geometry_dict):
 
     gen = gmsh.GeometryOCC("greet_mesh")
 
     with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
         geometry_dict = yaml.safe_load(f)
 
+    # compute barycenter of the given points to translate the box
+    outer_box_points = np.array(geometry_dict['outer_box']["nodes"])
+    barycenter = [np.average(outer_box_points[:, 0]), np.average(outer_box_points[:, 1]), np.average(outer_box_points[:, 2])]
 
+    # create outer box
+    geometry_dict['outer_box']["center"] = barycenter
     box_outer = create_box(gen, geometry_dict['outer_box'])
+    box_outer.set_region("rock_outer")
 
-    fract1 = create_plane(geometry_dict['fractures'][0]['nodes'])
+    # create inner box
+    geometry_dict['inner_box']["center"] = barycenter
+    box_inner = create_box(gen, geometry_dict['inner_box'])
+    box_inner.set_region("rock_inner")
 
-    # rectangle, map = gmsh.model.occ.fragment([fract1_dt], [])
-    rectangle = [fract1]
-    # box = gmsh.model.occ.addBox(-1000, -1000, -1000, 2000, 2000, 2000)
-    # rec1 = gmsh.model.occ.addRectangle(-800, -800, 0, 1600, 1600)
-    # rec2 = gmsh.model.occ.addRectangle(-1200, -1200, 0, 2400, 2400)
-    # rec1_dt = (2, rec1)
-    # rec2_dt = (2, rec2)
-    # gmsh.model.occ.rotate([rec2_dt], 0, 0, 0, 0, 1, 0, np.pi / 2)
-    # rectangle, map = gmsh.model.occ.fragment([rec1_dt, rec2_dt], [])
+    fractures = []
+    for f in geometry_dict['fractures']:
+        fract = create_plane(gen, f)
+        fract.set_region(f["name"])
+        fractures.append(fract)
 
-    # box_diff = gmsh.model.occ.cut(box_outer, box_inner, removeObject=True, removeTool=False)
-    # bc_inner = gmsh.model.getBoundary(box_inner, combined=False, oriented=False)
+    # create inner box
+    geometry_dict['cut_fracture_box']["center"] = barycenter
+    cut_fracture_box = create_box(gen, geometry_dict['cut_fracture_box'])
 
-    # bc_frag, map = gmsh.model.occ.fragment(box_copy, dim_tags_copy)
 
-    # box = [box_diff, box_inner]
-    box = [box_outer]
-    # box = [box_inner]
+    # create tunel
+    geometry_dict['tunnel_1']["center"] = barycenter
+    tunnel_1 = create_cylinder(gen, geometry_dict['tunnel_1'])
+    # geometry_dict['tunnel_2']["center"] = barycenter
+    # tunnel_2 = create_cylinder(gen, geometry_dict['tunnel_2'])
+    #
+    tunnel_1.set_region("tunnel_1")
 
-    box_copy = gmsh.model.occ.copy(box)
-    dim_tags, map = gmsh.model.occ.intersect(rectangle, box_copy)
-    gmsh.model.occ.synchronize()
+    # tunnel_1.set_mesh_step(0.01)
+    # box_inner.set_mesh_step(0.1)
 
-    dim_tags_copy = gmsh.model.occ.copy(dim_tags)
-    box_copy = gmsh.model.occ.copy(box)
-    box_cut, map = gmsh.model.occ.fragment(box_copy, dim_tags_copy)
-    gmsh.model.occ.removeAllDuplicates()
-    gmsh.model.occ.synchronize()
+    gen.synchronize()
 
-    b = gmsh.model.addPhysicalGroup(3, [tag for dim, tag in box_cut])
-    gmsh.model.setPhysicalName(3, b, "box")
+    # cut fractures
+    fractures_cut = []
+    for f in fractures:
+        fractures_cut.append(f.intersect(cut_fracture_box))
 
-    rect = gmsh.model.addPhysicalGroup(2, [tag for dim, tag in dim_tags])
-    gmsh.model.setPhysicalName(2, rect, "rectangle")
+    tunnel_1_cut = tunnel_1.intersect(box_inner)
+    # connect tunels and split them to sections
 
-    bc_tags = gmsh.model.getBoundary(dim_tags, combined=False, oriented=False)
-    bc_nodes = gmsh.model.getBoundary(dim_tags, combined=False, oriented=False, recursive=True)
-    # bc_box_nodes = gmsh.model.getBoundary(box_cut, combined=False, oriented=False, recursive=True)
-    bc_rect = gmsh.model.addPhysicalGroup(1, [tag for dim, tag in bc_tags])
-    gmsh.model.setPhysicalName(1, bc_rect, ".rectangle")
-    gmsh.model.occ.setMeshSize(bc_nodes, 50)
 
-    # gmsh.model.mesh.embed(2, [tag for dim, tag in dim_tags], 3, box_copy[0][1])
-    # factory.synchronize()
+    gen.synchronize()
 
-    model = gmsh.model
+    # all = gen.group([fract1, box_outer])
+    all = [*fractures_cut, tunnel_1_cut, box_outer, box_inner]
+    frag_all = gen.fragment(*all)
 
-    # generate mesh, write to file and output number of entities that produced error
-    gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 1)
-    gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
-    gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
-    # gmsh.option.setNumber("Mesh.CharacteristicLengthMin", 100)
-    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 300)
+    gen.synchronize()
+    # gen.make_mesh([tunnel_1], 3)
+    gen.make_mesh(frag_all, 3)
+    gen.write_mesh("greet_mesh.msh", gmsh.MeshFormat.msh)
+    # gen.show()
 
-    gmsh.write(file_name + '.brep')
-    gmsh.write(file_name + '.geo')
-    model.mesh.generate(3)
-    gmsh.model.mesh.removeDuplicateNodes()
-    bad_entities = model.mesh.getLastEntityError()
-    print(bad_entities)
-    gmsh.write(file_name + ".msh")
-    gmsh.fltk.run()
-    gmsh.finalize()
-
-    return len(bad_entities)
 
 def to_polar(x, y, z):
     rho = np.sqrt(x ** 2 + y ** 2)
@@ -429,11 +431,11 @@ def to_polar(x, y, z):
 if __name__ == "__main__":
     sample_dir = sys.argv[1]
     with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
-        config_dict = yaml.safe_load(f)
+        geometry_dict = yaml.safe_load(f)
 
     os.chdir(sample_dir)
     print("generate mesh")
-    generate_mesh(config_dict)
+    generate_mesh(geometry_dict)
     print("finished")
 
     # prepare_th_input(config_dict)
