@@ -438,6 +438,11 @@ class SurfaceApprox:
             wb_mat = b_mat
         b_vec = b_mat.transpose().dot( wg_vec )
         bb_mat = b_mat.transpose().dot(wb_mat)
+
+        btb_mat, btb = self._build_BTB_matrix()
+        #print(bb_mat - btb_mat)
+        #print(b_vec - btb)
+        #return
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -447,13 +452,15 @@ class SurfaceApprox:
                                            maxiter=300, return_singular_vectors=False)
         a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
                                           maxiter=300, return_eigenvectors=False)
-        c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+        #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+        c_mat = btb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
         logging.info('Solving for Z coordinates ...')
         start_time = time.time()
-        z_vec = scipy.sparse.linalg.spsolve(c_mat, b_vec)
+        #z_vec = scipy.sparse.linalg.spsolve(c_mat, b_vec)
+        z_vec = scipy.sparse.linalg.spsolve(c_mat, btb)
         assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
@@ -526,9 +533,79 @@ class SurfaceApprox:
             self._w_quad_points = self._weights[in_idx]
 
 
+    ###
+
+    def _init_coo_structure(self):
+
+        u_n_basf = self._u_basis.size
+        u_n_int = self._u_basis.size - 2
+        v_n_int = self._v_basis.size - 2
+
+        n_uv_loc_nz = ((self._u_basis.degree + 1) * (self._v_basis.degree + 1))**2
+        n_nz = u_n_int * v_n_int * n_uv_loc_nz
+
+        row = np.zeros(n_nz,dtype=int)
+        col = np.zeros(n_nz,dtype=int)
+        data = np.zeros(n_nz)
+        three = np.ones(3,dtype=int)
+        linsp = np.array([0, 1, 2],dtype=int)
+        nine = np.kron(three, three)
+        linsp31 = np.kron(linsp, three)
+        linsp13 = np.kron(three, linsp)
+
+        nnz_b = 0
+
+        for iu in range(0, u_n_int):
+            for iv in range(0, v_n_int):
+                col_item = (linsp31 + iv * nine) * u_n_basf + iu * nine + linsp13  # OK
+                #(iv + linsp31) * u_n_basf + iu + linsp13
+                col_element = np.kron(nine, col_item)
+                row_element = np.kron(col_item, nine)
+                col[nnz_b: nnz_b + 81] = col_element
+                row[nnz_b: nnz_b + 81] = row_element
+                nnz_b += 81
+
+        return row, col, data
+
+    def patch_pos2id(self, iu, iv):
+            id = iu * self._v_basis.n_intervals + iv
+            return id
+
+    def _build_BTB_matrix(self):
+        """
+        Construction of the matrix (B) of the system of linear algebraic
+        equations for control points of the 2th order B-spline surface
+        :param u_knots:
+        :param v_knots:
+        :param terrain:
+        :param sparse:
+        :return:
+        """
+        u_n_basf = self._u_basis.size
+        v_n_basf = self._v_basis.size
+        n_points = self._uv_quad_points.shape[0]
+        row, col, data = self._init_coo_structure()
+        BTb = np.zeros(u_n_basf * v_n_basf)
+
+        for idx in range(0, n_points):
+            u, v = self._uv_quad_points[idx, 0:2]
+            b_entry = self._z_quad_points[idx]
+            iu = self._u_basis.find_knot_interval(u)
+            iv = self._v_basis.find_knot_interval(v)
+            id = self.patch_pos2id(iu, iv)
+            u_base_vec = self._u_basis.eval_base_vector(iu, u)
+            v_base_vec = self._v_basis.eval_base_vector(iv, v)
+            data9 = np.kron(v_base_vec, u_base_vec)
+            data[id*81:(id+1)*81] += np.kron(data9, data9)
+            bcol = col[id * 81: id * 81 +9]
+            BTbent = b_entry * data9
+            BTb[bcol.tolist()] +=  BTbent
+            #BTb[bcol.astype(int).tolist()] += BTb[bcol.astype(int).tolist()] + BTbent
 
 
 
+        mat_BTB = scipy.sparse.csr_matrix((data, (row, col)), shape=(u_n_basf * v_n_basf, u_n_basf * v_n_basf))
+        return mat_BTB, BTb
 
     def _build_ls_matrix(self):
         """
@@ -544,10 +621,16 @@ class SurfaceApprox:
         v_n_basf = self._v_basis.size
         n_points = self._uv_quad_points.shape[0]
 
-        n_uv_loc_nz =  (self._u_basis.degree +  1) * (self._v_basis.degree +  1)
+        n_uv_loc_nz = (self._u_basis.degree +  1) * (self._v_basis.degree +  1)
         row = np.zeros(n_points * n_uv_loc_nz)
         col = np.zeros(n_points * n_uv_loc_nz)
         data = np.zeros(n_points * n_uv_loc_nz)
+
+        three = np.ones(3)
+        linsp = np.array([0, 1, 2])
+        nine = np.kron(three, three)
+        linsp31 = np.kron(linsp, three)
+        linsp13 = np.kron(three, linsp)
 
         nnz_b = 0
 
@@ -559,14 +642,19 @@ class SurfaceApprox:
             iv = self._v_basis.find_knot_interval(v)
             u_base_vec = self._u_basis.eval_base_vector(iu, u)
             v_base_vec = self._v_basis.eval_base_vector(iv, v)
-            # Hard-coded Kronecker product (problem based)
-            for n in range(0, 3):
-                data[nnz_b + 3 * n:nnz_b + 3 * (n + 1)] = v_base_vec[n] * u_base_vec
-                for m in range(0, 3):
-                    col_item = (iv + n) * u_n_basf + iu + m
-                    col[nnz_b + (3 * n) + m] = col_item
+            data[nnz_b:nnz_b + 9] = np.kron(v_base_vec, u_base_vec)
+            col[nnz_b: nnz_b + 9] = (linsp31 + iv*nine)*u_n_basf + iu*nine + linsp13
             row[nnz_b:nnz_b + 9] = idx
             nnz_b += 9
+
+            if 1 == 0:
+                for n in range(0, 3):
+                    data[nnz_b + 3 * n:nnz_b + 3 * (n + 1)] = v_base_vec[n] * u_base_vec
+                    for m in range(0, 3):
+                        col_item = (iv + n) * u_n_basf + iu + m
+                        col[nnz_b + (3 * n) + m] = col_item
+                row[nnz_b:nnz_b + 9] = idx
+                nnz_b += 9
 
             interval[idx][0] = iu
             interval[idx][1] = iv
