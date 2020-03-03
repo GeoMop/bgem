@@ -414,9 +414,9 @@ class SurfaceApprox:
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
         # Approximation itself
-        logging.info('Creating B matrix ...')
+        logging.info('Creating explicitly system of normal equations B^TBz=B^Tb ...')
         start_time = time.time()
-        b_mat, interval = self._build_ls_matrix()
+        btb_mat, btb, point_loc, patch_n_points = self._build_system_of_normal_equations()
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -426,34 +426,33 @@ class SurfaceApprox:
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        logging.info('Scaling + B^T B ...')
-        start_time = time.time()
+        ## for debug purposes
         g_vec = self._z_quad_points[:]
-        if self._weights is not None:
-            W = scipy.sparse.diags(self._w_quad_points, 0)
-            wg_vec = np.dot(W, g_vec)
-            wb_mat = np.dot(W, b_mat)
-        else:
-            wg_vec = g_vec
-            wb_mat = b_mat
-        b_vec = b_mat.transpose().dot( wg_vec )
-        bb_mat = b_mat.transpose().dot(wb_mat)
+        #b_mat, interval = self._build_ls_matrix()
+        #if self._weights is not None:
+        #    W = scipy.sparse.diags(self._w_quad_points, 0)
+        #    wg_vec = np.dot(W, g_vec)
+        #    wb_mat = np.dot(W, b_mat)
+        #else:
+        #    wg_vec = g_vec
+        #    wb_mat = b_mat
+        #b_vec = b_mat.transpose().dot( wg_vec )
+        #bb_mat = b_mat.transpose().dot(wb_mat)
+        ##print(bb_mat - btb_mat)
+        ##print(b_vec - btb)
+        ##return
+        ###
 
-        btb_mat, btb = self._build_BTB_matrix()
-        #print(bb_mat - btb_mat)
-        #print(b_vec - btb)
-        #return
-        end_time = time.time()
-        logging.info('Computed in: {} s'.format(end_time - start_time))
-
-        logging.info('Computing A and B svds approximation ...')
+        logging.info('Computing A and B^TB svds approximation ...')
         start_time = time.time()
-        bb_norm = scipy.sparse.linalg.svds(bb_mat, k=1, ncv=10, tol=1e-2, which='LM', v0=None,
-                                           maxiter=300, return_singular_vectors=False)
+        bb_norm = scipy.sparse.linalg.eigsh(btb_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                           maxiter=300, return_eigenvectors=False)
         a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
                                           maxiter=300, return_eigenvectors=False)
+        a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
+                                          maxiter=300, return_eigenvectors=False)
         #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
-        c_mat = btb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+        c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -467,7 +466,9 @@ class SurfaceApprox:
 
         logging.info('Computing error ...')
         start_time = time.time()
-        diff = b_mat.dot(z_vec) - g_vec
+        #diff2 = b_mat.dot(z_vec) - g_vec
+        diff = self._compute_errors(patch_n_points, point_loc, z_vec, g_vec)
+
         self.error = max_diff = np.max(diff)
         logging.info("Approximation error (max norm): {}".format(max_diff) )
         end_time = time.time()
@@ -540,38 +541,38 @@ class SurfaceApprox:
         u_n_basf = self._u_basis.size
         u_n_int = self._u_basis.size - 2
         v_n_int = self._v_basis.size - 2
+        point_loc = []
 
         n_uv_loc_nz = ((self._u_basis.degree + 1) * (self._v_basis.degree + 1))**2
         n_nz = u_n_int * v_n_int * n_uv_loc_nz
 
-        row = np.zeros(n_nz,dtype=int)
-        col = np.zeros(n_nz,dtype=int)
+        row = np.zeros(n_nz, dtype=int)
+        col = np.zeros(n_nz, dtype=int)
         data = np.zeros(n_nz)
-        three = np.ones(3,dtype=int)
-        linsp = np.array([0, 1, 2],dtype=int)
-        nine = np.kron(three, three)
-        linsp31 = np.kron(linsp, three)
-        linsp13 = np.kron(three, linsp)
+        linsp = np.array([0, 1, 2], dtype=int)
+        #linsp_u = np.linspace(0, self._u_basis.degree, self._u_basis.degree + 1, dtype=int)
+        #linsp_v = np.linspace(0, self._v_basis.degree, self._v_basis.degree + 1, dtype=int)
+        linsp31 = np.repeat(linsp, 3) # linsp_v
+        linsp13 = np.tile(linsp, 3) # linsp_u
 
         nnz_b = 0
 
         for iu in range(0, u_n_int):
+            iu_shift = np.repeat(iu, 9) + linsp13
             for iv in range(0, v_n_int):
-                col_item = (linsp31 + iv * nine) * u_n_basf + iu * nine + linsp13  # OK
-                #(iv + linsp31) * u_n_basf + iu + linsp13
-                col_element = np.kron(nine, col_item)
-                row_element = np.kron(col_item, nine)
-                col[nnz_b: nnz_b + 81] = col_element
-                row[nnz_b: nnz_b + 81] = row_element
+                col_item = (linsp31 + np.repeat(iv, 9)) * u_n_basf + iu_shift
+                col[nnz_b: nnz_b + 81] = np.tile(col_item, 9)
+                row[nnz_b: nnz_b + 81] = np.repeat(col_item, 9)
                 nnz_b += 81
+                point_loc.append([])
 
-        return row, col, data
+        return row, col, data, point_loc
 
     def patch_pos2id(self, iu, iv):
             id = iu * self._v_basis.n_intervals + iv
             return id
 
-    def _build_BTB_matrix(self):
+    def _build_system_of_normal_equations(self):
         """
         Construction of the matrix (B) of the system of linear algebraic
         equations for control points of the 2th order B-spline surface
@@ -581,31 +582,107 @@ class SurfaceApprox:
         :param sparse:
         :return:
         """
+        normal_matrix_size = self._u_basis.size * self._v_basis.size
+        n_points = self._uv_quad_points.shape[0]
+        row, col, data, point_loc = self._init_coo_structure()
+        vec_BTb = np.zeros(normal_matrix_size)
+        interval = np.empty((n_points, 3))
+        patch_n_points = np.zeros([normal_matrix_size], dtype=int)
+
+
+        if self._weights is not None:
+            for idx in range(n_points):
+                u, v = self._uv_quad_points[idx, 0:2]
+                b_entry = self._z_quad_points[idx]
+                iu = self._u_basis.find_knot_interval(u)
+                iv = self._v_basis.find_knot_interval(v)
+                idp = self.patch_pos2id(iu, iv)
+                u_base_vec = self._u_basis.eval_base_vector(iu, u)
+                v_base_vec = self._v_basis.eval_base_vector(iv, v)
+                data9 = np.kron(v_base_vec, u_base_vec)
+                b_row = col[idp * 81: idp * 81 + 9]
+                ##  B^TWBz=B^TWb
+                w_data9 = self._w_quad_points[idx] * data9
+                data[idp*81:(idp+1)*81] += np.kron(data9, w_data9)
+                vec_BTb[b_row.tolist()] += b_entry * w_data9
+
+                patch_n_points[idp] += 1
+                #interval[idx, 0:2] = [iu, iv]
+                point_loc[idp].append(idx)
+        else:
+            for idx in range(n_points):
+                u, v = self._uv_quad_points[idx, 0:2]
+                b_entry = self._z_quad_points[idx]
+                iu = self._u_basis.find_knot_interval(u)
+                iv = self._v_basis.find_knot_interval(v)
+                idp = self.patch_pos2id(iu, iv)
+                u_base_vec = self._u_basis.eval_base_vector(iu, u)
+                v_base_vec = self._v_basis.eval_base_vector(iv, v)
+                data9 = np.kron(v_base_vec, u_base_vec)
+                b_row = col[idp * 81: idp * 81 + 9]
+                ## B^TBz=B^Tb
+                data[idp*81:(idp+1)*81] += np.kron(data9, data9)
+                vec_BTb[b_row.tolist()] += b_entry * data9
+
+                patch_n_points[idp] += 1
+                #interval[idx, 0:2] = [iu, iv]
+                point_loc[idp].append(idx)
+
+        mat_BTB = scipy.sparse.csr_matrix((data, (row, col)), shape=(normal_matrix_size, normal_matrix_size))
+        return mat_BTB, vec_BTb, point_loc, patch_n_points
+
+    def _compute_errors(self, patch_n_points, point_loc, z_vec, g_vec):
+        """
+        Construction of the matrix (B) of the system of linear algebraic
+        equations for control points of the 2th order B-spline surface
+        :param u_knots:
+        :param v_knots:
+        :param terrain:
+        :param sparse:
+        :return:
+        """
+
+        #u_n_int = self._u_basis.size - 2
+        #v_n_int = self._v_basis.size - 2
+        n_patches = (self._u_basis.size - 2) * (self._v_basis.size - 2)
         u_n_basf = self._u_basis.size
         v_n_basf = self._v_basis.size
-        n_points = self._uv_quad_points.shape[0]
-        row, col, data = self._init_coo_structure()
-        BTb = np.zeros(u_n_basf * v_n_basf)
 
-        for idx in range(0, n_points):
-            u, v = self._uv_quad_points[idx, 0:2]
-            b_entry = self._z_quad_points[idx]
-            iu = self._u_basis.find_knot_interval(u)
-            iv = self._v_basis.find_knot_interval(v)
-            id = self.patch_pos2id(iu, iv)
-            u_base_vec = self._u_basis.eval_base_vector(iu, u)
-            v_base_vec = self._v_basis.eval_base_vector(iv, v)
-            data9 = np.kron(v_base_vec, u_base_vec)
-            data[id*81:(id+1)*81] += np.kron(data9, data9)
-            bcol = col[id * 81: id * 81 +9]
-            BTbent = b_entry * data9
-            BTb[bcol.tolist()] +=  BTbent
-            #BTb[bcol.astype(int).tolist()] += BTb[bcol.astype(int).tolist()] + BTbent
+        n = g_vec.shape[0]
+        err = np.zeros([n])
 
+        linsp = np.array([0, 1, 2], dtype=int)
+        linsp31 = np.repeat(linsp, 3)  # linsp_v
+        linsp13 = np.tile(linsp, 3)  # linsp_u
 
+        for interval_id in range(0, n_patches):
 
-        mat_BTB = scipy.sparse.csr_matrix((data, (row, col)), shape=(u_n_basf * v_n_basf, u_n_basf * v_n_basf))
-        return mat_BTB, BTb
+            n_loc_points = patch_n_points[interval_id]
+            n_uv_loc_nz = (self._u_basis.degree + 1) * (self._v_basis.degree +  1)
+            row = np.zeros(n_loc_points * n_uv_loc_nz, dtype=int)
+            col = np.zeros(n_loc_points * n_uv_loc_nz, dtype=int)
+            data = np.zeros(n_loc_points * n_uv_loc_nz)
+            nnz_b = 0
+            #rw = -1
+            for idx in point_loc[interval_id]:
+                #rw += 1
+                u, v = self._uv_quad_points[idx, 0:2]
+                iu = self._u_basis.find_knot_interval(u)
+                iv = self._v_basis.find_knot_interval(v)
+                u_base_vec = self._u_basis.eval_base_vector(iu, u)
+                v_base_vec = self._v_basis.eval_base_vector(iv, v)
+                data[nnz_b:nnz_b + 9] = np.kron(v_base_vec, u_base_vec)
+                #col[nnz_b: nnz_b + 9] = (linsp31 + iv*nine)*u_n_basf + iu*nine + linsp13
+                col[nnz_b: nnz_b + 9] = (linsp31 + iv ) * u_n_basf + iu  + linsp13
+                row[nnz_b:nnz_b + 9] = idx
+                nnz_b += 9
+            if len(point_loc[interval_id]) > 0:
+                #mat_b = scipy.sparse.csr_matrix((data, (row, col)), shape=(n_loc_points, u_n_basf * v_n_basf))
+                mat_b = scipy.sparse.csr_matrix((data, (row, col)), shape=(n, u_n_basf * v_n_basf))
+                err += mat_b.dot(z_vec)
+                #err[tuple(point_loc[interval_id])] = mat_b.dot(z_vec[tuple(point_loc[interval_id])])
+        err = err - g_vec
+        return err
 
     def _build_ls_matrix(self):
         """
