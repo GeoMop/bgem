@@ -75,7 +75,7 @@ def create_box(gmsh_occ, box_geom):
         box.rotate([0,0,1], rot_z)
 
     box.translate(box_geom["center"])
-    box.set_region(box_geom["name"])
+    # box.set_region(box_geom["name"])
     return box
 
 def create_plane(gmsh_occ, plane_geom):
@@ -139,6 +139,10 @@ def generate_mesh(geometry_dict):
     geometry_dict['inner_box']["center"] = barycenter
     box_inner = create_box(gen, geometry_dict['inner_box'])
 
+    # create cut outer_box object for setting the correct region
+    box_outer_cp = box_outer.copy()
+    box_outer_cut = box_outer_cp.cut(box_inner)
+
     # # create fracture cut box
     # geometry_dict['cut_fracture_box']["center"] = barycenter
     # cut_fracture_box = create_box(gen, geometry_dict['cut_fracture_box'])
@@ -170,49 +174,159 @@ def generate_mesh(geometry_dict):
 
     # gen.synchronize()
 
-    tunnel_1.set_region("tunnel_1")
-    tunnel_2.set_region("tunnel_2")
+    # tunnel_1.set_region("tunnel_1")
+    # tunnel_2.set_region("tunnel_2")
 
+    # do fragmentation
     # all = gen.group([fract1, box_outer])
-    all_obj = [box_outer, box_inner, tunnel_1, tunnel_2]
-    # all = [*fractures_cut, tunnel_1, box_outer, box_inner]
-    # all = [*fractures_cut, tunnel_1_cut, box_outer, box_inner]
+    all_obj = [box_outer, box_inner]
+    # all_obj = [box_outer, box_inner, tunnel_1, tunnel_2]
     frag_all = gen.fragment(*all_obj)
-    box_outer_f, box_inner_f, tunnel_1_f, tunnel_2_f = frag_all
+    box_outer_f, box_inner_f = frag_all
+    # box_outer_f, box_inner_f, tunnel_1_f, tunnel_2_f = frag_all
+
+    # split the fragmented box to regions
+    box_inner_reg = box_outer_f.select_by_intersect(box_inner_f)
+    box_inner_reg.set_region(geometry_dict['inner_box']["name"])
+    box_outer_reg = box_outer_f.select_by_intersect(box_outer_cut)
+    box_outer_reg.set_region(geometry_dict['outer_box']["name"])
+    box_inner_f.invalidate()
+
 
     # make boundaries
-    # box_size = np.array(geometry_dict['outer_box']["size"])
-    # side_z = gen.rectangle([box_size[0], box_size[1]])
-    # side_y = gen.rectangle([box_size[0], box_size[2]])
-    # side_x = gen.rectangle([box_size[2], box_size[1]])
-    # sides = dict(
-    #     side_z0=side_z.copy().translate([0, 0, -box_size[2] / 2]),
-    #     side_z1=side_z.copy().translate([0, 0, +box_size[2] / 2]),
-    #     side_y0=side_y.copy().translate([0, 0, -box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
-    #     side_y1=side_y.copy().translate([0, 0, +box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
-    #     side_x0=side_x.copy().translate([0, 0, -box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2),
-    #     side_x1=side_x.copy().translate([0, 0, +box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2)
-    # )
-    # for name, side in sides.items():
-    #     side.modify_regions(name)
-    # b_box = box_outer_f.copy().get_boundary()
-    # box_all = []
-    # for name, side_tool in sides.items():
-    #     isec = b_box.select_by_intersect(side_tool)
-    #     box_all.append(isec.modify_regions("." + name))
-    # box_all.extend([box_fr, b_left_r, b_right_r])
+    print("Making boundaries...")
+    box_size = np.array(geometry_dict['outer_box']["size"])
+    side_z = gen.rectangle([box_size[0], box_size[1]])
+    side_y = gen.rectangle([box_size[0], box_size[2]])
+    side_x = gen.rectangle([box_size[2], box_size[1]])
+    sides = dict(
+        bottom=side_z.copy().translate([0, 0, -box_size[2] / 2]),
+        top=side_z.copy().translate([0, 0, +box_size[2] / 2]),
+        front=side_y.copy().translate([0, 0, -box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        back=side_y.copy().translate([0, 0, +box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        left=side_x.copy().translate([0, 0, -box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2),
+        right=side_x.copy().translate([0, 0, +box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2)
+    )
+    for name, side in sides.items():
+        side.modify_regions(name)
 
+    b_box_outer = box_outer_reg.get_boundary()
+    b_box_inner = box_inner_reg.get_boundary()
+    box_all = []
+    for name, side_tool in sides.items():
+        isec_outer = b_box_outer.select_by_intersect(side_tool)
+        isec_inner = b_box_inner.select_by_intersect(side_tool)
+        box_all.append(isec_outer.modify_regions("." + geometry_dict['outer_box']["name"] + "_" + name))
+        box_all.append(isec_inner.modify_regions("." + geometry_dict['inner_box']["name"] + "_" + name))
+
+    box_all.extend([box_outer_reg, box_inner_reg])
+    print("Making boundaries...[finished]")
 
     # from the outermost to innermost
-    box_outer_f.set_mesh_step(12)
-    box_inner_f.set_mesh_step(4)
-    tunnel_1_f.set_mesh_step(1.5)
-    tunnel_2_f.set_mesh_step(1.5)
+    box_outer_reg.set_mesh_step(12)
+    box_inner_reg.set_mesh_step(4)
+    # tunnel_1_f.set_mesh_step(1.5)
+    # tunnel_2_f.set_mesh_step(1.5)
     # for f in frag_all:
     #     f.set_mesh_step(4)
 
     # gen.synchronize()
-    mesh_all = [box_outer_f, box_inner_f, tunnel_1_f, tunnel_2_f]
+    mesh_all = [*box_all]
+    # mesh_all = [*box_all, tunnel_1_f, tunnel_2_f]
+    # mesh_all = [box_outer_f, *box_all, box_inner_f, tunnel_1_f, tunnel_2_f]
+    # tunnel_1_f.set_region("tunnel_1")
+    # box_inner_f.set_region("rock_inner")
+    # box_outer_f.set_region("rock_outer")
+
+    print("Generating mesh...")
+    # gen.make_mesh([tunnel_1], 3)
+    gen.make_mesh(mesh_all)
+    print("Generating mesh...[finished]")
+    print("Writing mesh...")
+    gen.write_mesh("greet_mesh.msh2", gmsh.MeshFormat.msh2)
+    print("Writing mesh...[finished]")
+    # gen.show()
+
+
+def generate_mesh_2(geometry_dict):
+
+    gen = gmsh.GeometryOCC("greet_mesh")
+
+    with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
+        geometry_dict = yaml.safe_load(f)
+
+    # compute barycenter of the given points to translate the box
+    outer_box_points = np.array(geometry_dict['outer_box']["nodes"])
+    barycenter = np.array([0,0,0])
+    # barycenter = [np.average(outer_box_points[:, 0]), np.average(outer_box_points[:, 1]), np.average(outer_box_points[:, 2])]
+
+    # create inner box
+    geometry_dict['inner_box']["center"] = barycenter
+    box_inner = create_box(gen, geometry_dict['inner_box'])
+
+    # create outer box
+    geometry_dict['outer_box']["center"] = barycenter
+    box_outer = create_box(gen, geometry_dict['outer_box'])
+
+    # create cut outer_box object for setting the correct region
+    box_outer_cp = box_outer.copy()
+    box_outer_cut = box_outer_cp.cut(box_inner)
+
+    gen.synchronize()
+
+    # do fragmentation
+    # all = gen.group([fract1, box_outer])
+    all_obj = [box_outer, box_inner]
+    # all = [*fractures_cut, tunnel_1, box_outer, box_inner]
+    # all = [*fractures_cut, tunnel_1_cut, box_outer, box_inner]
+    frag_all = gen.fragment(*all_obj)
+    box_outer_f, box_inner_f = frag_all
+
+    # split the fragmented box to regions
+    box_inner_reg = box_outer_f.select_by_intersect(box_inner_f)
+    box_inner_reg.set_region(geometry_dict['inner_box']["name"])
+    box_outer_reg = box_outer_f.select_by_intersect(box_outer_cut)
+    box_outer_reg.set_region(geometry_dict['outer_box']["name"])
+    box_inner_f.invalidate()
+
+    # make boundaries
+    box_size = np.array(geometry_dict['outer_box']["size"])
+    side_z = gen.rectangle([box_size[0], box_size[1]])
+    side_y = gen.rectangle([box_size[0], box_size[2]])
+    side_x = gen.rectangle([box_size[2], box_size[1]])
+    sides = dict(
+        bottom=side_z.copy().translate([0, 0, -box_size[2] / 2]),
+        top=side_z.copy().translate([0, 0, +box_size[2] / 2]),
+        front=side_y.copy().translate([0, 0, -box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        back=side_y.copy().translate([0, 0, +box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        left=side_x.copy().translate([0, 0, -box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2),
+        right=side_x.copy().translate([0, 0, +box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2)
+    )
+    for name, side in sides.items():
+        side.modify_regions(name)
+
+    b_box_outer = box_outer_reg.get_boundary()
+    b_box_inner = box_inner_reg.get_boundary()
+    box_all = []
+    for name, side_tool in sides.items():
+        isec_outer = b_box_outer.select_by_intersect(side_tool)
+        isec_inner = b_box_inner.select_by_intersect(side_tool)
+        box_all.append(isec_outer.modify_regions("." + geometry_dict['outer_box']["name"] + "_" + name))
+        box_all.append(isec_inner.modify_regions("." + geometry_dict['inner_box']["name"] + "_" + name))
+
+    box_all.extend([box_outer_reg, box_inner_reg])
+
+    # from the outermost to innermost
+    # box_outer_f.set_mesh_step(12)
+    # box_inner_f.set_mesh_step(4)
+    # for f in frag_all:
+    #     f.set_mesh_step(4)
+
+    # gen.synchronize()
+    # mesh_all = [*frag_all]
+    mesh_all = [*box_all]
+    # mesh_all = [box_outer_reg, box_inner_reg]
+    # mesh_all = [box_outer_f, box_inner_f]
     # mesh_all = [box_outer_f, *box_all, box_inner_f, tunnel_1_f, tunnel_2_f]
     # tunnel_1_f.set_region("tunnel_1")
     # box_inner_f.set_region("rock_inner")
@@ -485,6 +599,7 @@ if __name__ == "__main__":
     os.chdir(sample_dir)
     print("generate mesh")
     generate_mesh(geometry_dict)
+    # generate_mesh_2(geometry_dict)
     print("finished")
 
     # prepare_th_input(config_dict)
