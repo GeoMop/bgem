@@ -1,9 +1,11 @@
 outer_box:
+  name: rock_outer
   size: [100, 150, 100] # length in x, y, z
   # rotation angle in radians around axes:
   rot_x: 0
   rot_y: 0
-  rot_z: 0.217264484  # asin(32.333884/150)
+#  rot_z: 0.217264484  # asin(32.333884/150)
+  rot_z: 0
   # translation vector from axis center [0,0,0]:
   center: [0, 0, 0]
   
@@ -21,11 +23,13 @@ outer_box:
     - [74.0921010, 64.513580, -247.331] #318
     
 inner_box:
+  name: rock_inner
   size: [30, 150, 30] # length in x, y, z
   # rotation angle in radians around axes:
   rot_x: 0
   rot_y: 0
-  rot_z: 0.217264484  # asin(32.333884/150)
+#  rot_z: 0.217264484  # asin(32.333884/150)
+  rot_z: 0
   # translation vector from axis center [0,0,0]:
   center: [0, 0, 0] # is used from the outer box
   #nodes:
@@ -45,30 +49,40 @@ cut_fracture_box:
   # rotation angle in radians around axes:
   rot_x: 0
   rot_y: 0
-  rot_z: 0.217264484  # asin(32.333884/150)
+#  rot_z: 0.217264484  # asin(32.333884/150)
+  rot_z: 0
   # translation vector from axis center [0,0,0]:
   center: [0, 0, 0]
 
 tunnel_1:
+  name: tunnel_1
   radius: 2.5
   # length = sqrt((22.05785−11.82570)^2 + (54.0904−110.785)^2 + (302.1871−297.2769)^2) = 57.819413927
   # length_y = sqrt(57,819413927^2−5^2) = 57,602817872
-  start: [50, -5, 50]            # start: [22.05785, 54.0904, -297.2769] # Point(300)
-  #end:   [50, 57.602817872, 45] # end:   [11.82570, 110.785, -302.1871] # Point(200)
-  end:   [50, 70, 45] # end:   [11.82570, 110.785, -302.1871] # Point(200)
+  # start: [22.05785, 54.0904, -297.2769] # Point(300)
+  # end:   [11.82570, 110.785, -302.1871] # Point(200)
+  start: [0, 75, 0]
+#  start: [0, 75, 0]
+  end:   [0, 17.180586073, -3]
   rot_x: 0
   rot_y: 0
-  rot_z: 0.217264484  # asin(32.333884/150)
+#  rot_z: 0.217264484  # asin(32.333884/150)
+  rot_z: 0
   #center: [0, 0, 0]
 tunnel_2:
+  name: tunnel_2
   radius: 2.5
   # length = sqrt((11.82570−3.57205)^2 + (110.785-156.54695)^2)) = 46.500309742
   # end_y = 57.602817872 + 46.500309742
-  start: [50, 57.602817872, 45]  # start: [11.82570, 110.785, -302.1871] # Point(200)
-  end:   [50, 104.103127614, 45] #end:   [3.57205, 156.54695, -302.1873] # Point(100)
+#  start: [50, 57.602817872, 45]  # start: [11.82570, 110.785, -302.1871] # Point(200)
+#  end:   [50, 104.103127614, 45] #end:   [3.57205, 156.54695, -302.1873] # Point(100)
+  start: [0,  17.180586073, -3]
+#  start: [0,  16, -3]
+  end:   [0, -29.319723669, -3]
   rot_x: 0
   rot_y: 0
-  rot_z: 0.217264484  # asin(32.333884/150)
+#  rot_z: 0.217264484  # asin(32.333884/150)
+  rot_z: 0
   #center: [0, 0, 0]
 
 fractures:

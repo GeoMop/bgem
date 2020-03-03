@@ -20,22 +20,6 @@ from bgem.gmsh import gmsh
 # import fracture
 
 
-def create_box(gmsh_occ, box_geom):
-    box = gmsh_occ.box(box_geom["size"])
-
-    rot_x = float(box_geom["rot_x"])
-    rot_y = float(box_geom["rot_y"])
-    rot_z = float(box_geom["rot_z"])
-    if rot_x != 0:
-        box.rotate([1,0,0], rot_x)
-    if rot_y != 0:
-        box.rotate([0,1,0], rot_y)
-    if rot_z != 0:
-        box.rotate([0,0,1], rot_z)
-
-    box.translate(box_geom["center"])
-    return box
-
 # def create_volume(nodes):
 #     """
 #     Creates box with lower and upper base and sides.
@@ -77,6 +61,22 @@ def create_box(gmsh_occ, box_geom):
 #     volume = gmsh.model.occ.addVolume([plane_loop])
 #     return 3, volume
 
+def create_box(gmsh_occ, box_geom):
+    box = gmsh_occ.box(box_geom["size"])
+
+    rot_x = float(box_geom["rot_x"])
+    rot_y = float(box_geom["rot_y"])
+    rot_z = float(box_geom["rot_z"])
+    if rot_x != 0:
+        box.rotate([1,0,0], rot_x)
+    if rot_y != 0:
+        box.rotate([0,1,0], rot_y)
+    if rot_z != 0:
+        box.rotate([0,0,1], rot_z)
+
+    box.translate(box_geom["center"])
+    box.set_region(box_geom["name"])
+    return box
 
 def create_plane(gmsh_occ, plane_geom):
     # points = np.array(fr_geom["nodes"])
@@ -92,21 +92,32 @@ def create_cylinder(gmsh_occ, cyl_geom):
     start = np.array((cyl_geom["start"]))
     end = np.array((cyl_geom["end"]))
 
-    cylinder = gmsh_occ.cylinder(radius, end-start)
+    u = end-start
+    start_t = start - 0.2*u
+    end_t = end + 0.2 * u
+
+    middle = (start+end)/2
+    box_lz = np.abs(end_t[2] - start_t[2]) + 2* radius
+    box_lx = np.abs(end_t[0] - start_t[0]) + 2* radius
+    box_ly = np.abs(end[1] - start[1])
+    box = gmsh_occ.box([box_lx, box_ly, box_lz], middle)
+
+    cylinder = gmsh_occ.cylinder(radius, end_t-start_t, start_t)
+    cylinder_cut = cylinder.intersect(box)
 
     rot_x = float(cyl_geom["rot_x"])
     rot_y = float(cyl_geom["rot_y"])
     rot_z = float(cyl_geom["rot_z"])
     if rot_x != 0:
-        cylinder.rotate([1, 0, 0], rot_x)
+        cylinder_cut.rotate([1, 0, 0], rot_x)
     if rot_y != 0:
-        cylinder.rotate([0, 1, 0], rot_y)
+        cylinder_cut.rotate([0, 1, 0], rot_y)
     if rot_z != 0:
-        cylinder.rotate([0, 0, 1], rot_z)
+        cylinder_cut.rotate([0, 0, 1], rot_z)
 
-    cylinder.translate(cyl_geom["center"])
-
-    return cylinder
+    cylinder_cut.translate(cyl_geom["center"])
+    cylinder_cut.set_region(cyl_geom["name"])
+    return cylinder_cut
 
 def generate_mesh(geometry_dict):
 
@@ -117,61 +128,99 @@ def generate_mesh(geometry_dict):
 
     # compute barycenter of the given points to translate the box
     outer_box_points = np.array(geometry_dict['outer_box']["nodes"])
-    barycenter = [np.average(outer_box_points[:, 0]), np.average(outer_box_points[:, 1]), np.average(outer_box_points[:, 2])]
+    barycenter = np.array([0,0,0])
+    # barycenter = [np.average(outer_box_points[:, 0]), np.average(outer_box_points[:, 1]), np.average(outer_box_points[:, 2])]
 
     # create outer box
     geometry_dict['outer_box']["center"] = barycenter
     box_outer = create_box(gen, geometry_dict['outer_box'])
-    box_outer.set_region("rock_outer")
 
     # create inner box
     geometry_dict['inner_box']["center"] = barycenter
     box_inner = create_box(gen, geometry_dict['inner_box'])
-    box_inner.set_region("rock_inner")
 
-    fractures = []
-    for f in geometry_dict['fractures']:
-        fract = create_plane(gen, f)
-        fract.set_region(f["name"])
-        fractures.append(fract)
+    # # create fracture cut box
+    # geometry_dict['cut_fracture_box']["center"] = barycenter
+    # cut_fracture_box = create_box(gen, geometry_dict['cut_fracture_box'])
 
-    # create inner box
-    geometry_dict['cut_fracture_box']["center"] = barycenter
-    cut_fracture_box = create_box(gen, geometry_dict['cut_fracture_box'])
-
-
-    # create tunel
+    # create tunnel
     geometry_dict['tunnel_1']["center"] = barycenter
     tunnel_1 = create_cylinder(gen, geometry_dict['tunnel_1'])
-    # geometry_dict['tunnel_2']["center"] = barycenter
-    # tunnel_2 = create_cylinder(gen, geometry_dict['tunnel_2'])
-    #
-    tunnel_1.set_region("tunnel_1")
 
-    # tunnel_1.set_mesh_step(0.01)
-    # box_inner.set_mesh_step(0.1)
+    geometry_dict['tunnel_2']["center"] = barycenter
+    tunnel_2 = create_cylinder(gen, geometry_dict['tunnel_2'])
+
+
+    # create fractures
+    # fractures = []
+    # for f in geometry_dict['fractures']:
+    #     fract = create_plane(gen, f)
+    #     fract.set_region(f["name"])
+    #     fractures.append(fract)
 
     gen.synchronize()
 
     # cut fractures
-    fractures_cut = []
-    for f in fractures:
-        fractures_cut.append(f.intersect(cut_fracture_box))
+    # fractures_cut = []
+    # for f in fractures:
+    #     fractures_cut.append(f.intersect(cut_fracture_box))
 
-    tunnel_1_cut = tunnel_1.intersect(box_inner)
-    # connect tunels and split them to sections
+    # connect tunnels and split them to sections
 
 
-    gen.synchronize()
+    # gen.synchronize()
+
+    tunnel_1.set_region("tunnel_1")
+    tunnel_2.set_region("tunnel_2")
 
     # all = gen.group([fract1, box_outer])
-    all = [*fractures_cut, tunnel_1_cut, box_outer, box_inner]
-    frag_all = gen.fragment(*all)
+    all_obj = [box_outer, box_inner, tunnel_1, tunnel_2]
+    # all = [*fractures_cut, tunnel_1, box_outer, box_inner]
+    # all = [*fractures_cut, tunnel_1_cut, box_outer, box_inner]
+    frag_all = gen.fragment(*all_obj)
+    box_outer_f, box_inner_f, tunnel_1_f, tunnel_2_f = frag_all
 
-    gen.synchronize()
+    # make boundaries
+    # box_size = np.array(geometry_dict['outer_box']["size"])
+    # side_z = gen.rectangle([box_size[0], box_size[1]])
+    # side_y = gen.rectangle([box_size[0], box_size[2]])
+    # side_x = gen.rectangle([box_size[2], box_size[1]])
+    # sides = dict(
+    #     side_z0=side_z.copy().translate([0, 0, -box_size[2] / 2]),
+    #     side_z1=side_z.copy().translate([0, 0, +box_size[2] / 2]),
+    #     side_y0=side_y.copy().translate([0, 0, -box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+    #     side_y1=side_y.copy().translate([0, 0, +box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+    #     side_x0=side_x.copy().translate([0, 0, -box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2),
+    #     side_x1=side_x.copy().translate([0, 0, +box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2)
+    # )
+    # for name, side in sides.items():
+    #     side.modify_regions(name)
+    # b_box = box_outer_f.copy().get_boundary()
+    # box_all = []
+    # for name, side_tool in sides.items():
+    #     isec = b_box.select_by_intersect(side_tool)
+    #     box_all.append(isec.modify_regions("." + name))
+    # box_all.extend([box_fr, b_left_r, b_right_r])
+
+
+    # from the outermost to innermost
+    box_outer_f.set_mesh_step(12)
+    box_inner_f.set_mesh_step(4)
+    tunnel_1_f.set_mesh_step(1.5)
+    tunnel_2_f.set_mesh_step(1.5)
+    # for f in frag_all:
+    #     f.set_mesh_step(4)
+
+    # gen.synchronize()
+    mesh_all = [box_outer_f, box_inner_f, tunnel_1_f, tunnel_2_f]
+    # mesh_all = [box_outer_f, *box_all, box_inner_f, tunnel_1_f, tunnel_2_f]
+    # tunnel_1_f.set_region("tunnel_1")
+    # box_inner_f.set_region("rock_inner")
+    # box_outer_f.set_region("rock_outer")
+
     # gen.make_mesh([tunnel_1], 3)
-    gen.make_mesh(frag_all, 3)
-    gen.write_mesh("greet_mesh.msh", gmsh.MeshFormat.msh)
+    gen.make_mesh(mesh_all)
+    gen.write_mesh("greet_mesh.msh2", gmsh.MeshFormat.msh2)
     # gen.show()
 
 
