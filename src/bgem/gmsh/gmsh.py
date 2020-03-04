@@ -767,6 +767,41 @@ class ObjectSet:
         """
         return self._apply_operation(tool_objects, self.factory.model.fragment)
 
+    def fuse(self, *tool_objects) -> 'ObjectSet':
+        """
+        Fragment self object with 'tool_objects'.
+        Returns the fragmented object, self is destroyed, tool_objects are preserved (we use their copy).
+        Regions set on self are transfered to the result.
+        """
+        # return self._apply_operation(tool_objects, self.factory.model.fuse)
+        tool_objects = self.factory.group(*tool_objects).copy()
+        try:
+            new_tags, old_tags_map = self.factory.model.fuse(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
+        except ValueError as err:
+            message = "\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]),
+                                                                   str(tool_objects.dim_tags[:10]))
+            raise BoolOperationError(message) from err
+
+        # assign regions
+        assert len(self.regions) == len(self.dim_tags), (len(self.regions), len(self.dim_tags))
+        return ObjectSet(self.factory, new_tags, self.regions)
+
+        # old_tags_objects = [ObjectSet(self.factory, new_subtags, [reg])
+        #                     for reg, new_subtags in zip(self.regions, old_tags_map[:len(self.dim_tags)])]
+        # new_obj = self.factory.group(*old_tags_objects)
+        #
+        # # store auxiliary information
+        # # TODO: remove, should not be necessary
+        # # new_obj._previous_obj = self
+        # # new_obj._previous_dim_tags = self.dim_tags
+        # # new_obj._previous_map = old_tags_map
+        #
+        # # invalidate original objects
+        # self.factory._need_synchronize = True
+        # self.invalidate()
+        # tool_objects.invalidate()
+        # return new_obj
+
     def invalidate(self):
         self.factory = None
         self.dim_tags = None
