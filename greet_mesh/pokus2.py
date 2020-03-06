@@ -122,34 +122,21 @@ def generate_mesh(geometry_dict):
     tunnel_2_c, tunnel_box_2 = create_cylinder(gen, geometry_dict['tunnel_2'], 0.2)
     tunnel_2_x = tunnel_2_c.copy().intersect(tunnel_box_2)
 
-    tunnel_1_s, tunnel_2_s, s1, s3 = gen.fragment(tunnel_1_c.copy(), tunnel_2_c.copy(),
-                                                  tunnel_split["start"].copy(),
-                                                  # tunnel_split["mid"].copy(),
-                                                  tunnel_split["end"].copy())
 
-    tunnel_1_f = tunnel_1_s.select_by_intersect(tunnel_1_x)
-    tunnel_2_f = tunnel_2_s.select_by_intersect(tunnel_2_x)
-    tunnel_f = [tunnel_1_f, tunnel_2_f]
-
-    # box_inner_cut = box_inner.copy().cut(*tunnel_x)
-    # box_inner_cut = box_inner.cut(tunnel)
-    # box_inner_reg = box_inner.cut(tunnel)
-    # box_inner_reg = box_inner.cut(tunnel_1, tunnel_2)
-
-    # splits = []
-    # split_boxes = []
-    # splits.append(tunnel_split["start"])
+    splits = []
+    # # split_boxes = []
+    splits.append(tunnel_split["start"].copy())
     # t1_length_y = np.abs(tunnel_mid[1] - tunnel_start[1])
     # n_parts = 5  # number of parts of a single tunnel section
     # part_y = t1_length_y / n_parts  # y dimension of a single part
     #
     # y_split = tunnel_start[1] - part_y
-    # box = gen.box([box_size[0], part_y, box_size[2]])
-    # for i in range(1, n_parts):
+    # # box = gen.box([box_size[0], part_y, box_size[2]])
+    # for i in range(1, n_parts-3):
     #     split = side_y.copy().translate([0, y_split, 0])
     #     splits.append(split)
-    #     box_part = box.copy().translate([0, y_split + part_y/2, 0])
-    #     split_boxes.append(box_part)
+    #     # box_part = box.copy().translate([0, y_split + part_y/2, 0])
+    #     # split_boxes.append(box_part)
     #     y_split = y_split - part_y  # move split to the next one
     # splits.append(tunnel_split["mid"])
     # split_boxes.append(box.copy().translate([0, y_split + part_y / 2, 0]))
@@ -166,7 +153,8 @@ def generate_mesh(geometry_dict):
     #     box_part = box.copy().translate([0, y_split + part_y / 2, 0])
     #     split_boxes.append(box_part)
     #     y_split = y_split - part_y  # move split to the next one
-    # splits.append(tunnel_split["end"])
+    splits.append(tunnel_split["end"].copy())
+
     # split_boxes.append(box.copy().translate([0, y_split + part_y / 2, 0]))
     #
     # # last box outside tunnel
@@ -175,13 +163,41 @@ def generate_mesh(geometry_dict):
     # box = gen.box([box_size[0], part_y, box_size[2]])
     # split_boxes.append(box.copy().translate([0, tunnel_end[1] - part_y / 2, 0]))
 
-    # box_inner_cut = box_inner.copy().cut(*tunnel_x)
-    # box_inner_cut = box_inner.copy().cut(*tunnel_f)
+    frag = gen.fragment(box_inner.copy(), tunnel_1_c.copy(), tunnel_2_c.copy(), *splits)
+
+    tunnel_1_f = frag[1].select_by_intersect(tunnel_1_x)
+    tunnel_2_f = frag[2].select_by_intersect(tunnel_2_x)
+    tunnel_f = [tunnel_1_f, tunnel_2_f]
+
+###########################################################################################
+    # box only - this works
+    box_inner_reg = box_inner.cut(*tunnel_f)
+
+    # does not work
+    # box_inner_cut = box_inner.cut(*tunnel_f)
+    # box_inner_reg = frag[0].select_by_intersect(box_inner_cut)
+    # box_inner_cut.invalidate()
+
+    # does not work
+    # box_inner_cut = box_inner.cut(*tunnel_f)
+    # box_inner_reg = frag[0].intersect(box_inner_cut)
+
+    # try to cut - does not work
+    # splits2 = [tunnel_split["end"].copy().translate([0, -10, 0])]
+    # box_inner_cut = box_inner.cut(*tunnel_f)
+    # box_inner_reg = gen.fragment(box_inner_cut, *splits2)[0]
+
+    # split box only - works
+    # frag = gen.fragment(box_inner, *splits)
+    # box_inner_reg = frag[0]
+#########################################################################################
+
     # frag = gen.fragment(box_inner.copy(), tunnel_1_c, tunnel_2_c, *splits)
     # frag = gen.fragment(box_inner.copy(), tunnel_x, *splits)
     # frag = gen.fragment(box_inner.copy(), tunnel.copy(), *splits)
     # frag = gen.fragment(box_inner_cut, *splits)
     # frag = gen.fragment(box_inner.copy(), tunnel_1_c.copy(), tunnel_2_c.copy(), *splits)
+    # frag = gen.fragment(box_inner_cut, *splits)
     # frag = gen.fragment(box_inner_cut.copy(), *splits)
     # box_inner_f = frag[0]
     # tunnel = frag[1]
@@ -189,10 +205,9 @@ def generate_mesh(geometry_dict):
     # tunnel_2_f = frag[2]
 
     # split the fragmented box to regions
-    # box_inner_f = frag[0]
-    # box_inner_reg = box_inner_f.select_by_intersect(box_inner_cut)
-    # box_inner_reg = box_inner.copy().cut(*tunnel_f)
-    box_inner_reg = box_inner.cut(*tunnel_f)
+    # box_inner_reg = frag[0]
+    # box_inner_reg = frag[0].select_by_intersect(box_inner_cut)
+    # box_inner_reg = box_inner.cut(*tunnel_f)
 
     # tunnel_1 = box_inner_f.select_by_intersect(tunnel_1_x)
     # tunnel_2 = box_inner_f.select_by_intersect(tunnel_2_x)
@@ -231,7 +246,7 @@ def generate_mesh(geometry_dict):
     #     isec_inner = b_box_inner.select_by_intersect(side_tool)
     #     box_all.append(isec_inner.modify_regions("." + geometry_dict['inner_box']["name"] + "_" + name))
     #
-    # # b_tunnel = b_box_inner.select_by_intersect(*tunnel_x)
+    # b_tunnel = b_box_inner.select_by_intersect(*tunnel_x)
     b_tunnel = b_box_inner.select_by_intersect(*tunnel_f)
     box_all.append(b_tunnel.modify_regions("." + geometry_dict['inner_box']["name"] + "_tunnel"))
 
