@@ -1,5 +1,6 @@
 from bgem.gmsh import gmsh
 import numpy as np
+import pytest
 
 
 def geometry():
@@ -113,6 +114,7 @@ def test_empty_mesh():
     # gen.show()
 
 
+@pytest.mark.skip
 def test_greet_no_volume():
     """
     Problem: Does not generate volume mesh.
@@ -187,6 +189,33 @@ def test_fuse_boxes():
     box_2 = gen.box([10, 10, 40])
 
     box_fused = box_2.fuse(box_1)
+    box_fused.set_region("box")
+    # box_fused.set_mesh_step(1)
+    all_obj = [box_fused]
+
+    mesh_all = [*all_obj]
+
+    gen.make_mesh(mesh_all)
+    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+
+
+def test_fuse_boxes2():
+    """
+    Test of fusion function. It makes union of two intersection boxes.
+    """
+    mesh_name = "box_fuse_2"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True)
+
+    # create inner box
+    box_1 = gen.box([20, 20, 20])
+    box_2 = gen.box([20, 20, 20])
+    box_3 = gen.box([20, 20, 20])
+
+    box_2.translate([0, 20, 0])
+    box_3.translate([0, 40, 0])
+
+    box_fused = box_1.fuse(box_3)
+    assert box_fused.regions[0] == gmsh.Region.default_region[3]
     box_fused.set_region("box")
     # box_fused.set_mesh_step(1)
     all_obj = [box_fused]
