@@ -466,7 +466,7 @@ class GeometryOCC:
         all_dimtags = set(gmsh.model.getEntities())
         remove_dimtags = all_dimtags.difference(set(group_dimtags))
         try:
-            self.model.remove(list(remove_dimtags), recursive=False)
+            self.model.remove(list(remove_dimtags), recursive=True)
         except ValueError:
             pass
 
