@@ -131,8 +131,8 @@ def fuse_tunnels(gmsh_occ, geom):
     return tunnel, plane, box
 
 def generate_mesh(geom):
-    options.Geometry.Tolerance = 0.001
-    options.Geometry.ToleranceBoolean = 1e-2
+    # options.Geometry.Tolerance = 0.001
+    # options.Geometry.ToleranceBoolean = 1e-2
     # options.Geometry.AutoCoherence = 2
     # options.Geometry.OCCFixSmallEdges = True
     # options.Geometry.OCCFixSmallFaces = True
@@ -140,17 +140,14 @@ def generate_mesh(geom):
     # options.Geometry.OCCSewFaces = True
     # # #
     # options.Mesh.ToleranceInitialDelaunay = 0.01
-    # options.Mesh.CharacteristicLengthMin = 0.5
-    # # options.Mesh.CharacteristicLengthMax = 20
+    # options.Mesh.CharacteristicLengthMin = 0.1
+    # options.Mesh.CharacteristicLengthMax = 2.0
     # options.Mesh.AngleToleranceFacetOverlap = 0.8
 
     gen = gmsh.GeometryOCC("greet_mesh_tunnel", verbose=True)
 
     with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
         geom = yaml.safe_load(f)
-
-    # create inner box
-    # box_inner = create_box(gen, geometry_dict['inner_box'])
 
     # create tunnel
     # box_size = np.array(geometry_dict['outer_box']["size"])
@@ -165,19 +162,124 @@ def generate_mesh(geom):
     # )
 
     tunnel, cutting_plane, cutting_box = fuse_tunnels(gen, geom)
-    tunnel.set_region("tunnel")
-    tunnel.set_mesh_step(1.5)
+    # tunnel.set_region("tunnel")
+    # tunnel.set_mesh_step(1.5)
 
-    # tunnel_1_x.set_region("t1")
-    # tunnel_2_x.set_region("t2")
-    # tunnel_1_x.set_mesh_step(1.5)
-    # tunnel_2_x.set_mesh_step(1.5)
+    # create inner box
+    box_inner = create_box(gen, geometry_dict['inner_box'])
+    box_inner_cut = box_inner.cut(tunnel)
 
-    mesh_all = [tunnel]
+    splits = []
+    split_boxes = []
+    box_size = np.array(geometry_dict['outer_box']["size"])
+    split_plane = gen.rectangle([box_size[0], box_size[2]]).rotate([-1, 0, 0], np.pi / 2)
+    # t1_length_y = np.abs(tunnel_mid[1] - tunnel_start[1])
+    # n_parts = 5  # number of parts of a single tunnel section
+    # part_y = t1_length_y / n_parts  # y dimension of a single part
+
+    splits.append(split_plane.copy().translate([0, -50, 0]))
+    split_box = gen.box([box_size[0], 30, box_size[2]]).translate([0, -50 - 15, 0])
+    split_boxes.append(split_box)
+    box_rest = gen.box([100, 200, 100]).translate([0, -50 + 200 / 2, 0])
+    split_boxes.append(box_rest)
+
+    # y_split = tunnel_start[1] - part_y
+    # split_box = gen.box([box_size[0], part_y, box_size[2]])
+    # for i in range(1, n_parts-3):
+    #     split = split_plane.copy().translate([0, y_split, 0])
+    #     splits.append(split)
+    #     box_part = split_box.copy().translate([0, y_split + part_y/2, 0])
+    #     # box_part.set_mesh_step(4.0)
+    #     # box_part.set_region("split_box_0")
+    #     split_boxes.append(box_part)
+    #     y_split = y_split - part_y  # move split to the next one
+    # # splits.append(cutting_plane)
+    # # split_boxes.append(split_box.copy().translate([0, y_split + part_y / 2, 0]))
+    # box_rest = gen.box([100, 200, 100]).translate([0, y_split + part_y - 200 / 2, 0])
+    # # box_part.set_mesh_step(4.0)
+    # # box_part.set_region("split_box_1")
+    # split_boxes.append(box_rest)
+
+
+    # t2_length_y = np.abs(tunnel_end[1] - tunnel_mid[1])
+    # part_y = t2_length_y / n_parts  # y dimension of a single part
+
+    # y_split = tunnel_mid[1] - part_y
+    # box.invalidate()
+    # box = gen.box([box_size[0], part_y, box_size[2]])
+    # for i in range(1, n_parts):
+    #     split = side_y.copy().translate([0, y_split, 0])
+    #     splits.append(split)
+    #     box_part = box.copy().translate([0, y_split + part_y / 2, 0])
+    #     split_boxes.append(box_part)
+    #     y_split = y_split - part_y  # move split to the next one
+    # splits.append(tunnel_split["end"].copy())
+
+    print("fragment start")
+    # frag = gen.fragment(box_inner, *splits)
+    # frag = gen.fragment(box_inner_cut, *splits)
+    box_inner_f = box_inner_cut.fragment(*splits)
+    # box_inner_f.set_region("box_inner_f")
+    # box_inner_f.set_mesh_step(1.0)
+    print("fragment end")
+    # box_inner_f = frag[0]
+    # # box_inner_reg.set_mesh_step(2.0)
+    # # box_inner_reg.set_region("rock_inner")
+    # # box_inner_reg = box_inner_cut
+    # # box_inner_f = box_inner_reg
+    box_all = []
+    # # box_inner_reg = box_inner_f.select_by_intersect(split_boxes[1])
+    # # box_inner_reg.set_mesh_step(2.0)
+    # # box_inner_reg.set_region(geom["inner_box"]["name"])
+    # # box_all.append(box_inner_reg)
+
+    b_box_inner = box_inner_f.get_boundary()
+    # # for name, side_tool in sides.items():
+    # #     isec_inner = b_box_inner.select_by_intersect(side_tool)
+    # #     box_all.append(isec_inner.modify_regions("." + geometry_dict['inner_box']["name"] + "_" + name))
+    # #
+    b_tunnel = b_box_inner.select_by_intersect(tunnel)
+    # b_tunnel.set_mesh_step(5.0)
+    b_tunnel.set_region("." + geometry_dict['inner_box']["name"] + "_tunnel")
+    box_all.append(b_tunnel)
+    # box_all.append(b_tunnel.modify_regions("." + geometry_dict['inner_box']["name"] + "_tunnel"))
+
+    for i in range(len(split_boxes)):
+        box_reg = box_inner_f.select_by_intersect(split_boxes[i])
+        # box_reg.set_mesh_step(10)
+        box_reg.set_region(geometry_dict['inner_box']["name"] + "_" + str(i))
+        box_all.append(box_reg)
+        # box_all.append(box_reg.modify_regions(geometry_dict['inner_box']["name"] + "_" + str(i)))
+        # b_tunnel_part = b_tunnel.select_by_intersect(split_boxes[i])
+        # b_tunnel_part.set_mesh_step(0.5)
+        # box_all.append(b_tunnel_part.modify_regions("." + geometry_dict['inner_box']["name"] + "_tunnel" + "_" + str(i)))
+
+    # box_all[1].set_mesh_step(5)
+
+    gen.model.remove(tunnel.dim_tags)
+    for sb in split_boxes:
+        gen.model.remove(sb.dim_tags)
+
+    i=0
+    for b in box_all:
+        print("i={0} ".format(i))
+        for r in b.regions:
+            print("{0} ({1}) ".format(r.name, r.id))
+        for dt in b.dim_tags:
+            print(dt)
+        i = i+1
+
+    # mesh_all = [tunnel]
+    mesh_all = [*box_all]
+    # mesh_all = [*split_boxes]
 
     print("Generating mesh...")
     gen.keep_only(*mesh_all)
     gen.write_brep()
+    # gen.make_mesh(mesh_all, dim=2)
+    box_all[1].set_mesh_step(5)
+    box_all[2].set_mesh_step(5)
+    box_all[0].set_mesh_step(1)
     gen.make_mesh(mesh_all)
     print("Generating mesh...[finished]")
     print("Writing mesh...")
