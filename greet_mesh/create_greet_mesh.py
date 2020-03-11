@@ -127,7 +127,10 @@ def fuse_tunnels(gmsh_occ, geom):
     box.translate(+box_s * n)
     tunnel_2_x = tunnel_2_c.intersect(box)
 
-    tunnel = tunnel_1_x.fuse(tunnel_2_x)
+    box2 = gmsh_occ.box([box_s, box_s, box_s]).translate([0, tunnel_end[1] + box_s / 2, 0])
+    tunnel_2_xx = tunnel_2_x.intersect(box2)
+
+    tunnel = tunnel_1_x.fuse(tunnel_2_xx)
     return tunnel, plane, box
 
 def generate_mesh(geom):
