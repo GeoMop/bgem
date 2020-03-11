@@ -196,49 +196,70 @@ def generate_mesh(geom):
         geom = yaml.safe_load(f)
 
     # create tunnel
-    # box_size = np.array(geometry_dict['outer_box']["size"])
+    box_size = np.array(geometry_dict['outer_box']["size"])
     tunnel_start = np.array(geom['tunnel_1']["start"])
     tunnel_mid = np.array(geom['tunnel_1']["end"])
     tunnel_end = np.array(geom['tunnel_2']["end"])
 
     tunnel = fuse_tunnels(gen, geom)
 
+
+
     # create inner box
     box_inner = create_box(gen, geometry_dict['inner_box'])
+    # create outer box
+    box_outer = create_box(gen, geometry_dict['outer_box'])
+    # create cut outer_box object for setting the correct region
+    box_outer_cut = box_outer.copy().cut(box_inner)
+    # cut tunnel from inner box
     box_inner_cut = box_inner.cut(*tunnel)
-    box_inner_cut.set_region(geometry_dict['inner_box']["name"])
 
-    # print("fragment start")
-    # frag = gen.fragment(box_inner, *splits)
-    # frag = gen.fragment(box_inner_cut, *splits)
-    # box_inner_f = box_inner_cut.fragment(*splits)
-    # print("fragment end")
-
-    box_all = [box_inner_cut]
-    b_box_inner = box_inner_cut.get_boundary()
-    # # for name, side_tool in sides.items():
-    # #     isec_inner = b_box_inner.select_by_intersect(side_tool)
-    # #     box_all.append(isec_inner.modify_regions("." + geometry_dict['inner_box']["name"] + "_" + name))
-    # #
+    print("fragment start")
+    frag = gen.fragment(box_outer, box_inner_cut)
+    print("fragment end")
 
     mesh_step_dict = dict()
-    mesh_step_dict[box_inner_cut] = 4.0
-    # reg_names = dict()
-    # reg_name = "." + geometry_dict['inner_box']["name"] + "_tunnel"
-    # b_tunnel.set_region(reg_name)
-    # reg_names["tunnel"] = reg_name
-    # box_all.append(b_tunnel)
-    # box_all.append(b_tunnel.modify_regions("." + geometry_dict['inner_box']["name"] + "_tunnel"))
+    box_outer_reg = frag[0].select_by_intersect(box_outer_cut)
+    box_outer_reg.set_region(geometry_dict['outer_box']["name"])
+    mesh_step_dict[box_outer_reg] = 10.0
+    box_inner_reg = frag[1]
+    box_inner_reg.set_region(geometry_dict['inner_box']["name"])
+    mesh_step_dict[box_inner_reg] = 4.0
 
-    # reg_names["tunnel"] = []
+    box_all = [box_outer_reg, box_inner_reg]
+
+    # make boundaries
+    print("Making boundaries...")
+    side_z = gen.rectangle([box_size[0], box_size[1]])
+    side_y = gen.rectangle([box_size[0], box_size[2]])
+    side_x = gen.rectangle([box_size[2], box_size[1]])
+    sides = dict(
+        bottom=side_z.copy().translate([0, 0, -box_size[2] / 2]),
+        top=side_z.copy().translate([0, 0, +box_size[2] / 2]),
+        back=side_y.copy().translate([0, 0, -box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        front=side_y.copy().translate([0, 0, +box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        right=side_x.copy().translate([0, 0, -box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2),
+        left=side_x.copy().translate([0, 0, +box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2)
+    )
+    # for name, side in sides.items():
+    #     side.modify_regions(name)
+
+    b_box_outer = box_outer_reg.get_boundary()
+    b_box_inner = box_inner_reg.get_boundary()
+    for name, side_tool in sides.items():
+        isec_outer = b_box_outer.select_by_intersect(side_tool)
+        isec_inner = b_box_inner.select_by_intersect(side_tool)
+        box_all.append(isec_outer.modify_regions("." + geometry_dict['outer_box']["name"] + "_" + name))
+        box_all.append(isec_inner.modify_regions("." + geometry_dict['inner_box']["name"] + "_" + name))
+
+    b_box_inner = box_inner_reg.get_boundary()
     for i in range(len(tunnel)):
         b_tunnel_part = b_box_inner.select_by_intersect(tunnel[i])
-        reg_name = ".tunnel" + "_" + str(i)
-        # reg_names["tunnel"].append(reg_name)
         mesh_step_dict[b_tunnel_part] = 1.5
-        b_tunnel_part.set_region(reg_name)
+        b_tunnel_part.set_region(".tunnel" + "_" + str(i))
         box_all.append(b_tunnel_part)
 
+    print("Making boundaries...[finished]")
 
     # the tunnel must be removed before meshing | we do not know the reason
     for t in tunnel:
@@ -263,8 +284,8 @@ def generate_mesh(geom):
     gen.keep_only(*mesh_all)
     gen.write_brep()
 
-    for obj in box_all:
-        obj.set_mesh_step(mesh_step_dict[obj])
+    for obj, step in mesh_step_dict.items():
+        obj.set_mesh_step(step)
     # for b in box_all:
     #     if b.regions[0].name in reg_names["tunnel"]:
     #         b.set_mesh_step(1.5)
