@@ -4,8 +4,8 @@ outer_box:
   # rotation angle in radians around axes:
   rot_x: 0
   rot_y: 0
-#  rot_z: 0.217264484  # asin(32.333884/150)
-  rot_z: 0
+  rot_z: 0.217264484  # asin(32.333884/150)
+#  rot_z: 0
   # translation vector from axis center [0,0,0]:
   center: [0, 0, 0]
   
