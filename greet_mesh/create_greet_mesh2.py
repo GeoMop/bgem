@@ -203,7 +203,6 @@ def generate_mesh(geom):
 
     tunnel = fuse_tunnels(gen, geom)
 
-
     # create inner box
     box_inner = create_box(gen, geometry_dict['inner_box'])
     # create outer box
@@ -216,22 +215,36 @@ def generate_mesh(geom):
     # cut tunnel from inner box
     box_inner_cut = box_inner.cut(*tunnel)
 
+    # prepare auxiliary boundary objects to set boundary regions
+    side_z = gen.rectangle([box_size[0], box_size[1]])
+    side_y = gen.rectangle([box_size[0], box_size[2]])
+    side_x = gen.rectangle([box_size[2], box_size[1]])
+    sides = dict(
+        bottom=side_z.copy().translate([0, 0, -box_size[2] / 2]),
+        top=side_z.copy().translate([0, 0, +box_size[2] / 2]),
+        back=side_y.copy().translate([0, 0, -box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        front=side_y.copy().translate([0, 0, +box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        right=side_x.copy().translate([0, 0, -box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2),
+        left=side_x.copy().translate([0, 0, +box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2)
+    )
+
     # translate and rotate all to final position
-    objs_to_rotate = [box_outer_cut, box_inner_cut, cut_fracture_box, *tunnel]
+    objs_to_rotate = [box_outer_cut, box_inner_cut, cut_fracture_box, *tunnel, *sides.values()]
     outer_box_points = np.array(geometry_dict['outer_box']["nodes"])
     barycenter = [np.average(outer_box_points[:, 0]), np.average(outer_box_points[:, 1]),
                   np.average(outer_box_points[:, 2])]
-    # rot_x = float(geometry_dict['outer_box']["rot_x"])
-    # rot_y = float(geometry_dict['outer_box']["rot_y"])
+    rot_x = float(geometry_dict['outer_box']["rot_x"])
+    rot_y = float(geometry_dict['outer_box']["rot_y"])
     rot_z = float(geometry_dict['outer_box']["rot_z"])
     for obj in objs_to_rotate:
-        # if rot_x != 0:
-        #     obj.rotate([1, 0, 0], rot_x)
-        # if rot_y != 0:
-        #     obj.rotate([0, 1, 0], rot_y)
+        if rot_x != 0:
+            obj.rotate([1, 0, 0], rot_x)
+        if rot_y != 0:
+            obj.rotate([0, 1, 0], rot_y)
         if rot_z != 0:
             obj.rotate([0, 0, 1], rot_z)
         obj.translate(barycenter)
+    # I have no idea, why I have to do this separately..
     box_outer.translate(barycenter)
 
     # create fractures
@@ -243,10 +256,7 @@ def generate_mesh(geom):
         fractures.append(fract.intersect(cut_fracture_box))
         fracture_names.append(f["name"])
 
-
-
     print("fragment start")
-
     frag = gen.fragment(box_outer, box_inner_cut, *[f.copy() for f in fractures])
     fractures_f_group = gen.group(*[frag[i] for i in range(2, len(frag))])
     # frag = gen.fragment(box_outer, box_inner_cut)
@@ -264,39 +274,27 @@ def generate_mesh(geom):
 
     # make boundaries
     print("Making boundaries...")
-    # side_z = gen.rectangle([box_size[0], box_size[1]])
-    # side_y = gen.rectangle([box_size[0], box_size[2]])
-    # side_x = gen.rectangle([box_size[2], box_size[1]])
-    # sides = dict(
-    #     bottom=side_z.copy().translate([0, 0, -box_size[2] / 2]),
-    #     top=side_z.copy().translate([0, 0, +box_size[2] / 2]),
-    #     back=side_y.copy().translate([0, 0, -box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
-    #     front=side_y.copy().translate([0, 0, +box_size[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
-    #     right=side_x.copy().translate([0, 0, -box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2),
-    #     left=side_x.copy().translate([0, 0, +box_size[0] / 2]).rotate([0, 1, 0], np.pi / 2)
-    # )
-    # # for name, side in sides.items():
-    # #     side.modify_regions(name)
-    #
-    # b_box_outer = box_outer_reg.get_boundary()
+    b_box_outer = box_outer_reg.get_boundary()
     b_box_inner = box_inner_reg.get_boundary()
-    # for name, side_tool in sides.items():
-    #     isec_outer = b_box_outer.select_by_intersect(side_tool)
-    #     isec_inner = b_box_inner.select_by_intersect(side_tool)
-    #     isec_outer.set_region("." + geometry_dict['outer_box']["name"] + "_" + name)
-    #     isec_inner.set_region("." + geometry_dict['inner_box']["name"] + "_" + name)
-    #     box_all.append(isec_outer)
-    #     box_all.append(isec_inner)
+    for name, side_tool in sides.items():
+        isec_outer = b_box_outer.select_by_intersect(side_tool)
+        isec_inner = b_box_inner.select_by_intersect(side_tool)
+        isec_outer.set_region("." + geometry_dict['outer_box']["name"] + "_" + name)
+        isec_inner.set_region("." + geometry_dict['inner_box']["name"] + "_" + name)
+        box_all.append(isec_outer)
+        box_all.append(isec_inner)
 
     b_box_inner = box_inner_reg.get_boundary()
+    b_tunnel_parts = []
     for i in range(len(tunnel)):
         b_tunnel_part = b_box_inner.select_by_intersect(tunnel[i])
-        mesh_step_dict[b_tunnel_part] = 1.5
         b_tunnel_part.set_region(".tunnel" + "_" + str(i))
-        box_all.append(b_tunnel_part)
-
+        b_tunnel_parts.append(b_tunnel_part)
     print("Making boundaries...[finished]")
 
+    box_all.extend(b_tunnel_parts)
+
+    print("Setting fractures regions...")
     # fracture regions
     fractures_reg = []
     for frac, name in zip(fractures, fracture_names):
@@ -305,8 +303,21 @@ def generate_mesh(geom):
         frac_reg.set_region(name)
         mesh_step_dict[frac_reg] = 2.0
         fractures_reg.append(frac_reg)
-    box_all.extend(fractures_reg)
 
+        # set regions on the 1D curve cross-section of fractures and tunnel surface
+        b_frac_reg = frac_reg.get_boundary()
+        for i in range(len(b_tunnel_parts)):
+            b_fract_tunnel = b_frac_reg.select_by_intersect(b_tunnel_parts[i])
+            if len(b_fract_tunnel.dim_tags) < 1:
+                continue
+            b_fract_tunnel.set_region("." + name + "_tunnel" + "_" + str(i))
+            box_all.append(b_fract_tunnel)
+
+    box_all.extend(fractures_reg)
+    print("Setting fractures regions...[finished]")
+
+    for btp in b_tunnel_parts:
+        mesh_step_dict[btp] = 1.0
 
     # the tunnel must be removed before meshing | we do not know the reason
     for t in tunnel:
