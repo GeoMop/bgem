@@ -432,7 +432,7 @@ class SurfaceApprox:
         a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
                                           maxiter=300, return_eigenvectors=False)
         #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
-        c_mat = btb_mat # + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
+        c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
