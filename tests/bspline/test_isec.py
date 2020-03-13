@@ -2,7 +2,7 @@ from bgem.bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as b
 import numpy as np
 import math
 import pytest
-import statprof
+#import statprof
 
 
 class SurfApprox:
@@ -109,10 +109,10 @@ def test_surface_intersection(plane_coefficients1, control_points_1, length1): #
 
 
         #try:
-        statprof.start()
+#        statprof.start()
         sapp1 = SurfApprox(plane_coefficients1, length1, samples, control_points_1, cosx)
-        statprof.stop()
-        statprof.display()
+#        statprof.stop()
+#        statprof.display()
         #finally:
 
 

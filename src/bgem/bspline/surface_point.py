@@ -12,6 +12,8 @@ class SurfacePoint:
         :param uv: numpy array 2x1 of local coordinates
 
         """
+
+        # TODO: document attributes
         self.surf = surf
         self.iuv = []
         self.iuv.append(iuv)

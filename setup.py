@@ -55,7 +55,7 @@ setuptools.setup(
     # include automatically all files in the template MANIFEST.in
     include_package_data=True,
     zip_safe=False,
-    install_requires=['numpy', 'scipy', 'bih', 'gmsh-sdk'],
+    install_requires=['numpy', 'scipy', 'bih', 'gmsh-sdk<=4.5.1'],
     python_requires='>=3',
     # extras_require={
     #     # eg:

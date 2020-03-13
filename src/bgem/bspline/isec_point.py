@@ -1,5 +1,6 @@
 import enum
-
+import numpy as np
+from .surface_point import SurfacePoint
 
 class Axis(enum.IntEnum):
     """
@@ -21,11 +22,17 @@ class IsecPoint:
         :param xyz: array of global coordinates as numpy array 3x1
         """
 
+
         self.duplicite_with = None
-        self.own_point = own_point
-        self.other_point = other_point
-        self.tol = 1  # have to be implemented
-        self.xyz = xyz
-        self.connected = 0
+        # TODO: document attribute
+        self.own_point: SurfacePoint = own_point
+        # Position of the intersection on 'own' surface.
+        self.other_point: SurfacePoint = other_point
+        # Position of the intersection on 'other' surface.
+        self.tol:float = 1  # have to be implemented
+        self.xyz:np.array = xyz
+        # Position of the intersection in 3d space.
+        self.connected:bool = 0
+        # True if the point is connected to a curve.
 
 
