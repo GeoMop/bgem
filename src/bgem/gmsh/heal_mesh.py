@@ -229,7 +229,7 @@ class HealMesh:
         self.modified_elements = set()
         aabb_min = np.full(3, +np.inf)
         aabb_max = np.full(3, -np.inf)
-        for n in self.mesh.nodes:
+        for n in self.mesh.nodes.values():
             aabb_max = np.maximum(aabb_max, n)
             aabb_min = np.minimum(aabb_min, n)
         diam = np.max(aabb_max - aabb_min)

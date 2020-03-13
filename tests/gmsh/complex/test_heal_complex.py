@@ -14,7 +14,8 @@ mesh_files=[
 ]
 
 @pytest.mark.parametrize("mesh", mesh_files)
-@pytest.mark.parametrize("tol", [0.003, 0.01, 0.03])
+#@pytest.mark.parametrize("tol", [0.003, 0.01, 0.03])
+@pytest.mark.parametrize("tol", [0.03])
 def test_on_mesh_samples(mesh, tol):
     mesh_path = os.path.join(src_dir, "meshes", mesh)
     hm = heal_mesh.HealMesh.read_mesh(mesh_path, node_tol=tol*0.01)
