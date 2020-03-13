@@ -26,7 +26,7 @@ def make_a_test_grid(output_path, func, nuv):
     grid = grid[subindices, :]
     dx = 0.2 * 1/nuv[0]
     dy = 0.2 * 1/nuv[1]
-    dz = 0.2 * np.ptp(grid[:, 2])       # value range
+    dz = 0.01 * np.ptp(grid[:, 2])       # value range
     grid += np.random.randn(*grid.shape) * np.array([dx,dy,dz])[None, :]
     np.savetxt(output_path, grid)
 
@@ -34,33 +34,33 @@ def make_a_test_grid(output_path, func, nuv):
 def function_sin_cos(x):
     return np.sin(x[0] * 4) * np.cos(x[1] * 4)
 
-def plot_cmp(a_grid, b_grid):
-    plt = bs_plot.Plotting()
-    plt.scatter_3d(a_grid[:, :, 0], a_grid[:, :, 1], a_grid[:, :, 2])
-    plt.scatter_3d(b_grid[:, :, 0], b_grid[:, :, 1], b_grid[:, :, 2])
-    plt.show()
+# def plot_cmp(a_grid, b_grid):
+#     plt = bs_plot.Plotting()
+#     #plt.scatter_3d(a_grid[:, 0], a_grid[:, 1], a_grid[:,  2])
+#     plt.plot_surface(a_grid[:, 0], a_grid[:, 1], a_grid[:,  2])
+#     plt.plot_surface(b_grid[:, 0], b_grid[:, 1], b_grid[:,  2])
+#     plt.show()
 
-    diff = b_grid - a_grid
-    plt.scatter_3d(a_grid[:, :, 0], a_grid[:, :, 1], diff[:, :, 0])
-    plt.scatter_3d(a_grid[:, :, 0], a_grid[:, :, 1], diff[:, :, 1])
-    plt.scatter_3d(a_grid[:, :, 0], a_grid[:, :, 1], diff[:, :, 2])
-    plt.show()
 
 
 def verify_approximation(func, surf):
     # Verification.
     # Evaluate approximation and the function on the same grid.
 
-    nu = 10 * surf.u_basis.size
-    nv = 10 * surf.v_basis.size
-    V_grid, U_grid = np.meshgrid(np.linspace(0.0, 1.0, 10 * nu), np.linspace(0.0, 1.0, 10 * nv))
+    nu = 4 * surf.u_basis.size
+    nv = 4 * surf.v_basis.size
+    V_grid, U_grid = np.meshgrid(np.linspace(0.0, 1.0, nu), np.linspace(0.0, 1.0, nv))
     xy_probe = np.stack([U_grid.ravel(), V_grid.ravel()], axis=1)
-    xyz_approx = surf.eval_xy_array(xy_probe).reshape(nu, nv, 3)
+    # xyz_approx = surf.eval_xy_array(xy_probe).reshape(-1, 3)
+    #
+    z_func_eval = np.array([func([u, v]) for u, v in xy_probe], dtype=float)
+    xyz_func = np.concatenate((xy_probe, z_func_eval[:, None]), axis=1).reshape(-1, 3)
 
-    z_func_eval = np.array([function_sin_cos([u, v]) for u, v in xy_probe], dtype=float)
-    xyz_func = np.concatenate((xy_probe, z_func_eval[:, None]), axis=1).reshape(nu, nv, 3)
-    plot_cmp(xyz_approx, xyz_func)
-
+    #plot_cmp(xyz_approx, xyz_func)
+    plt = bs_plot.Plotting()
+    plt.plot_surface_3d(surf.make_full_surface(), (nu, nv), poles=False)
+    plt.scatter_3d(xyz_func[:,0], xyz_func[:,1], xyz_func[:,2])
+    plt.show()
 
 def test_grid_approx_example():
     nuv = (50, 50)

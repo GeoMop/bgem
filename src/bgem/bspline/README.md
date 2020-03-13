@@ -12,4 +12,34 @@ Modules:
 - **isec_curve_surf** - computing intersection of two B-spline surfaces, approximate by a one or more B-spline curves  
 
 ## bspline_approx
-Example:
+Creating a B-spline surface from a point grid.
+    
+1. Create the approximation object from the points in the grid file.
+   
+        surf_approx = bs_approx.SurfaceApprox.approx_from_file(grid_path)
+
+2. Compute minimal surface bounding rectangular of points projected to the XY plane.
+   or use own XY rectangle given as array of shape (4,2) of the four vertices.
+    
+        quad = surf_approx.compute_default_quad()
+
+3. Try to guess dimensions of the (semi regular) input grid.
+        
+        nuv = surf_approx.compute_default_nuv()
+    We usually want much sparser approximation.
+    
+        nuv = nuv / 5
+
+4. Compute the approximation.
+    
+        surface = surf_approx.compute_approximation()
+        
+Result is a ZSurface, that is only Z coordinate is B-spline while XY are just linear 
+transformation of the UV coordinates (given by the bounding quad).
+In order to create the fully parametric surface one can use:
+
+    full_surface = surface.make_full_surface()
+    
+    
+See the file `tests/bspline/test_bs_approx_example.py' for the full usage example.
+ 
