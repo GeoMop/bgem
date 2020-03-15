@@ -1,7 +1,6 @@
 # How to make a release?
 
 TODO:
-- fix tox fr py35, py37
 - action for publishing a release on tagged version
   - GITHUB release - manual ?? 
   - PYPI release
@@ -27,8 +26,8 @@ git push origin release_1.8.2
 
 1. Determine the release version number: major.minor.patch
    - Major for backward incompatible changes, changes in API.
-   - Minor for backward compatible changes, no changes in API, possible slight changes in numerical results.
-   - Patch for fixes, no substantial new features.
+   - Minor for backward compatible changes, substantial API extension, possible slight changes in numerical results.
+   - Patch for fixes, minor improvements, no substantial new features.
 
 2. Set the version in the setup.py.
 
