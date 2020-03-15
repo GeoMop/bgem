@@ -1,21 +1,7 @@
 # How to make a release?
 
 TODO:
-- action for publishing a release on tagged version
-  - GITHUB release - manual ?? 
-  - PYPI release
-  
 
-
-    On Bacula, copy publish directory x.y.z to x.y.z_release.
-    Convert CHANGES.md and README.md to html Jekyll files: make web-content
-    Update the web: main.js, features, changes, readme
-    Check that all links work.
-    Upload to repository (publish)
-    Create release tag, eg. for release 1.8.2 (within 1.8.2 branch):
-
-git tag -a release_1.8.2 -m "Release 1.8.2"
-git push origin release_1.8.2
 
 0. Repository preparation:
    - check that master tests are green
@@ -36,3 +22,9 @@ git push origin release_1.8.2
 4. Create new release at github, using the same version code.
 
 5. Wheels are automaticaly created and published to PYPI, see that this action has passed including the test installation. 
+
+
+Alternative, manual tagging:
+
+git tag -a v1.2.3 -m "v1.2.3"
+git push origin v1.2.3
