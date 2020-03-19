@@ -214,8 +214,6 @@ class GmshIO:
         :param reg_ids: region indices
         :return: indices of elements of the specified region indices
         """
-        time_idx = 1
-        time, region_id = self.element_data['region_id'][time_idx]
         ele_ids_list = []
         for eid, elem in self.elements.items():
             type, tags, node_ids = elem
