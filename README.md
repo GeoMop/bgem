@@ -52,13 +52,27 @@ Decomposition of the plane into disjoint polygons by line segments.
 
 ## Installation
 
-`pip install bgem` - install recent release from PyPI into system (need root access / sudo)
+### Installation from PYPI
 
-`pip install --user bgem` - install recent release under current user not system wide (no speciall permissions necessary)
+System-wide installation of a last version from PYPI. Need root/admin access (or sudo). 
 
-`pip install DIR` - install from sources located in DIR, copy sources
-  
-`pip install -e DIR` - install from sources located in DIR, link to editable sources (usefull for debugging)
+    pip install bgem
+
+Installation from PYPI into the user's directory, no admin access necessary. E.g. on a cluster.
+However prefered is usage of a [virtual environment](https://docs.python.org/3/tutorial/venv.html).
+
+    pip install --user bgem
+
+### Instalation from sources
+
+Installation from sources located in DIR (copy of sources is performed). 
+
+    pip install DIR
+
+Installation from sources located in DIR. It uses links to the editable sources (usefull for debugging).
+
+    pip install -e DIR
+
 
 ## Authors
 
