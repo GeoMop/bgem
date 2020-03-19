@@ -122,7 +122,7 @@ class GmshIO:
                 columns = line.split()
                 if readmode == 5:
                     if len(columns) == 3:
-                        self.physical[str(columns[2])] = (int(columns[1]), int(columns[0]))
+                        self.physical[str(columns[2]).strip('\"')] = (int(columns[1]), int(columns[0]))
 
                 if readmode == 4:
                     if len(columns) == 3:
@@ -191,6 +191,38 @@ class GmshIO:
         print('  %d Elements' % len(self.elements))
 
         mshfile.close()
+
+    def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
+        """
+        Returns ids of regions given by names.
+        :param reg_names: names of the regions
+        :param check_dim: possibly check, that the regions have the chosen dimension
+        :return: list of regions ids
+        """
+        assert len(self.physical) > 0
+        reg_ids = []
+        for fr in reg_names:
+            rid, dim = self.physical[fr]
+            if check_dim >= 0:
+                assert dim == check_dim
+            reg_ids.append(rid)
+        return reg_ids
+
+    def get_elements_of_regions(self, reg_ids):
+        """
+        Supposes one region per element, on the first position in element tags.
+        :param reg_ids: region indices
+        :return: indices of elements of the specified region indices
+        """
+        time_idx = 1
+        time, region_id = self.element_data['region_id'][time_idx]
+        ele_ids_list = []
+        for eid, elem in self.elements.items():
+            type, tags, node_ids = elem
+            # suppose only one region per element
+            if tags[0] in reg_ids:
+                ele_ids_list.append(eid)
+        return np.array(ele_ids_list)
 
     def write_ascii(self, mshfile=None):
         """Dump the mesh out to a Gmsh 2.0 msh file."""
