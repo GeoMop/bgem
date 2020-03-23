@@ -34,16 +34,16 @@ from enum import IntEnum
 
 
 
-import polygons.polygons as polygons
-import polygons.merge as merge
-from ..gmsh import gmsh_io as gmsh_io
+import bgem.polygons.polygons as polygons
+import bgem.polygons.merge as merge
+from bgem.gmsh import gmsh_io as gmsh_io
 import numpy as np
 import numpy.linalg as la
 import math
 
-import bspline as bs
-import bspline_approx as bs_approx
-import brep_writer as bw
+import bgem.bspline.bspline as bs
+import bgem.bspline.bspline_approx as bs_approx
+import bgem.bspline.brep_writer as bw
 # def import_plotting():
 # global plt
 # global bs_plot
