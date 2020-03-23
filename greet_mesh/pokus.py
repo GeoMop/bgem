@@ -102,7 +102,7 @@ def create_cylinder(gmsh_occ, cyl_geom, stretch_factor=0.005):
     middle = (start+end)/2
     box_lz = np.abs(end_t[2] - start_t[2]) + 2* radius
     box_lx = np.abs(end_t[0] - start_t[0]) + 2* radius
-    box_ly = np.abs(end[1] - start[1])
+    box_ly = 0.99*np.abs(end[1] - start[1])
     box = gmsh_occ.box([box_lx, box_ly, box_lz], middle)
 
     cylinder = gmsh_occ.cylinder(radius, end_t-start_t, start_t)
@@ -735,7 +735,8 @@ def generate_mesh_tunnel_4(geometry_dict):
     tunnel_2_s, s1, s2 = gen.fragment(tunnel_2_c.copy(), tunnel_split["mid"].copy(), tunnel_split["end"].copy())
     tunnel_2 = tunnel_2_s.select_by_intersect(tunnel_2_x)
 
-    tunnel_x = [tunnel_1, tunnel_2]
+    tunnel = tunnel_1.fuse(tunnel_2)
+    # tunnel_x = [tunnel_1, tunnel_2]
 
     splits = []
     split_boxes = []
@@ -776,12 +777,15 @@ def generate_mesh_tunnel_4(geometry_dict):
     box = gen.box([box_size[0], part_y, box_size[2]])
     split_boxes.append(box.copy().translate([0, tunnel_end[1] - part_y / 2, 0]))
 
-    box_inner_cut = box_inner.copy().cut(*tunnel_x)
+    # box_inner_cut = box_inner.copy().cut(*tunnel_x)
+    box_inner_cut = box_inner.cut(tunnel)
     # frag = gen.fragment(box_inner.copy(), tunnel_1_c, tunnel_2_c, *splits)
     # frag = gen.fragment(box_inner.copy(), tunnel_x, *splits)
-    frag = gen.fragment(box_inner.copy().cut(*tunnel_x), tunnel_1.copy(), tunnel_2.copy(), *splits)
+    # frag = gen.fragment(box_inner.copy(), tunnel.copy(), *splits)
+    frag = gen.fragment(box_inner_cut, *splits)
+    # frag = gen.fragment(box_inner.copy().cut(*tunnel_x), tunnel_1.copy(), tunnel_2.copy(), *splits)
     # frag = gen.fragment(box_inner_cut.copy(), *splits)
-    box_inner_f = frag[0]
+    # box_inner_f = frag[0]
     # tunnel = frag[1]
     # tunnel_1_f = frag[1]
     # tunnel_2_f = frag[2]
@@ -789,7 +793,7 @@ def generate_mesh_tunnel_4(geometry_dict):
     # split the fragmented box to regions
     # box_inner_cut = box_inner.cut(tunnel_1_x, tunnel_2_x)
     # box_inner_reg = box_inner_f.select_by_intersect(box_inner_cut)
-    box_inner_reg = box_inner_f
+    box_inner_reg = frag[0]
     # tunnel_1 = box_inner_f.select_by_intersect(tunnel_1_x)
     # tunnel_2 = box_inner_f.select_by_intersect(tunnel_2_x)
 
@@ -825,7 +829,8 @@ def generate_mesh_tunnel_4(geometry_dict):
         isec_inner = b_box_inner.select_by_intersect(side_tool)
         box_all.append(isec_inner.modify_regions("." + geometry_dict['inner_box']["name"] + "_" + name))
 
-    b_tunnel = b_box_inner.select_by_intersect(*tunnel_x)
+    # b_tunnel = b_box_inner.select_by_intersect(*tunnel_x)
+    b_tunnel = b_box_inner.select_by_intersect(tunnel)
     box_all.append(b_tunnel.modify_regions("." + geometry_dict['inner_box']["name"] + "_tunnel"))
 
     # box_all.extend([box_inner_reg])
@@ -861,6 +866,238 @@ def generate_mesh_tunnel_4(geometry_dict):
     healer = heal_mesh.HealMesh.read_mesh(mesh_name)
     healer.heal_mesh()
     healer.write()
+
+
+def generate_mesh_cut_tunnel(geometry_dict):
+    # options.Geometry.Tolerance = 0.0001
+    # options.Geometry.ToleranceBoolean = 0.001
+    # options.Geometry.AutoCoherence = 2
+    # options.Geometry.OCCFixSmallEdges = True
+    # options.Geometry.OCCFixSmallFaces = True
+    # options.Geometry.OCCFixDegenerated = True
+    # options.Geometry.OCCSewFaces = True
+    # # #
+    # options.Mesh.ToleranceInitialDelaunay = 0.01
+    # options.Mesh.CharacteristicLengthMin = 0.5
+    # # options.Mesh.CharacteristicLengthMax = 20
+    # options.Mesh.AngleToleranceFacetOverlap = 0.8
+
+    gen = gmsh.GeometryOCC("greet_mesh_tunnel")
+
+    with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
+        geometry_dict = yaml.safe_load(f)
+
+    # create inner box
+    box_inner = create_box(gen, geometry_dict['inner_box'])
+
+    # create tunnel
+    box_size = np.array(geometry_dict['outer_box']["size"])
+    tunnel_start = np.array(geometry_dict['tunnel_1']["start"])
+    tunnel_mid = np.array(geometry_dict['tunnel_1']["end"])
+    tunnel_end = np.array(geometry_dict['tunnel_2']["end"])
+    side_y = gen.rectangle([box_size[0], box_size[2]]).rotate([-1, 0, 0], np.pi / 2)
+    tunnel_split = dict(
+        start=side_y.copy().translate([0, tunnel_start[1], 0]),
+        mid=side_y.copy().translate([0, tunnel_mid[1], 0]),
+        end=side_y.copy().translate([0, tunnel_end[1], 0])
+    )
+
+    # tunnel_1_c, tunnel_box_1 = create_cylinder(gen, geometry_dict['tunnel_1'], 0.2)
+    # tunnel_1_x = tunnel_1_c.copy().intersect(tunnel_box_1)
+    # # tunnel_1_s, s1, s2 = gen.fragment(tunnel_1_c.copy(), tunnel_split["start"].copy(), tunnel_split["mid"].copy())
+    #
+    # tunnel_2_c, tunnel_box_2 = create_cylinder(gen, geometry_dict['tunnel_2'], 0.2)
+    # tunnel_2_x = tunnel_2_c.copy().intersect(tunnel_box_2)
+    # # tunnel_2_s, s1, s2 = gen.fragment(tunnel_2_c.copy(), tunnel_split["mid"].copy(), tunnel_split["end"].copy())
+    #
+    # tunnel_1_s, tunnel_2_s, s1, s3 = gen.fragment(tunnel_1_c.copy(), tunnel_2_c.copy(),
+    #                                 tunnel_split["start"].copy(),
+    #                                 # tunnel_split["mid"].copy(),
+    #                                 tunnel_split["end"].copy())
+    #
+    # tunnel_1 = tunnel_1_s.select_by_intersect(tunnel_1_x)
+    # tunnel_2 = tunnel_2_s.select_by_intersect(tunnel_2_x)
+    #
+    # # tunnel = tunnel_1.fuse(tunnel_2)
+    # # tunnel_x = [tunnel_1, tunnel_2]
+    #
+    #
+    # # box_inner_cut = box_inner.copy().cut(*tunnel_x)
+    # # box_inner_cut = box_inner.cut(tunnel)
+    # # box_inner_reg = box_inner.cut(tunnel)
+    # box_inner_reg = box_inner.cut(tunnel_1, tunnel_2)
+
+    tunnel_1_c, tunnel_box_1 = create_cylinder(gen, geometry_dict['tunnel_1'], 0.2)
+    tunnel_1_x = tunnel_1_c.copy().intersect(tunnel_box_1)
+
+    tunnel_2_c, tunnel_box_2 = create_cylinder(gen, geometry_dict['tunnel_2'], 0.2)
+    tunnel_2_x = tunnel_2_c.copy().intersect(tunnel_box_2)
+
+    tunnel_1_s, tunnel_2_s, s1, s3 = gen.fragment(tunnel_1_c.copy(), tunnel_2_c.copy(),
+                                                  tunnel_split["start"].copy(),
+                                                  # tunnel_split["mid"].copy(),
+                                                  tunnel_split["end"].copy())
+
+    # tbox_length_y = np.abs(tunnel_mid[1] - tunnel_start[1])
+    #
+    # y_center = tunnel_start[1] - tbox_length_y /2
+    # tbox = gen.box([box_size[0], tbox_length_y, box_size[2]], [0, y_center, 0])
+
+    tunnel_1 = tunnel_1_s.select_by_intersect(tunnel_1_x)
+    # tunnel_1 = tunnel_1_s.select_by_intersect(tbox)
+    tunnel_2 = tunnel_2_s.select_by_intersect(tunnel_2_x)
+
+    # tunnel = tunnel_1.fuse(tunnel_2)
+    # tunnel_x = [tunnel_1, tunnel_2]
+
+    # box_inner_cut = box_inner.copy().cut(*tunnel_x)
+    # box_inner_cut = box_inner.cut(tunnel)
+    # box_inner_reg = box_inner.cut(tunnel)
+    box_inner_reg = box_inner.cut(tunnel_1, tunnel_2)
+
+    # make boundaries
+    print("Making boundaries...")
+
+    b_box_inner = box_inner_reg.get_boundary()
+    box_all = []
+    # b_tunnel = b_box_inner.select_by_intersect(*tunnel_x)
+    b_tunnel = b_box_inner.select_by_intersect(tunnel_1, tunnel_2)
+    box_all.append(b_tunnel.modify_regions("." + geometry_dict['inner_box']["name"] + "_tunnel"))
+    box_all.append(box_inner_reg)
+
+    print("Making boundaries...[finished]")
+
+
+    # from the outermost to innermost
+    box_inner_reg.set_mesh_step(4)
+    b_tunnel.set_mesh_step(1.5)
+    # tunnel_1_s.set_mesh_step(1.5)
+    # tunnel_2_s.set_mesh_step(1.5)
+    #
+    # # gen.synchronize()
+    mesh_all = [*box_all]
+    # mesh_all = [tunnel_1_s, tunnel_2_s]
+    # mesh_all = [*box_all, tunnel_1_f, tunnel_2_f]
+    # gen.remove_duplicate_entities()
+
+    print("Generating mesh...")
+    gen.make_mesh(mesh_all)
+    print("Generating mesh...[finished]")
+    print("Writing mesh...")
+    mesh_name = "greet_mesh.msh2"
+    gen.write_mesh(mesh_name, gmsh.MeshFormat.msh2)
+    print("Writing mesh...[finished]")
+    # gen.show()
+
+    healer = heal_mesh.HealMesh.read_mesh(mesh_name)
+    healer.heal_mesh()
+    healer.write()
+
+def generate_mesh_cut_tunnel_2(geometry_dict):
+    # options.Geometry.Tolerance = 0.0001
+    # options.Geometry.ToleranceBoolean = 0.001
+    # options.Geometry.AutoCoherence = 2
+    # options.Geometry.OCCFixSmallEdges = True
+    # options.Geometry.OCCFixSmallFaces = True
+    # options.Geometry.OCCFixDegenerated = True
+    # options.Geometry.OCCSewFaces = True
+    # # #
+    # options.Mesh.ToleranceInitialDelaunay = 0.01
+    # options.Mesh.CharacteristicLengthMin = 0.5
+    # # options.Mesh.CharacteristicLengthMax = 20
+    # options.Mesh.AngleToleranceFacetOverlap = 0.8
+
+    gen = gmsh.GeometryOCC("greet_mesh_tunnel", verbose=True)
+
+    with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
+        geometry_dict = yaml.safe_load(f)
+
+    # create inner box
+    # box_inner = create_box(gen, geometry_dict['inner_box'])
+
+    # create tunnel
+    box_size = np.array(geometry_dict['outer_box']["size"])
+    tunnel_start = np.array(geometry_dict['tunnel_1']["start"])
+    tunnel_mid = np.array(geometry_dict['tunnel_1']["end"])
+    tunnel_end = np.array(geometry_dict['tunnel_2']["end"])
+    side_y = gen.rectangle([box_size[0], box_size[2]]).rotate([-1, 0, 0], np.pi / 2)
+    tunnel_split = dict(
+        start=side_y.copy().translate([0, tunnel_start[1], 0]),
+        mid=side_y.copy().translate([0, tunnel_mid[1], 0]),
+        end=side_y.copy().translate([0, tunnel_end[1], 0])
+    )
+
+    tunnel_1_c, tunnel_box_1 = create_cylinder(gen, geometry_dict['tunnel_1'], 0.2)
+    # tunnel_1_x = tunnel_1_c.copy().intersect(tunnel_box_1)
+
+    tunnel_2_c, tunnel_box_2 = create_cylinder(gen, geometry_dict['tunnel_2'], 0.2)
+    # tunnel_2_x = tunnel_2_c.copy().intersect(tunnel_box_2)
+
+    # tunnel_1_s, tunnel_2_s, s1, s3 = gen.fragment(tunnel_1_c, tunnel_2_c,
+    #                                               tunnel_split["start"].copy(),
+    #                                               # tunnel_split["mid"].copy(),
+    #                                               tunnel_split["end"].copy())
+    frag_all = gen.fragment(tunnel_1_c, tunnel_2_c,
+                                                  tunnel_split["start"].copy(),
+                                                  # tunnel_split["mid"].copy(),
+                                                  tunnel_split["end"].copy())
+
+    # tbox_length_y = np.abs(tunnel_mid[1] - tunnel_start[1])
+    #
+    # y_center = tunnel_start[1] - tbox_length_y /2
+    # tbox = gen.box([box_size[0], tbox_length_y, box_size[2]], [0, y_center, 0])
+
+    # tunnel_1 = tunnel_1_s.select_by_intersect(tunnel_1_x)
+    # tunnel_1 = tunnel_1_s.select_by_intersect(tbox)
+    # tunnel_2 = tunnel_2_s.select_by_intersect(tunnel_2_x)
+
+    # tunnel = tunnel_1_s.fuse(tunnel_2_s)
+    # tunnel = gen.group(tunnel_1_s, tunnel_2_s)
+
+    # box_inner_cut = box_inner.copy().cut(*tunnel_x)
+    # box_inner_cut = box_inner.cut(tunnel)
+    # box_inner_reg = box_inner.cut(tunnel)
+    # box_inner_reg = box_inner.cut(tunnel_1, tunnel_2)
+
+    # make boundaries
+    # print("Making boundaries...")
+    #
+    # b_box_inner = box_inner_reg.get_boundary()
+    # box_all = []
+    # # b_tunnel = b_box_inner.select_by_intersect(*tunnel_x)
+    # b_tunnel = b_box_inner.select_by_intersect(tunnel_1, tunnel_2)
+    # box_all.append(b_tunnel.modify_regions("." + geometry_dict['inner_box']["name"] + "_tunnel"))
+    # box_all.append(box_inner_reg)
+
+    print("Making boundaries...[finished]")
+
+
+    # from the outermost to innermost
+    # box_inner_reg.set_mesh_step(4)
+    # b_tunnel.set_mesh_step(1.5)
+    # tunnel_1_s.set_mesh_step(1.5)
+    # tunnel_2_s.set_mesh_step(1.5)
+    # tunnel_1_s.set_mesh_step(1.5)
+    #
+    # # gen.synchronize()
+    # mesh_all = [*box_all]
+    mesh_all = [*frag_all]
+    # mesh_all = [tunnel_1_s, tunnel_2_s]
+    # mesh_all = [*box_all, tunnel_1_f, tunnel_2_f]
+    # gen.remove_duplicate_entities()
+
+    print("Generating mesh...")
+    gen.make_mesh(mesh_all)
+    print("Generating mesh...[finished]")
+    print("Writing mesh...")
+    mesh_name = "greet_mesh.msh2"
+    gen.write_mesh(mesh_name, gmsh.MeshFormat.msh2)
+    print("Writing mesh...[finished]")
+    # gen.show()
+
+    # healer = heal_mesh.HealMesh.read_mesh(mesh_name)
+    # healer.heal_mesh()
+    # healer.write()
 
 def generate_mesh_fuse(geometry_dict):
     gen = gmsh.GeometryOCC("greet_mesh")
@@ -1156,7 +1393,11 @@ if __name__ == "__main__":
     # generate_mesh_tunnel(geometry_dict)
     # generate_mesh_tunnel_2(geometry_dict)
     # generate_mesh_tunnel_3(geometry_dict)
-    generate_mesh_tunnel_4(geometry_dict)
+    # generate_mesh_tunnel_4(geometry_dict)
+
+    generate_mesh_cut_tunnel(geometry_dict)
+    # generate_mesh_cut_tunnel_2(geometry_dict)
+
     # generate_mesh_2(geometry_dict)
     # generate_mesh_fuse(geometry_dict)
     print("finished")
