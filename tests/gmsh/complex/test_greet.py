@@ -56,6 +56,8 @@ def test_empty_mesh():
     """
     Problem: Even though gmsh reports errors, it creates mesh with no elements.
     See seg fault problem below...
+
+    The fragmentation of the tunnels is a dead end, however, we do not understand the behaviour above.
     """
     mesh_name = "greet_empty_mesh"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True)
@@ -119,6 +121,8 @@ def test_greet_no_volume():
     """
     Problem: Does not generate volume mesh.
     select_by_intersect probably fails, in comparison to simple cut(*tunnel_f)
+
+    The cutting of the tunnels is a dead end, however, we do not understand the behaviour above.
     """
     mesh_name = "greet_no_volume"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True)
@@ -201,7 +205,8 @@ def test_fuse_boxes():
 
 def test_fuse_boxes2():
     """
-    Test of fusion function. It makes union of two intersection boxes.
+    Test of fusion function. It makes union of three face-adjacent boxes.
+    Possibly it can make union of two non-intersecting boxes.
     """
     mesh_name = "box_fuse_2"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True)
@@ -214,7 +219,10 @@ def test_fuse_boxes2():
     box_2.translate([0, 20, 0])
     box_3.translate([0, 40, 0])
 
-    box_fused = box_1.fuse(box_3)
+    # make union of two non-intersecting boxes
+    # box_fused = box_1.fuse(box_3)
+
+    box_fused = box_1.fuse(box_2, box_3)
     assert box_fused.regions[0] == gmsh.Region.default_region[3]
     box_fused.set_region("box")
     # box_fused.set_mesh_step(1)

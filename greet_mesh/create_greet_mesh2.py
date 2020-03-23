@@ -1,22 +1,13 @@
 import sys
 import os
-import itertools
-
-import shutil
-import subprocess
 import yaml
-import attr
 import numpy as np
-import collections
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(script_dir, '../src/bgem/gmsh'))
-# sys.path.append(os.path.join(script_dir, '../../dfn/src'))
-
 
 from bgem.gmsh import gmsh
 from bgem.gmsh import options
-# from bgem.gmsh import heal_mesh
 
 
 def create_box(gmsh_occ, box_geom):
@@ -33,14 +24,11 @@ def create_box(gmsh_occ, box_geom):
         box.rotate([0,0,1], rot_z)
 
     box.translate(box_geom["center"])
-    # box.set_region(box_geom["name"])
     return box
 
+
 def create_plane(gmsh_occ, plane_geom):
-    # points = np.array(fr_geom["nodes"])
-
     plane = gmsh_occ.make_polygon(plane_geom["nodes"])
-
     return plane
 
 
@@ -155,8 +143,6 @@ def fuse_tunnels(gmsh_occ, geom):
         splits.append(split)
         y_split = y_split - part_y  # move split to the next one
 
-    # splits.append(split_plane.copy().translate([0, tunnel_end[1], 0]))
-
     # tunnel_f = gmsh_occ.fragment(tunnel_fuse, *splits)
     tunnel_f = tunnel_fuse.fragment(*splits)
 
@@ -172,9 +158,12 @@ def fuse_tunnels(gmsh_occ, geom):
     # for t in tunnel:
     #     print(center_comparison(t))
 
+    # sort the tunnel part along the y-axis according to the barycenters
+    # the fragment returned the parts in a weird order
     tunnel.sort(reverse=True, key=center_comparison)
 
     return tunnel
+
 
 def generate_mesh(geom):
     # options.Geometry.Tolerance = 0.001
@@ -356,6 +345,7 @@ def generate_mesh(geom):
     # healer = heal_mesh.HealMesh.read_mesh(mesh_name)
     # healer.heal_mesh()
     # healer.write()
+
 
 if __name__ == "__main__":
     sample_dir = sys.argv[1]
