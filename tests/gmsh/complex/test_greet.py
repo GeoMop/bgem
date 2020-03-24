@@ -307,3 +307,78 @@ def test_splitting():
 
     gen.make_mesh([*tunnel_parts, *splits])
     gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+
+
+def test_fuse_tunnel():
+    """
+    Test shows, how to fuse two cylinders cross-secting each in a common plane under given angle.
+    It prolongates the cylinders, creates the common face in the middle, cuts the original cylinders
+    and then fuses them into final object.
+    """
+    mesh_name = "tunnel"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True)
+    geom = geometry()
+
+    # create tunnel
+    tunnel_start = np.array(geom['tunnel_1']["start"])
+    tunnel_mid = np.array(geom['tunnel_1']["end"])
+    tunnel_end = np.array(geom['tunnel_2']["end"])
+
+    tunnel_1_c = create_cylinder(gen, geom['tunnel_1'], 0.2)
+    tunnel_2_c = create_cylinder(gen, geom['tunnel_2'], 0.2)
+
+    # cutting box
+    box_s = 200
+    box = gen.box([box_s, box_s, box_s])
+    # cutting plane between the cylinders
+    plane = gen.rectangle([box_s, box_s]).rotate([1, 0, 0], np.pi / 2)
+
+    # directional vectors of the cylinders
+    # supposing equal radius
+    v_t1 = tunnel_mid - tunnel_start
+    v_t1 = v_t1 / np.linalg.norm(v_t1)  # normalize
+    v_t2 = tunnel_mid - tunnel_end
+    v_t2 = v_t2 / np.linalg.norm(v_t2)  # normalize
+
+    # directional vectors of the cutting plane
+    u = v_t1 + v_t2
+    v = np.cross(v_t1, v_t2)
+    # normal of the cutting plane
+    n = np.cross(u, v)
+    n = n / np.linalg.norm(n)  # normalize
+
+    # angle between cutting plane and y-axis
+    angle = np.arccos(np.dot([0, 0, 1], n)) - np.pi / 2
+    # rotate cutting box and plane
+    box.rotate(axis=[1, 0, 0], angle=angle)
+    plane.rotate(axis=[1, 0, 0], angle=angle)
+
+    # move the cutting plane into the connecting point
+    plane.translate(tunnel_mid)
+
+    # move box and cut the first cylinder
+    box.translate(tunnel_mid)
+    box.translate(-box_s / 2 * n)
+    tunnel_1_x = tunnel_1_c.intersect(box)
+
+    # move box and cut the second cylinder
+    box.translate(+box_s * n)
+    tunnel_2_x = tunnel_2_c.intersect(box)
+
+    print("fuse...")
+    tunnel = tunnel_1_x.fuse(tunnel_2_x)
+    # tunnel = tunnel_2_x.fuse(tunnel_1_x)
+    tunnel.set_region("tunnel")
+    tunnel.set_mesh_step(1.5)
+
+    mesh_all = [tunnel]
+
+    print("Generating mesh...")
+    gen.keep_only(*mesh_all)
+    # gen.write_brep()
+    gen.make_mesh(mesh_all)
+    print("Generating mesh...[finished]")
+    print("Writing mesh...")
+    gen.write_mesh(mesh_name, gmsh.MeshFormat.msh2)
+    print("Writing mesh...[finished]")
+    # gen.show()
