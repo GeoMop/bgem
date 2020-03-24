@@ -835,7 +835,7 @@ class ObjectSet:
         """
         Fuse self object with 'tool_objects'.
         Returns the fused object, self is destroyed, tool_objects are destroyed.
-        Regions set on self are transfered to the result.
+        Default regions are prescribed to all resulting dimtags.
         """
         # return self._apply_operation(tool_objects, self.factory.model.fuse)
         # tool_objects = self.factory.group(*tool_objects).copy()
