@@ -251,13 +251,12 @@ def generate_mesh(geom):
     # frag = gen.fragment(box_outer, box_inner_cut)
     print("fragment end")
 
-    mesh_step_dict = dict()
     box_outer_reg = frag[0].select_by_intersect(box_outer_cut)
     box_outer_reg.set_region(geometry_dict['outer_box']["name"])
-    mesh_step_dict[box_outer_reg] = 10.0
+    gen.set_mesh_step(box_outer_reg, 10.0)
     box_inner_reg = frag[1]
     box_inner_reg.set_region(geometry_dict['inner_box']["name"])
-    mesh_step_dict[box_inner_reg] = 4.0
+    gen.set_mesh_step(box_inner_reg, 4.0)
 
     box_all = [box_outer_reg, box_inner_reg]
 
@@ -279,6 +278,7 @@ def generate_mesh(geom):
         b_tunnel_part = b_box_inner.select_by_intersect(tunnel[i])
         b_tunnel_part.set_region(".tunnel" + "_" + str(i))
         b_tunnel_parts.append(b_tunnel_part)
+        gen.set_mesh_step(b_tunnel_part, 1.0)
     print("Making boundaries...[finished]")
 
     box_all.extend(b_tunnel_parts)
@@ -290,7 +290,7 @@ def generate_mesh(geom):
         frac_cut = frac.cut(*tunnel)
         frac_reg = fractures_f_group.select_by_intersect(frac_cut)
         frac_reg.set_region(name)
-        mesh_step_dict[frac_reg] = 2.0
+        gen.set_mesh_step(frac_reg, 2.0)
         fractures_reg.append(frac_reg)
 
         # set regions on the 1D curve cross-section of fractures and tunnel surface
@@ -304,9 +304,6 @@ def generate_mesh(geom):
 
     box_all.extend(fractures_reg)
     print("Setting fractures regions...[finished]")
-
-    for btp in b_tunnel_parts:
-        mesh_step_dict[btp] = 1.0
 
     # the tunnel must be removed before meshing | we do not know the reason
     for t in tunnel:
@@ -330,9 +327,6 @@ def generate_mesh(geom):
     print("Generating mesh...")
     gen.keep_only(*mesh_all)
     gen.write_brep()
-
-    for obj, step in mesh_step_dict.items():
-        obj.set_mesh_step(step)
 
     gen.make_mesh(mesh_all)
     print("Generating mesh...[finished]")

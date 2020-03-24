@@ -214,6 +214,8 @@ class GeometryOCC:
         self._region_names = {}
         self._need_synchronize = False
 
+        self.mesh_step_dict = dict()
+
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
 
     def reinit(self):
@@ -228,6 +230,15 @@ class GeometryOCC:
         return ObjectSet(self, [(dim, tag)], [Region.default_region[dim]])
 
     # def objects(self, ):
+    def set_mesh_step(self, obj: 'ObjectSet', mesh_step):
+        """
+        Keeps the mesh sizes set on particular objects.
+        At the end, it will sort the objects by the mesh step size
+        and set the mesh step from the largest to smallest.
+        This resolves the problem with the recusivity of the gmsh set_mesh_step function
+        and  puts priority on the smaller mesh step.
+        """
+        self.mesh_step_dict[obj] = mesh_step
 
     def make_simplex(self, dim=3):
         """
@@ -459,6 +470,7 @@ class GeometryOCC:
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:
         """
         Generate mesh for given objects.
+        0. set the mesh step.
         1. set physical groups from objects regions.
         2. OPTIONAL remove other shapes then specified
         3. call meshing
@@ -467,8 +479,15 @@ class GeometryOCC:
         :param dim: Set highest dimension to mesh.
         :param eliminate:
         """
+
+        # sort the objects by mesh step size from the largest to the smallest
+        mesh_step_dict_sorted = sorted(self.mesh_step_dict.items(), key=lambda item:item[1], reverse=True)
+        for obj, step in mesh_step_dict_sorted:
+            obj.set_mesh_step(step)
+
         group = self.group(*objects)
         self._assign_physical_groups(group)
+
         if eliminate:
             self.keep_only(group)
         self.synchronize()
