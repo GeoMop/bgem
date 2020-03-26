@@ -214,8 +214,6 @@ class GeometryOCC:
         self._region_names = {}
         self._need_synchronize = False
 
-        self.mesh_step_dict = dict()
-
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
 
     def reinit(self):
@@ -228,17 +226,6 @@ class GeometryOCC:
 
     def object(self, dim, tag):
         return ObjectSet(self, [(dim, tag)], [Region.default_region[dim]])
-
-    # def objects(self, ):
-    def set_mesh_step(self, obj: 'ObjectSet', mesh_step):
-        """
-        Keeps the mesh sizes set on particular objects.
-        At the end, it will sort the objects by the mesh step size
-        and set the mesh step from the largest to smallest.
-        This resolves the problem with the recusivity of the gmsh set_mesh_step function
-        and  puts priority on the smaller mesh step.
-        """
-        self.mesh_step_dict[obj] = mesh_step
 
     def make_simplex(self, dim=3):
         """
@@ -379,7 +366,13 @@ class GeometryOCC:
         regions = [reg
                    for obj in obj_list
                    for reg in obj.regions]
-        return ObjectSet(self, all_dim_tags, regions)
+        mesh_step_size = [step
+                          for obj in obj_list
+                          for step in obj.mesh_step_size]
+
+        g = ObjectSet(self, all_dim_tags, regions)
+        g.mesh_step_size = mesh_step_size
+        return g
 
     def make_rectangle(self, scale) -> int:
         # Vertices of the rectangle
@@ -457,15 +450,38 @@ class GeometryOCC:
         # make used region names unique
         for id_set in reg_names.values():
             if len(id_set) > 1:
-                for i, id in enumerate(sorted(id_set)
-
-                                       ):
+                for i, id in enumerate(sorted(id_set)):
                     reg_to_tags[id][0].set_unique_name(i)
 
         # set physical groups
         for reg, tags in reg_to_tags.values():
             reg._gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
             gmsh.model.setPhysicalName(reg.dim, reg._gmsh_id, reg.name)
+
+    def _set_mesh_step(self, obj: 'ObjectSet'):
+        self.synchronize()
+        step_to_dimtags = {}
+
+        # create map step -> dimtags
+        for dimtag, step in zip(obj.dim_tags, obj.mesh_step_size):
+            if step == obj.default_mesh_step:
+                continue
+            step_to_dimtags.setdefault(step, [])
+            step_to_dimtags[step].append(dimtag)
+
+        # sort from the largest to the smallest step
+        step_to_dimtags_sorted = sorted(step_to_dimtags.items(), key=lambda item: item[0], reverse=True)
+
+        # set recursively the mesh step
+        for step, dimtags in step_to_dimtags_sorted:
+            # Get boundary resursive to obtain nodes
+            try:
+                b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
+            except ValueError as err:
+                message = "\nobj dimtags: {} ...".format(str(dimtags[:10]))
+                raise GetBoundaryError(message) from err
+            nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
+            gmsh.model.mesh.setSize(nodes, step)
 
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:
         """
@@ -480,13 +496,9 @@ class GeometryOCC:
         :param eliminate:
         """
 
-        # sort the objects by mesh step size from the largest to the smallest
-        mesh_step_dict_sorted = sorted(self.mesh_step_dict.items(), key=lambda item:item[1], reverse=True)
-        for obj, step in mesh_step_dict_sorted:
-            obj.set_mesh_step(step)
-
         group = self.group(*objects)
         self._assign_physical_groups(group)
+        self._set_mesh_step(group)
 
         if eliminate:
             self.keep_only(group)
@@ -550,6 +562,8 @@ class GeometryOCC:
 
 
 class ObjectSet:
+    default_mesh_step = 0
+
     def __init__(self, factory: GeometryOCC, dim_tags: List[DimTag], regions: List[Region]) -> None:
         self.factory = factory
         self.dim_tags = dim_tags
@@ -558,6 +572,7 @@ class ObjectSet:
         else:
             assert (len(regions) == len(dim_tags))
             self.regions = regions
+        self.mesh_step_size = [self.default_mesh_step for _ in dim_tags]
 
     @property
     def tags(self):
@@ -613,7 +628,9 @@ class ObjectSet:
     def copy(self) -> 'ObjectSet':
         copy_tags = self.factory.model.copy(self.dim_tags)
         self.factory._need_synchronize = True
-        return ObjectSet(self.factory, copy_tags, self.regions)
+        copy_obj = ObjectSet(self.factory, copy_tags, self.regions)
+        copy_obj.mesh_step_size = self.mesh_step_size.copy()
+        return copy_obj
 
     def get_boundary(self, combined=False):
         """
@@ -709,7 +726,20 @@ class ObjectSet:
 
     def set_mesh_step(self, step):
         """
-        Set mesh step 'step' to all nodes of the objects in the ObjectSet.
+        Saves the mesh step for all dimtags in this ObjectSet.
+        The values are applied later when making mesh.
+
+        At the end, it will sort the dimtags by the mesh step size
+        and set the mesh step from the largest to smallest.
+        This resolves the problem with the recursion of the gmsh setSize function
+        and  puts priority on the smaller mesh step.
+        """
+        self.mesh_step_size = [step for _ in self.dim_tags]
+
+
+    def set_mesh_step_direct(self, step):
+        """
+        Set mesh step 'step' IMMEDIATELY to all nodes recursively to all dimtags in the ObjectSet.
         TODO: be resistent to nonexisting dimtags
         """
         # Get boundary resursive to obtain nodes

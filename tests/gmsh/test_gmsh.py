@@ -124,9 +124,13 @@ def test_splitting():
 
     tunnel_parts.sort(reverse=False, key=center_comparison)
 
+    # test setting mesh step size
+    i = 0
+    delta = 0.4
     for t in tunnel_parts:
         print(gen.model.getMass(*(t.dim_tags[0])))
-        t.set_mesh_step(2.0)
+        t.set_mesh_step(0.6+i*delta)
+        i = i+1
 
     gen.make_mesh([*tunnel_parts, *splits])
     gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
