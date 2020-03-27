@@ -671,6 +671,8 @@ class ObjectSet:
         outDimTags = self.factory.model.extrude(self.dim_tags, *vector, numElements, heights, recombine)
         regions = [Region.default_region[dim] for dim, tag in outDimTags]
         all_obj = ObjectSet(self.factory, outDimTags, regions)
+
+        self.factory._need_synchronize = True
         # split the Objectset by dimtags
         return all_obj.split_by_dimension()
 

@@ -67,10 +67,6 @@ def test_extrude_rect():
 def test_extrude_polygon():
     """
     Test extrusion of an polygon.
-
-    BUG: Currently failing:
-    - in this setting (set mesh step directly to nodes of polygon) it generates elements but writes empty mesh
-    - when setting mesh step by getting boundary inside make_mesh, it fails
     """
     mesh_name = "extrude_polygon"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True)
@@ -96,24 +92,18 @@ def test_extrude_polygon():
     points.append(v)
 
     # create polygon
-    # polygon = gen.make_polygon(points)
+    polygon = gen.make_polygon(points)
     # trying to set mesh step directly to nodes
-    polygon = gen.make_polygon(points, 0.1)
+    # polygon = gen.make_polygon(points, 0.2)
     prism_extrude = polygon.extrude(3*n)
 
     prism = prism_extrude[3]
-    # prism.set_mesh_step(0.5)
+    prism.set_mesh_step_direct(0.5)
     prism.set_region("prism")
-    mesh_all = [prism]
-
-    # polygon.set_mesh_step(0.5)
-    # polygon.set_region("polygon")
-    # mesh_all = [polygon]
 
     mesh_all = [prism]
 
-    gen.write_brep(mesh_name)
-    # fails with getting boundary when setting mesh step
+    # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
     gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
 
