@@ -22,6 +22,61 @@ def test_extrude_rect():
     gen.make_mesh(mesh_all)
     gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
 
+
+def test_extrude_polygon():
+    """
+    Test extrusion of an polygon.
+
+    BUG: Currently failing:
+    - in this setting (set mesh step directly to nodes of polygon) it generates elements but writes empty mesh
+    - when setting mesh step by getting boundary inside make_mesh, it fails
+    """
+    mesh_name = "extrude_polygon"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True)
+
+    # plane directional vectors vector
+    u = np.array([1, 1, 0])
+    u = u / np.linalg.norm(u)
+    v = np.array([0, 1, 1])
+    v = v / np.linalg.norm(v)
+
+    #normal
+    n = np.cross(u,v)
+    n = n / np.linalg.norm(n)
+
+    # add some points in the plane
+    points= []
+    points.append(u)
+    points.append(2 * u + 1 * v)
+    points.append(5 * u + -2 * v)
+    points.append(5 * u + 3 * v)
+    points.append(4 * u + 5 * v)
+    points.append(-2 * u + 3*v)
+    points.append(v)
+
+    # create polygon
+    # polygon = gen.make_polygon(points)
+    # trying to set mesh step directly to nodes
+    polygon = gen.make_polygon(points, 0.1)
+    prism_extrude = polygon.extrude(3*n)
+
+    prism = prism_extrude[3]
+    # prism.set_mesh_step(0.5)
+    prism.set_region("prism")
+    mesh_all = [prism]
+
+    # polygon.set_mesh_step(0.5)
+    # polygon.set_region("polygon")
+    # mesh_all = [polygon]
+
+    mesh_all = [prism]
+
+    gen.write_brep(mesh_name)
+    # fails with getting boundary when setting mesh step
+    gen.make_mesh(mesh_all)
+    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+
+
 def test_fuse_boxes():
     """
     Test of fusion function. It makes union of two intersection boxes.
