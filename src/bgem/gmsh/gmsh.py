@@ -263,6 +263,43 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(2, rec_tag)
 
+    def circle(self, radius, center=[0, 0, 0]):
+        """
+        Creates circle.
+        Note that OCC model has a direct function for it.
+        GEO model has to build the circle from circle arcs
+        (at least 3 due to arcs have to have angle strictly smaller than pi).
+        """
+        circ_arcs = []
+        if self.model is gmsh.model.occ:
+            circ_arcs.append(self.model.addCircle(*center, radius))
+        elif self.model is gmsh.model.geo:
+            a = center + radius * np.array([1, 0, 0])
+            b = center + radius * np.array([-1, 0, 0])
+            c = center + radius * np.array([0, 1, 0])
+            d = center + radius * np.array([0, -1, 0])
+
+            ap = self.model.addPoint(*a)
+            bp = self.model.addPoint(*b)
+            cp = self.model.addPoint(*c)
+            dp = self.model.addPoint(*d)
+            centp = self.model.addPoint(*center)
+
+            circ_arcs.append(self.model.addCircleArc(ap, centp, cp))
+            circ_arcs.append(self.model.addCircleArc(cp, centp, bp))
+            circ_arcs.append(self.model.addCircleArc(bp, centp, dp))
+            circ_arcs.append(self.model.addCircleArc(dp, centp, ap))
+
+        circ_loop = self.model.addCurveLoop(circ_arcs)
+        self._need_synchronize = True
+        return self.object(1, circ_loop)
+
+    def circle_fill(self, radius, center=[0, 0, 0]):
+        circ = self.circle(radius, center)
+        surface = self.model.addPlaneSurface([*circ.tags])
+        self._need_synchronize = True
+        return self.object(2, surface)
+
     def box(self, sides, center=[0, 0, 0]):
         corner = np.array(center) - np.array(sides) / 2
         box_tag = self.model.addBox(*corner, *sides)

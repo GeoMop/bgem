@@ -2,6 +2,47 @@ from bgem.gmsh import gmsh
 import numpy as np
 import pytest
 
+
+def test_extrude_circle():
+    """
+    Test extrusion of an circle.
+    """
+    mesh_name = "extrude_circle"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True)
+
+    circ = gen.circle_fill(radius=3, center=[2,5,1])
+    circ_extrude = circ.extrude([2, 2, 2])
+
+    tube = circ_extrude[3]
+    tube.set_mesh_step(0.5)
+    tube.set_region("tube")
+
+    mesh_all = [tube]
+
+    # gen.write_brep(mesh_name)
+    gen.make_mesh(mesh_all)
+    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+
+def test_extrude_circle_geo():
+    """
+    Test extrusion of an circle.
+    """
+    mesh_name = "extrude_circle_geo"
+    gen = gmsh.GeometryOCC(mesh_name, model_str='geo', verbose=True)
+
+    circ = gen.circle_fill(radius=3, center=[2,5,1])
+    circ_extrude = circ.extrude([2, 2, 2])
+
+    tube = circ_extrude[3]
+    tube.set_mesh_step(0.5)
+    tube.set_region("tube")
+
+    mesh_all = [tube]
+
+    # gen.write_brep(mesh_name)
+    gen.make_mesh(mesh_all)
+    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+
 def test_extrude_rect():
     """
     Test extrusion of an rectangle.
