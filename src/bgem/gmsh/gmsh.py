@@ -664,7 +664,9 @@ class ObjectSet:
 
     def extrude(self, vector, numElements=[], heights=[], recombine=False) -> List['ObjectSet']:
         """
-
+        Extrudes the self object in the direction of 'vector'.
+        Self object is NOT destroyed.
+        Returns list ObjecSet of length 4, each corresponds to its dimension.
         """
         outDimTags = self.factory.model.extrude(self.dim_tags, *vector, numElements, heights, recombine)
         regions = [Region.default_region[dim] for dim, tag in outDimTags]
