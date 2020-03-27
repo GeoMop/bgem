@@ -2,6 +2,25 @@ from bgem.gmsh import gmsh
 import numpy as np
 import pytest
 
+def test_extrude_rect():
+    """
+    Test extrusion of an rectangle.
+    """
+    mesh_name = "extrude_rect"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True)
+
+    rect = gen.rectangle([2,5])
+    prism_extrude = rect.extrude([1, 3, 4])
+
+    prism = prism_extrude[3]
+    prism.set_mesh_step(0.5)
+    prism.set_region("prism")
+
+    mesh_all = [prism]
+
+    # gen.write_brep(mesh_name)
+    gen.make_mesh(mesh_all)
+    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
 
 def test_fuse_boxes():
     """
