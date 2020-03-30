@@ -312,54 +312,33 @@ class GeometryOCC:
         return self.object(3, cylinder_tag)
 
     def cylinder_discrete(self, r=1, axis=[0, 0, 1], center=[0, 0, 0], n_points=6):
-        points_a = []
-        points_b = []
-        center_a = center - axis / 2
-        center_b = center + axis / 2
+        base_points = []
+        base_center = center - axis / 2
         v = [1, 0, 0]  # take a random vector
-        # n = np.linalg.norm(axis/np.linalg.norm(axis) - v)/np.linalg.norm(axis)
         n = np.abs(np.dot(axis/np.linalg.norm(axis), v)-1)
         if n < 5e-15:
             v = [0, 0, 1]
 
-        # v -= np.dot(v, axis) * axis  # make it orthogonal to axis
-        # v =  v / np.linalg.norm(v)  # normalize
         v = np.cross(v,axis)
         v = v / np.linalg.norm(v)  # normalize
         dphi = 2*np.pi/n_points # differential angle between circ points
         for i in range(0,n_points):
-            points_a.append(center_a + r * v)
-            points_b.append(center_b + r * v)
+            base_points.append(base_center + r * v)
             v = np.dot(rotation_matrix(axis, dphi), v)
 
-        points_a_ids = [self.model.addPoint(*p) for p in points_a]
-        points_a_ids.append(points_a_ids[0])
-        points_b_ids = [self.model.addPoint(*p) for p in points_b]
-        points_b_ids.append(points_b_ids[0])
+        points_tags = [self.model.addPoint(*p) for p in base_points]
+        points_tags.append(points_tags[0])
 
-        lines_a_ids = [self.model.addLine(a, b) for a, b in zip(points_a_ids[0:-1], points_a_ids[1:])]
-        lines_b_ids = [self.model.addLine(a, b) for a, b in zip(points_b_ids[0:-1], points_b_ids[1:])]
-        lines = [self.model.addLine(a, b) for a, b in zip(points_a_ids[:-1], points_b_ids[:-1])]
+        lines_tags = [self.model.addLine(a, b) for a, b in zip(points_tags[0:-1], points_tags[1:])]
+        loop_tag = self.model.addCurveLoop(lines_tags, tag=-1)
+        base_tag = self.model.addPlaneSurface([loop_tag], tag=-1)
 
-        loop_a = self.model.addCurveLoop(lines_a_ids)
-        loop_b = self.model.addCurveLoop(lines_b_ids)
-
-        loops = []
-        for i in range(n_points-1):
-            loops.append(self.model.addCurveLoop(
-                [-lines[i], lines_a_ids[i], lines[i+1], -lines_b_ids[i]]))
-        loops.append(self.model.addCurveLoop(
-            [-lines[-1], lines_a_ids[-1], lines[0], -lines_b_ids[-1]]))
-
-        face_a = self.model.addPlaneSurface([loop_a])
-        face_b = self.model.addPlaneSurface([loop_b])
-        faces = [self.model.addPlaneSurface([loo]) for loo in loops[:]]
-
-        surf_loop = self.model.addSurfaceLoop([face_a, *faces, face_b])
-        cylinder_tag = self.model.addVolume([surf_loop])
+        base = self.object(2, base_tag)
+        base_extrude = base.extrude(axis)
+        cylinder = base_extrude[3]
 
         self._need_synchronize = True
-        return self.object(3, cylinder_tag)
+        return cylinder
 
     def make_polygon(self, points, mesh_step=None):
         """

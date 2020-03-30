@@ -3,6 +3,28 @@ import numpy as np
 import pytest
 
 
+def test_cylinder_discrete():
+    """
+    Test creating discrete cylinder (prism with regular n-point base), extrusion.
+    """
+    mesh_name = "cylinder_discrete_mesh"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True)
+
+    r = 2.5
+    start = np.array([-10, -5, -15])
+    end = np.array([5, 15, 10])
+    axis = end-start
+    center = (end+start)/2
+    cyl = gen.cylinder_discrete(r,axis,center=center, n_points=12)
+    cyl.set_mesh_step(1.0)
+
+    mesh_all = [cyl]
+
+    # gen.write_brep(mesh_name)
+    gen.make_mesh(mesh_all)
+    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+
+
 def test_extrude_circle():
     """
     Test extrusion of an circle.
