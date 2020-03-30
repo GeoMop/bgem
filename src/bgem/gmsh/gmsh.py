@@ -649,7 +649,12 @@ class ObjectSet:
 
         Parameters numElements, heights, recombine have not been investigated yet.
         """
-        outDimTags = self.factory.model.extrude(self.dim_tags, *vector, numElements, heights, recombine)
+        try:
+            outDimTags = self.factory.model.extrude(self.dim_tags, *vector, numElements, heights, recombine)
+        except ValueError as err:
+            message = "\nExtrusion failed! \n dimtags: {}".format(str(self.dim_tags[:10]))
+            raise BoolOperationError(message) from err
+
         regions = [Region.default_region[dim] for dim, tag in outDimTags]
         all_obj = ObjectSet(self.factory, outDimTags, regions)
 
@@ -665,9 +670,16 @@ class ObjectSet:
 
         Parameters numElements, heights, recombine have not been investigated yet.
         """
-        outDimTags = self.factory.model.revolve(self.dim_tags, *center, *axis, angle, numElements, heights, recombine)
+        try:
+            outDimTags = self.factory.model.revolve(self.dim_tags, *center, *axis, angle, numElements, heights, recombine)
+        except ValueError as err:
+            message = "\nRevolving failed! \n dimtags: {}".format(str(self.dim_tags[:10]))
+            raise BoolOperationError(message) from err
+
         regions = [Region.default_region[dim] for dim, tag in outDimTags]
         all_obj = ObjectSet(self.factory, outDimTags, regions)
+
+        self.factory._need_synchronize = True
         # split the Objectset by dimtags
         return all_obj.split_by_dimension()
 
