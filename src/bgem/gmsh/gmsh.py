@@ -646,12 +646,28 @@ class ObjectSet:
         Extrudes the self object in the direction of 'vector'.
         Self object is NOT destroyed.
         Returns list ObjecSet of length 4, each corresponds to its dimension.
+
+        Parameters numElements, heights, recombine have not been investigated yet.
         """
         outDimTags = self.factory.model.extrude(self.dim_tags, *vector, numElements, heights, recombine)
         regions = [Region.default_region[dim] for dim, tag in outDimTags]
         all_obj = ObjectSet(self.factory, outDimTags, regions)
 
         self.factory._need_synchronize = True
+        # split the Objectset by dimtags
+        return all_obj.split_by_dimension()
+
+    def revolve(self, center, axis, angle, numElements=[], heights=[], recombine=False) -> List['ObjectSet']:
+        """
+        Extrudes the self object by revolving it around the axis given by 'center' and 'axis'.
+        Self object is NOT destroyed.
+        Returns list ObjecSet of length 4, each corresponds to its dimension.
+
+        Parameters numElements, heights, recombine have not been investigated yet.
+        """
+        outDimTags = self.factory.model.revolve(self.dim_tags, *center, *axis, angle, numElements, heights, recombine)
+        regions = [Region.default_region[dim] for dim, tag in outDimTags]
+        all_obj = ObjectSet(self.factory, outDimTags, regions)
         # split the Objectset by dimtags
         return all_obj.split_by_dimension()
 

@@ -3,6 +3,28 @@ import numpy as np
 import pytest
 
 
+def test_revolve_square():
+    """
+    Test revolving a square.
+    """
+    mesh_name = "revolve_square_mesh"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True)
+
+    square = gen.rectangle([2, 2], [5,0,0])
+    axis = []
+    center = [5, 10, 0]
+    square_revolved = square.revolve(center=[5, 10, 0], axis=[1, 0, 0], angle=np.pi*3/4)
+
+    obj = square_revolved[3]
+    obj.set_mesh_step(0.5)
+
+    mesh_all = [obj]
+
+    # gen.write_brep(mesh_name)
+    gen.make_mesh(mesh_all)
+    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+
+
 def test_cylinder_discrete():
     """
     Test creating discrete cylinder (prism with regular n-point base), extrusion.
