@@ -4,7 +4,7 @@ import yaml
 import numpy as np
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(script_dir, '../src/bgem/gmsh'))
+#sys.path.append(os.path.join(script_dir, '../src/bgem/gmsh'))
 
 from bgem.gmsh import gmsh
 from bgem.gmsh import options
@@ -342,7 +342,8 @@ def generate_mesh(geom):
 
 
 if __name__ == "__main__":
-    sample_dir = sys.argv[1]
+    #sample_dir = sys.argv[1]
+    sample_dir = script_dir
     with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
         geometry_dict = yaml.safe_load(f)
 
