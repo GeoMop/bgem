@@ -15,8 +15,7 @@ def test_revolve_square():
     center = [5, 10, 0]
     square_revolved = square.revolve(center=[5, 10, 0], axis=[1, 0, 0], angle=np.pi*3/4)
 
-    obj = square_revolved[3]
-    obj.set_mesh_step(0.5)
+    obj = square_revolved[3].mesh_step(0.5)
 
     mesh_all = [obj]
 
@@ -38,7 +37,7 @@ def test_cylinder_discrete():
     axis = end-start
     center = (end+start)/2
     cyl = gen.cylinder_discrete(r,axis,center=center, n_points=12)
-    cyl.set_mesh_step(1.0)
+    cyl.mesh_step(1.0)
 
     mesh_all = [cyl]
 
@@ -58,8 +57,7 @@ def test_extrude_circle():
     circ_extrude = circ.extrude([2, 2, 2])
 
     tube = circ_extrude[3]
-    tube.set_mesh_step(0.5)
-    tube.set_region("tube")
+    tube.set_region("tube").mesh_step(0.5)
 
     mesh_all = [tube]
 
@@ -78,8 +76,7 @@ def test_extrude_circle_geo():
     circ_extrude = circ.extrude([2, 2, 2])
 
     tube = circ_extrude[3]
-    tube.set_mesh_step(0.5)
-    tube.set_region("tube")
+    tube.set_region("tube").mesh_step(0.5)
 
     mesh_all = [tube]
 
@@ -98,8 +95,7 @@ def test_extrude_rect():
     prism_extrude = rect.extrude([1, 3, 4])
 
     prism = prism_extrude[3]
-    prism.set_mesh_step(0.5)
-    prism.set_region("prism")
+    prism.set_region("prism").mesh_step(0.5)
 
     mesh_all = [prism]
 
@@ -142,8 +138,7 @@ def test_extrude_polygon():
     prism_extrude = polygon.extrude(3*n)
 
     prism = prism_extrude[3]
-    prism.set_mesh_step_direct(0.5)
-    prism.set_region("prism")
+    prism.set_region("prism").mesh_step_direct(0.5)
 
     mesh_all = [prism]
 
@@ -165,7 +160,7 @@ def test_fuse_boxes():
 
     box_fused = box_2.fuse(box_1)
     box_fused.set_region("box")
-    # box_fused.set_mesh_step(1)
+    # box_fused.mesh_step(1)
     all_obj = [box_fused]
 
     mesh_all = [*all_obj]
@@ -196,7 +191,7 @@ def test_fuse_boxes2():
     box_fused = box_1.fuse(box_2, box_3)
     assert box_fused.regions[0] == gmsh.Region.default_region[3]
     box_fused.set_region("box")
-    # box_fused.set_mesh_step(1)
+    # box_fused.mesh_step(1)
     all_obj = [box_fused]
 
     mesh_all = [*all_obj]
@@ -278,7 +273,7 @@ def test_splitting():
     delta = 0.4
     for t in tunnel_parts:
         print(gen.model.getMass(*(t.dim_tags[0])))
-        t.set_mesh_step(0.6+i*delta)
+        t.mesh_step(0.6+i*delta)
         i = i+1
 
     gen.make_mesh([*tunnel_parts, *splits])

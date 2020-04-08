@@ -100,12 +100,12 @@ def test_empty_mesh():
     # box_inner_reg = box_inner.cut(*tunnel)
 
     # ENDS WITH SEG FAULT !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # tunnel_1.set_mesh_step(1.5)
-    # tunnel_2.set_mesh_step(1.5)
+    # tunnel_1.mesh_step(1.5)
+    # tunnel_2.mesh_step(1.5)
 
     # ends normally, but with empty mesh !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    tunnel_1_s.set_mesh_step(1.5)
-    tunnel_2_s.set_mesh_step(1.5)
+    tunnel_1_s.mesh_step(1.5)
+    tunnel_2_s.mesh_step(1.5)
 
     mesh_all = [tunnel_1, tunnel_2]
 
@@ -161,7 +161,7 @@ def test_greet_no_volume():
     box_inner_cut = box_inner.cut(*tunnel_f)
     box_inner_reg = frag[0].select_by_intersect(box_inner_cut)
     # box_inner_reg = box_inner.cut(tunnel_box_1)
-    box_inner_reg.set_mesh_step(4.0)
+    box_inner_reg.mesh_step(4.0)
 
     box_all = []
     b_box_inner = box_inner_reg.get_boundary()
@@ -170,8 +170,7 @@ def test_greet_no_volume():
 
     box_all.extend([box_inner_reg])
 
-    box_inner_reg.set_mesh_step(4.0)
-    b_tunnel.set_mesh_step(1.0)
+    b_tunnel.mesh_step(1.0)
 
     mesh_all = [*box_all]
 
@@ -243,8 +242,7 @@ def test_fuse_tunnel():
     print("fuse...")
     tunnel = tunnel_1_x.fuse(tunnel_2_x)
     # tunnel = tunnel_2_x.fuse(tunnel_1_x)
-    tunnel.set_region("tunnel")
-    tunnel.set_mesh_step(1.5)
+    tunnel.set_region("tunnel").mesh_step(1.5)
 
     mesh_all = [tunnel]
 
@@ -327,20 +325,15 @@ def test_fuse_tunnel_2():
     # tunnel = tunnel_1.copy().fuse(tunnel_2.copy())
     tunnel = tunnel_1.fuse(tunnel_2)
     # tunnel = tunnel_2_x.fuse(tunnel_1_x)
-    tunnel.set_region("tunnel")
     mesh_step = 1.0
-    tunnel.set_mesh_step(mesh_step)
+    tunnel.set_region("tunnel").mesh_step(mesh_step)
 
     # tunnel_3 = gen.cylinder(radius, tunnel_mid - tunnel_start, tunnel_start)
     # tunnel_4 = gen.cylinder(radius, tunnel_mid - tunnel_end, tunnel_end)
-    # tunnel_1.set_region("tunnel_1")
-    # tunnel_1.set_mesh_step(mesh_step)
-    # tunnel_2.set_region("tunnel_2")
-    # tunnel_2.set_mesh_step(mesh_step)
-    # tunnel_3.set_region("tunnel_3")
-    # tunnel_3.set_mesh_step(mesh_step)
-    # tunnel_4.set_region("tunnel_4")
-    # tunnel_4.set_mesh_step(mesh_step)
+    # tunnel_1.set_region("tunnel_1").mesh_step(mesh_step)
+    # tunnel_2.set_region("tunnel_2").mesh_step(mesh_step)
+    # tunnel_3.set_region("tunnel_3").mesh_step(mesh_step)
+    # tunnel_4.set_region("tunnel_4").mesh_step(mesh_step)
 
     # mesh_all = [tunnel]
 

@@ -782,10 +782,12 @@ class ObjectSet:
         assert len(self.regions) == len(self.dim_tags)
         return zip(self.dim_tags, self.regions)
 
-    def set_mesh_step(self, step):
+    def mesh_step(self, step):
         """
         Saves the mesh step for all dimtags in this ObjectSet.
         The values are applied later when making mesh.
+
+        Returns self.
 
         At the end, it will sort the dimtags by the mesh step size
         and set the mesh step from the largest to smallest.
@@ -793,11 +795,18 @@ class ObjectSet:
         and  puts priority on the smaller mesh step.
         """
         self.mesh_step_size = [step for _ in self.dim_tags]
+        return self
 
 
-    def set_mesh_step_direct(self, step):
+    def mesh_step_direct(self, step):
         """
         Set mesh step 'step' IMMEDIATELY to all nodes recursively to all dimtags in the ObjectSet.
+
+        Use it carefully, only if you fully understand how this works.
+        Otherwise use mesh_step().
+
+        Returns self.
+
         TODO: be resistent to nonexisting dimtags
         """
         # Get boundary resursive to obtain nodes
@@ -809,6 +818,7 @@ class ObjectSet:
             raise GetBoundaryError(message) from err
         nodes = [(dim, tag) for dim, tag in dimtags if dim == 0]
         gmsh.model.mesh.setSize(nodes, step)
+        return self
 
     def select_by_intersect(self, *tool_objects: 'ObjectSet') -> 'ObjectSet':
         """
