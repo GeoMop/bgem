@@ -311,29 +311,27 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(3, cylinder_tag)
 
-    def cylinder_discrete(self, r=1, axis=[0, 0, 1], center=[0, 0, 0], n_points=6):
-        base_points = []
-        base_center = center - axis / 2
+    def disc_discrete(self, radius=1, center=[0, 0, 0], n_points=6, axis=[0, 0, 1]):
+        points = []
         v = [1, 0, 0]  # take a random vector
-        n = np.abs(np.dot(axis/np.linalg.norm(axis), v)-1)
+        # test if v and axis are coplanar
+        n = np.abs(np.dot(axis / np.linalg.norm(axis), v) - 1)
         if n < 5e-15:
             v = [0, 0, 1]
 
-        v = np.cross(v,axis)
+        v = np.cross(v, axis)   # directional vector in disc plane
         v = v / np.linalg.norm(v)  # normalize
-        dphi = 2*np.pi/n_points # differential angle between circ points
-        for i in range(0,n_points):
-            base_points.append(base_center + r * v)
+        dphi = 2 * np.pi / n_points  # differential angle between circ points
+        for i in range(0, n_points):
+            points.append(center + radius * v)
             v = np.dot(rotation_matrix(axis, dphi), v)
 
-        points_tags = [self.model.addPoint(*p) for p in base_points]
-        points_tags.append(points_tags[0])
+        self._need_synchronize = True
+        return self.make_polygon(points)
 
-        lines_tags = [self.model.addLine(a, b) for a, b in zip(points_tags[0:-1], points_tags[1:])]
-        loop_tag = self.model.addCurveLoop(lines_tags, tag=-1)
-        base_tag = self.model.addPlaneSurface([loop_tag], tag=-1)
-
-        base = self.object(2, base_tag)
+    def cylinder_discrete(self, radius=1, axis=[0, 0, 1], center=[0, 0, 0], n_points=6):
+        base_center = center - axis / 2
+        base = self.disc_discrete(radius, base_center, n_points, axis)
         base_extrude = base.extrude(axis)
         cylinder = base_extrude[3]
 
