@@ -294,11 +294,23 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(1, circ_loop)
 
-    def circle_fill(self, radius, center=[0, 0, 0]):
-        circ = self.circle(radius, center)
-        surface = self.model.addPlaneSurface([*circ.tags])
-        self._need_synchronize = True
-        return self.object(2, surface)
+    def disc(self, center=[0, 0, 0], rx=1, ry=1):
+        """
+        Add a disk with `center` and radius `rx' along the x-axis
+        and `ry' along the y-axis.
+
+        Return an ObjectSet with the created disc.
+        """
+        if self.model is gmsh.model.geo:
+            #     circ = self.circle(radius, center)
+            #     surface = self.model.addPlaneSurface([*circ.tags])
+            #     self._need_synchronize = True
+            #     return self.object(2, surface)
+            return None
+        elif self.model is gmsh.model.occ:
+            disc = self.model.addDisk(*center, rx, ry)
+            self._need_synchronize = True
+            return self.object(2, disc)
 
     def box(self, sides, center=[0, 0, 0]):
         corner = np.array(center) - np.array(sides) / 2
