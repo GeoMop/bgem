@@ -127,9 +127,11 @@ DimTag = Tuple[int, int]
 
 class GeometryOCC:
     """
-    Interface to gmsh_api.
-    Single instance is allowed.
-    TODO: add documented support of geometry and meshing parameters.
+    User friendly and mesh consistent interface to gmsh_api (gmsh_sdk package).
+    Only single instance is allowed (due to limitation of gmsh_sdk and OCC).
+    TODO: use a singleton pattern
+    TODO: add remining creation methods
+    TODO: add documentation
     """
     _have_instance = False
 
@@ -194,6 +196,16 @@ class GeometryOCC:
 
 
     def __init__(self, model_name, model_str='occ', **kwargs):
+        """
+
+        Args:
+            model_name: Name of the geometry model, used to name resulting files.
+            model_str:
+                'occ' - use geometry model based on OCC
+                'geo' - use own GMSH geometry model, no support for boolean operations
+            **kwargs:
+                'verbose' - force GMSH output to stdout
+        """
         if model_str == 'occ':
             self.model = gmsh.model.occ
         elif model_str == 'geo':
@@ -217,21 +229,36 @@ class GeometryOCC:
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
 
     def reinit(self):
+        """
+        Clear whole geometry model.
+        TODO: need tests
+        Returns:
+        """
         gmsh.clear()
 
-    def get_region_name(self, name):
+    def get_region_name(self, name: str) -> Region:
+        """
+        Return the 'region' object by given 'name'
+
+        Create a new region of that name if it doesn't exist yet.
+        """
         region = self._region_names.get(name, Region.get(name))
         self._region_names[name] = region
         return region
 
-    def object(self, dim, tag):
+    def object(self, dim:int, tag:int) -> 'ObjectSet':
+        """
+        Create new object set from a dimtag.
+        """
         return ObjectSet(self, [(dim, tag)], [Region.default_region[dim]])
 
     def make_simplex(self, dim=3):
         """
-        Make reference simplex
+        Make reference simplex of dimension 'dim' [0,1,2,3].
+        Vertices are in origin and in be base vectors.
         TODO: use own methods for construction of geometries (combine with BSplines lib.)
-        :return:
+
+        return: Object set with a single dimtag.
         """
         points = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
         lines = [(0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)]
@@ -257,6 +284,17 @@ class GeometryOCC:
         return self.object(dim, res)
 
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
+        """
+        TODO: Better match GMSH API, possibly use origin as the default left corner.
+        Support for round points?? Does it work in OCC?
+
+        Add a rectangle with lower left corner at (`x', `y', `z') and upper right
+        corner at (`x' + `dx', `y' + `dy', `z'). If `tag' is positive, set the tag
+        explicitly; otherwise a new tag is selected automatically. Round the
+        corners if `roundedRadius' is nonzero. Return the tag of the rectangle.
+
+        Return an integer value.
+        """
         xy_sides.append(0)
         corner = np.array(center) - np.array(xy_sides) / 2
         rec_tag = self.model.addRectangle(*corner.tolist(), *xy_sides[0:2])
@@ -313,12 +351,28 @@ class GeometryOCC:
             return self.object(2, disc)
 
     def box(self, sides, center=[0, 0, 0]):
+        """
+        TODO: see addRectangle.
+        Add a parallelepipedic box defined by a point (`x', `y', `z') and the
+        extents along the x-, y- and z-axes.
+
+        Return an integer value.
+        """
         corner = np.array(center) - np.array(sides) / 2
         box_tag = self.model.addBox(*corner, *sides)
         self._need_synchronize = True
         return self.object(3, box_tag)
 
     def cylinder(self, r=1, axis=[0, 0, 1], center=[0, 0, 0]):
+        """
+        Add a cylinder, defined by the 'center' of its first circular
+        face, by its 'axis' vector between centers of the faces
+        and its radius `r'.
+        TODO: The optional `angle' argument defines the angular
+        opening (from 0 to 2*Pi).
+
+        Return the resulting ObjectSet, containing single 3d dimtag.
+        """
         cylinder_tag = self.model.addCylinder(*center, *axis, r)
         self._need_synchronize = True
         return self.object(3, cylinder_tag)
