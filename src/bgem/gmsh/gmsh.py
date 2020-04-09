@@ -127,9 +127,11 @@ DimTag = Tuple[int, int]
 
 class GeometryOCC:
     """
-    Interface to gmsh_api.
-    Single instance is allowed.
-    TODO: add documented support of geometry and meshing parameters.
+    User friendly and mesh consistent interface to gmsh_api (gmsh_sdk package).
+    Only single instance is allowed (due to limitation of gmsh_sdk and OCC).
+    TODO: use a singleton pattern
+    TODO: add remining creation methods
+    TODO: add documentation
     """
     _have_instance = False
 
@@ -194,6 +196,16 @@ class GeometryOCC:
 
 
     def __init__(self, model_name, model_str='occ', **kwargs):
+        """
+
+        Args:
+            model_name: Name of the geometry model, used to name resulting files.
+            model_str:
+                'occ' - use geometry model based on OCC
+                'geo' - use own GMSH geometry model, no support for boolean operations
+            **kwargs:
+                'verbose' - force GMSH output to stdout
+        """
         if model_str == 'occ':
             self.model = gmsh.model.occ
         elif model_str == 'geo':
@@ -217,23 +229,36 @@ class GeometryOCC:
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
 
     def reinit(self):
+        """
+        Clear whole geometry model.
+        TODO: need tests
+        Returns:
+        """
         gmsh.clear()
 
-    def get_region_name(self, name):
+    def get_region_name(self, name: str) -> Region:
+        """
+        Return the 'region' object by given 'name'
+
+        Create a new region of that name if it doesn't exist yet.
+        """
         region = self._region_names.get(name, Region.get(name))
         self._region_names[name] = region
         return region
 
-    def object(self, dim, tag):
+    def object(self, dim:int, tag:int) -> 'ObjectSet':
+        """
+        Create new object set from a dimtag.
+        """
         return ObjectSet(self, [(dim, tag)], [Region.default_region[dim]])
-
-    # def objects(self, ):
 
     def make_simplex(self, dim=3):
         """
-        Make reference simplex
+        Make reference simplex of dimension 'dim' [0,1,2,3].
+        Vertices are in origin and in be base vectors.
         TODO: use own methods for construction of geometries (combine with BSplines lib.)
-        :return:
+
+        return: Object set with a single dimtag.
         """
         points = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
         lines = [(0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)]
@@ -259,27 +284,125 @@ class GeometryOCC:
         return self.object(dim, res)
 
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
+        """
+        TODO: Better match GMSH API, possibly use origin as the default left corner.
+        Support for round points?? Does it work in OCC?
+
+        Add a rectangle with lower left corner at (`x', `y', `z') and upper right
+        corner at (`x' + `dx', `y' + `dy', `z'). If `tag' is positive, set the tag
+        explicitly; otherwise a new tag is selected automatically. Round the
+        corners if `roundedRadius' is nonzero. Return the tag of the rectangle.
+
+        Return an integer value.
+        """
         xy_sides.append(0)
         corner = np.array(center) - np.array(xy_sides) / 2
         rec_tag = self.model.addRectangle(*corner.tolist(), *xy_sides[0:2])
         self._need_synchronize = True
         return self.object(2, rec_tag)
 
+    def circle(self, radius, center=[0, 0, 0]):
+        """
+        Creates circle.
+        Note that OCC model has a direct function for it.
+        GEO model has to build the circle from circle arcs
+        (at least 3 due to arcs have to have angle strictly smaller than pi).
+        """
+        circ_arcs = []
+        if self.model is gmsh.model.occ:
+            circ_arcs.append(self.model.addCircle(*center, radius))
+        elif self.model is gmsh.model.geo:
+            a = center + radius * np.array([1, 0, 0])
+            b = center + radius * np.array([-1, 0, 0])
+            c = center + radius * np.array([0, 1, 0])
+            d = center + radius * np.array([0, -1, 0])
+
+            ap = self.model.addPoint(*a)
+            bp = self.model.addPoint(*b)
+            cp = self.model.addPoint(*c)
+            dp = self.model.addPoint(*d)
+            centp = self.model.addPoint(*center)
+
+            circ_arcs.append(self.model.addCircleArc(ap, centp, cp))
+            circ_arcs.append(self.model.addCircleArc(cp, centp, bp))
+            circ_arcs.append(self.model.addCircleArc(bp, centp, dp))
+            circ_arcs.append(self.model.addCircleArc(dp, centp, ap))
+
+        circ_loop = self.model.addCurveLoop(circ_arcs)
+        self._need_synchronize = True
+        return self.object(1, circ_loop)
+
+    def disc(self, center=[0, 0, 0], rx=1, ry=1):
+        """
+        Add a disk with `center` and radius `rx' along the x-axis
+        and `ry' along the y-axis.
+
+        Return an ObjectSet with the created disc.
+        """
+        if self.model is gmsh.model.geo:
+            #     circ = self.circle(radius, center)
+            #     surface = self.model.addPlaneSurface([*circ.tags])
+            #     self._need_synchronize = True
+            #     return self.object(2, surface)
+            return None
+        elif self.model is gmsh.model.occ:
+            disc = self.model.addDisk(*center, rx, ry)
+            self._need_synchronize = True
+            return self.object(2, disc)
+
     def box(self, sides, center=[0, 0, 0]):
+        """
+        TODO: see addRectangle.
+        Add a parallelepipedic box defined by a point (`x', `y', `z') and the
+        extents along the x-, y- and z-axes.
+
+        Return an integer value.
+        """
         corner = np.array(center) - np.array(sides) / 2
         box_tag = self.model.addBox(*corner, *sides)
         self._need_synchronize = True
         return self.object(3, box_tag)
 
     def cylinder(self, r=1, axis=[0, 0, 1], center=[0, 0, 0]):
+        """
+        Add a cylinder, defined by the 'center' of its first circular
+        face, by its 'axis' vector between centers of the faces
+        and its radius `r'.
+        TODO: The optional `angle' argument defines the angular
+        opening (from 0 to 2*Pi).
+
+        Return the resulting ObjectSet, containing single 3d dimtag.
+        """
         cylinder_tag = self.model.addCylinder(*center, *axis, r)
         self._need_synchronize = True
         return self.object(3, cylinder_tag)
 
-    def cylinder(self, r=1, axis=[0, 0, 1], center=[0, 0, 0]):
-        cylinder_tag = self.model.addCylinder(*center, *axis, r)
+    def disc_discrete(self, radius=1, center=[0, 0, 0], n_points=6, axis=[0, 0, 1]):
+        points = []
+        v = [1, 0, 0]  # take a random vector
+        # test if v and axis are coplanar
+        n = np.abs(np.dot(axis / np.linalg.norm(axis), v) - 1)
+        if n < 5e-15:
+            v = [0, 0, 1]
+
+        v = np.cross(v, axis)   # directional vector in disc plane
+        v = v / np.linalg.norm(v)  # normalize
+        dphi = 2 * np.pi / n_points  # differential angle between circ points
+        for i in range(0, n_points):
+            points.append(center + radius * v)
+            v = np.dot(rotation_matrix(axis, dphi), v)
+
         self._need_synchronize = True
-        return self.object(3, cylinder_tag)
+        return self.make_polygon(points)
+
+    def cylinder_discrete(self, radius=1, axis=[0, 0, 1], center=[0, 0, 0], n_points=6):
+        base_center = center - axis / 2
+        base = self.disc_discrete(radius, base_center, n_points, axis)
+        base_extrude = base.extrude(axis)
+        cylinder = base_extrude[3]
+
+        self._need_synchronize = True
+        return cylinder
 
     def make_polygon(self, points, mesh_step=None):
         """
@@ -323,7 +446,13 @@ class GeometryOCC:
         regions = [reg
                    for obj in obj_list
                    for reg in obj.regions]
-        return ObjectSet(self, all_dim_tags, regions)
+        mesh_step_size = [step
+                          for obj in obj_list
+                          for step in obj.mesh_step_size]
+
+        g = ObjectSet(self, all_dim_tags, regions)
+        g.mesh_step_size = mesh_step_size
+        return g
 
     def make_rectangle(self, scale) -> int:
         # Vertices of the rectangle
@@ -401,9 +530,7 @@ class GeometryOCC:
         # make used region names unique
         for id_set in reg_names.values():
             if len(id_set) > 1:
-                for i, id in enumerate(sorted(id_set)
-
-                                       ):
+                for i, id in enumerate(sorted(id_set)):
                     reg_to_tags[id][0].set_unique_name(i)
 
         # set physical groups
@@ -411,9 +538,35 @@ class GeometryOCC:
             reg._gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
             gmsh.model.setPhysicalName(reg.dim, reg._gmsh_id, reg.name)
 
+    def _set_mesh_step(self, obj: 'ObjectSet'):
+        self.synchronize()
+        step_to_dimtags = {}
+
+        # create map step -> dimtags
+        for dimtag, step in zip(obj.dim_tags, obj.mesh_step_size):
+            if step == obj.default_mesh_step:
+                continue
+            step_to_dimtags.setdefault(step, [])
+            step_to_dimtags[step].append(dimtag)
+
+        # sort from the largest to the smallest step
+        step_to_dimtags_sorted = sorted(step_to_dimtags.items(), key=lambda item: item[0], reverse=True)
+
+        # set recursively the mesh step
+        for step, dimtags in step_to_dimtags_sorted:
+            # Get boundary resursive to obtain nodes
+            try:
+                b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
+            except ValueError as err:
+                message = "\nobj dimtags: {} ...".format(str(dimtags[:10]))
+                raise GetBoundaryError(message) from err
+            nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
+            gmsh.model.mesh.setSize(nodes, step)
+
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:
         """
         Generate mesh for given objects.
+        0. set the mesh step.
         1. set physical groups from objects regions.
         2. OPTIONAL remove other shapes then specified
         3. call meshing
@@ -422,8 +575,11 @@ class GeometryOCC:
         :param dim: Set highest dimension to mesh.
         :param eliminate:
         """
+
         group = self.group(*objects)
         self._assign_physical_groups(group)
+        self._set_mesh_step(group)
+
         if eliminate:
             self.keep_only(group)
         self.synchronize()
@@ -466,7 +622,7 @@ class GeometryOCC:
         all_dimtags = set(gmsh.model.getEntities())
         remove_dimtags = all_dimtags.difference(set(group_dimtags))
         try:
-            self.model.remove(list(remove_dimtags), recursive=False)
+            self.model.remove(list(remove_dimtags), recursive=True)
         except ValueError:
             pass
 
@@ -486,6 +642,8 @@ class GeometryOCC:
 
 
 class ObjectSet:
+    default_mesh_step = 0
+
     def __init__(self, factory: GeometryOCC, dim_tags: List[DimTag], regions: List[Region]) -> None:
         self.factory = factory
         self.dim_tags = dim_tags
@@ -494,6 +652,7 @@ class ObjectSet:
         else:
             assert (len(regions) == len(dim_tags))
             self.regions = regions
+        self.mesh_step_size = [self.default_mesh_step for _ in dim_tags]
 
     @property
     def tags(self):
@@ -546,10 +705,54 @@ class ObjectSet:
         self.factory._need_synchronize = True
         return self
 
+    def extrude(self, vector, numElements=[], heights=[], recombine=False) -> List['ObjectSet']:
+        """
+        Extrudes the self object in the direction of 'vector'.
+        Self object is NOT destroyed.
+        Returns list ObjecSet of length 4, each corresponds to its dimension.
+
+        Parameters numElements, heights, recombine have not been investigated yet.
+        """
+        try:
+            outDimTags = self.factory.model.extrude(self.dim_tags, *vector, numElements, heights, recombine)
+        except ValueError as err:
+            message = "\nExtrusion failed! \n dimtags: {}".format(str(self.dim_tags[:10]))
+            raise BoolOperationError(message) from err
+
+        regions = [Region.default_region[dim] for dim, tag in outDimTags]
+        all_obj = ObjectSet(self.factory, outDimTags, regions)
+
+        self.factory._need_synchronize = True
+        # split the Objectset by dimtags
+        return all_obj.split_by_dimension()
+
+    def revolve(self, center, axis, angle, numElements=[], heights=[], recombine=False) -> List['ObjectSet']:
+        """
+        Extrudes the self object by revolving it around the axis given by 'center' and 'axis'.
+        Self object is NOT destroyed.
+        Returns list ObjecSet of length 4, each corresponds to its dimension.
+
+        Parameters numElements, heights, recombine have not been investigated yet.
+        """
+        try:
+            outDimTags = self.factory.model.revolve(self.dim_tags, *center, *axis, angle, numElements, heights, recombine)
+        except ValueError as err:
+            message = "\nRevolving failed! \n dimtags: {}".format(str(self.dim_tags[:10]))
+            raise BoolOperationError(message) from err
+
+        regions = [Region.default_region[dim] for dim, tag in outDimTags]
+        all_obj = ObjectSet(self.factory, outDimTags, regions)
+
+        self.factory._need_synchronize = True
+        # split the Objectset by dimtags
+        return all_obj.split_by_dimension()
+
     def copy(self) -> 'ObjectSet':
         copy_tags = self.factory.model.copy(self.dim_tags)
         self.factory._need_synchronize = True
-        return ObjectSet(self.factory, copy_tags, self.regions)
+        copy_obj = ObjectSet(self.factory, copy_tags, self.regions)
+        copy_obj.mesh_step_size = self.mesh_step_size.copy()
+        return copy_obj
 
     def get_boundary(self, combined=False):
         """
@@ -594,7 +797,7 @@ class ObjectSet:
 
     def split_by_dimension(self):
         """
-        Split objects in ObjectSet into ObjectSets of same dimansion.
+        Split objects in ObjectSet into ObjectSets of same dimension.
         :return: list of ObjectSets
         TODO: Return Group
         """
@@ -643,9 +846,31 @@ class ObjectSet:
         assert len(self.regions) == len(self.dim_tags)
         return zip(self.dim_tags, self.regions)
 
-    def set_mesh_step(self, step):
+    def mesh_step(self, step):
         """
-        Set mesh step 'step' to all nodes of the objects in the ObjectSet.
+        Saves the mesh step for all dimtags in this ObjectSet.
+        The values are applied later when making mesh.
+
+        Returns self.
+
+        At the end, it will sort the dimtags by the mesh step size
+        and set the mesh step from the largest to smallest.
+        This resolves the problem with the recursion of the gmsh setSize function
+        and  puts priority on the smaller mesh step.
+        """
+        self.mesh_step_size = [step for _ in self.dim_tags]
+        return self
+
+
+    def mesh_step_direct(self, step):
+        """
+        Set mesh step 'step' IMMEDIATELY to all nodes recursively to all dimtags in the ObjectSet.
+
+        Use it carefully, only if you fully understand how this works.
+        Otherwise use mesh_step().
+
+        Returns self.
+
         TODO: be resistent to nonexisting dimtags
         """
         # Get boundary resursive to obtain nodes
@@ -657,6 +882,7 @@ class ObjectSet:
             raise GetBoundaryError(message) from err
         nodes = [(dim, tag) for dim, tag in dimtags if dim == 0]
         gmsh.model.mesh.setSize(nodes, step)
+        return self
 
     def select_by_intersect(self, *tool_objects: 'ObjectSet') -> 'ObjectSet':
         """
@@ -767,6 +993,32 @@ class ObjectSet:
         """
         return self._apply_operation(tool_objects, self.factory.model.fragment)
 
+    def fuse(self, *tool_objects) -> 'ObjectSet':
+        """
+        Fuse self object with 'tool_objects'.
+        Returns the fused object, self is destroyed, tool_objects are destroyed.
+        Default regions are prescribed to all resulting dimtags.
+        """
+        # return self._apply_operation(tool_objects, self.factory.model.fuse)
+        # tool_objects = self.factory.group(*tool_objects).copy()
+        tool_objects = self.factory.group(*tool_objects)
+        try:
+            new_tags, old_tags_map = self.factory.model.fuse(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
+        except ValueError as err:
+            message = "\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]),
+                                                                   str(tool_objects.dim_tags[:10]))
+            raise BoolOperationError(message) from err
+
+        # assign regions
+        assert len(self.regions) == len(self.dim_tags), (len(self.regions), len(self.dim_tags))
+
+        regions = [Region.default_region[dim] for dim, tag in new_tags]
+        new_obj = ObjectSet(self.factory, new_tags, regions)
+        self.factory._need_synchronize = True
+        self.invalidate()
+        tool_objects.invalidate()
+        return new_obj
+
     def invalidate(self):
         self.factory = None
         self.dim_tags = None
@@ -800,3 +1052,19 @@ class ObjectSet:
         self.dim_tags = dimtags
         self.regions = regions
         return self
+
+
+def rotation_matrix(axis, theta):
+    """
+    Return the rotation matrix associated with counterclockwise rotation about
+    the given axis by theta radians.
+    """
+    axis = np.asarray(axis)
+    axis = axis / np.sqrt(np.dot(axis, axis))
+    a = np.cos(theta / 2.0)
+    b, c, d = -axis * np.sin(theta / 2.0)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    return np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+                     [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+                     [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
