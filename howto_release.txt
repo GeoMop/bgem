@@ -17,7 +17,7 @@ TODO:
 
 2. Set the version in the setup.py.
 
-3. Wait for passed tests.
+3. Push changes, wait for passed tests.
 
 4. Create new release at github, using the same version code.
 
