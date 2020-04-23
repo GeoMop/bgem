@@ -824,15 +824,16 @@ class Face(Shape):
             e_vtxs = edge.subshapes()
             v0_uv = id_to_uv[e_vtxs[0].id]
             v1_uv = id_to_uv[e_vtxs[1].id]
-            edge.attach_to_plane( surface, v0_uv, v1_uv )
+            edge.attach_to_surface(surface, v0_uv, v1_uv)
 
         # TODO: Possibly more general attachment of edges to 2D curves for general surfaces, but it depends
         # on organisation of intersection curves.
+        return self
 
     def _subrecordoutput(self, stream):
         assert len(self.repr) == 1
         surf,loc = self.repr[0]
-        stream.write("{} {} {} {}\n\n".format(self.restriction_flag,self.tol,surf.id,loc.id))
+        stream.write("{} {} {} {}\n\n".format(self.restriction_flag, self.tol, surf.id, loc.id))
 
 
 class Edge(Shape):
@@ -873,7 +874,7 @@ class Edge(Shape):
         :param degenerated:
         :return:
         """
-        self.edge_flags=(same_parameter,same_range, degenerated)
+        self.edge_flags=(same_parameter, same_range, degenerated)
 
     def points(self):
         '''
@@ -893,6 +894,7 @@ class Edge(Shape):
         curve._eval_check(t_range[0], self.points()[0])
         curve._eval_check(t_range[1], self.points()[1])
         self.repr.append( (self.Repr.Curve3d, t_range, curve, location) )
+        return self
 
     def attach_to_2d_curve(self, t_range, curve, surface, location=Location()):
         """
@@ -908,18 +910,28 @@ class Edge(Shape):
         curve._eval_check(t_range[0], surface, self.points()[0])
         curve._eval_check(t_range[1], surface, self.points()[1])
         self.repr.append( (self.Repr.Curve2d, t_range, curve, surface, location) )
+        return self
 
-    def attach_to_plane(self, surface, v0, v1):
+    def _vtx_surface_uv(self, i, surface, uv_vtx=None):
+        if uv_vtx is not None:
+            return uv_vtx
+        return self.childs[i].shape._surface_uv(surface)
+
+    def attach_to_surface(self, surface, v0=None, v1=None):
         """
         Construct and attach 2D line in UV space of the 'surface'
         :param surface: A Surface object.
         :param v0: UV coordinate of the first edge point
         :param v1: UV coordinate of the second edge point
+        Try to get UV coordinates from the end points.
+
         :return:
         """
         assert type(surface) == Surface
-
+        v0 = self._vtx_surface_uv(0, surface, v0)
+        v1 = self._vtx_surface_uv(1, surface, v1)
         self.attach_to_2d_curve((0.0, 1.0), Approx.line_2d([v0, v1]), surface)
+        return self
 
     def implicit_curve(self):
         """
@@ -929,6 +941,7 @@ class Edge(Shape):
         """
         vtx_points = self.points()
         self.attach_to_3d_curve((0.0,1.0), Approx.line_3d( vtx_points ))
+        return self
 
     #def attach_continuity(self):
 
@@ -958,6 +971,7 @@ class Edge(Shape):
                 stream.write("1 {} {} {} {}\n".format(curve.id, location.id, t_range[0], t_range[1])) #TODO: 3
         stream.write("0\n")
 
+
 class Vertex(Shape):
     """
     Vertex class.
@@ -968,6 +982,23 @@ class Vertex(Shape):
         Curve3d = 1
         Curve2d = 2
         Surface = 3
+
+    @staticmethod
+    def on_surface(u, v, surface, location=Location()):
+        point = surface._bs_surface.eval(u, v)
+        return Vertex(point).attach_to_surface(u, v, surface, location)
+
+    @staticmethod
+    def on_curve_2d(t, curve, surface, location=Location()):
+        uv = curve._bs_curve.eval(t)
+        point = surface._bs_surface.eval(*uv)
+        return Vertex(point).attach_to_2d_curve(t, curve, surface, location)
+
+    @staticmethod
+    def on_curve_3d(t, curve, location=Location()):
+        point = curve._bs_curve.eval(t)
+        return Vertex(point).attach_to_3d_curve(t, curve, location)
+
 
     def __init__(self, point, tolerance=1.0e-3):
         """
@@ -1001,6 +1032,7 @@ class Vertex(Shape):
         """
         curve._eval_check(t, self.point)
         self.repr.append( (self.Repr.Curve3d, t, curve, location) )
+        return self
 
     def attach_to_2d_curve(self, t, curve, surface, location=Location()):
         """
@@ -1013,6 +1045,7 @@ class Vertex(Shape):
         """
         curve._eval_check(t, surface, self.point)
         self.repr.append( (self.Repr.Curve2d, t, curve, surface, location) )
+        return self
 
     def attach_to_surface(self, u, v, surface, location=Location()):
         """
@@ -1024,6 +1057,7 @@ class Vertex(Shape):
         """
         surface._eval_check(u, v, self.point)
         self.repr.append( (self.Repr.Surface, u,v, surface, location) )
+        return self
 
 
     def _dfs(self, groups):
@@ -1044,10 +1078,15 @@ class Vertex(Shape):
             stream.write("{} ".format(i))
         stream.write("\n0 0\n\n") #no added <vertex data representation>
 
+    def _surface_uv(self, surface):
+        for r in self.repr:
+            if r[0] == self.Repr.Surface and r[3] is surface:
+                return (r[1], r[2])
+        raise KeyError("Vertex not attached to the surface.")
 
 
 
-def write_model(stream, compound, location):
+def write_model(stream, compound, location=Location()):
 
     groups = compound.index_all(location=location)
 

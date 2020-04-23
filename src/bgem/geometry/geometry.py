@@ -876,7 +876,7 @@ class StratumLayer(GeoLayer):
         v_vtxs = (edg_vtxs[:, 2] - v_to_z[0]) / (v_to_z[1] - v_to_z[0])
 
         #print("V-UV: ", list(zip(u_vtxs, v_vtxs)))
-        v_edge.shape.attach_to_plane(bw_surf, [u_coord, v_vtxs[0]], [u_coord, v_vtxs[1]])
+        v_edge.shape.attach_to_surface(bw_surf, [u_coord, v_vtxs[0]], [u_coord, v_vtxs[1]])
 
 
     def make_shapes(self):
