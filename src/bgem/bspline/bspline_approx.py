@@ -379,6 +379,32 @@ class SurfaceApprox:
             raise Exception("Two few points, {}, to make approximation, degree: {}".format(self._n_points, self._degree))
         return self.nuv
 
+    def _refine_knots(self, knot, ref_vec):
+
+        knotlist = []
+        for i in range(0, len(knot) - 5):
+            knotlist.append([])
+
+        for i in range(0, len(knot) - 5):
+            knotlist[i].append(knot[i + 2])
+            if ref_vec[i] > 0:
+                knotlist[i].append((knot[i + 2] + knot[i + 3]) / 2)
+
+        refined_knot = []
+        for i in range(0, len(knotlist)):
+            for j in range(0, len(knotlist[i])):
+                refined_knot.append(knotlist[i][j])
+
+        n = len(knot) + sum(ref_vec > 0)
+        ref_knot = np.zeros(n)
+        #print(n)
+
+
+        ref_knot[2:n - 3] = np.asarray(refined_knot)
+        ref_knot[n - 3:n] = 1
+
+        return ref_knot
+
     def compute_approximation(self, **kwargs):
         """
         Compute approximation of the point set (given to constructor).
@@ -410,43 +436,71 @@ class SurfaceApprox:
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        # Approximation itself
-        logging.info('Creating explicitly system of normal equations B^TBz=B^Tb ...')
-        start_time = time.time()
-        btb_mat, btwb_vec, point_loc = self._build_system_of_normal_equations()
-        end_time = time.time()
-        logging.info('Computed in: {} s'.format(end_time - start_time))
+        abs_tol = 0.01
+        max_iters = 1
+        n_course = 1
+        iters = -1
+        while n_course != 0: ### Adaptivity loop
+            iters += 1
 
-        logging.info('Creating A matrix ...')
-        start_time = time.time()
-        a_mat = self._build_sparse_reg_matrix()
-        end_time = time.time()
-        logging.info('Computed in: {} s'.format(end_time - start_time))
+            if iters > 0:
+                if np.sum(ref_vec_u) > 0:
+                    u_knot_new = self._refine_knots(self._u_basis.knots, ref_vec_u)
+                    self._u_basis = bs.SplineBasis. make_from_knots(2, u_knot_new)
+                if np.sum(ref_vec_v) > 0:
+                    v_knot_new = self._refine_knots(self._v_basis.knots, ref_vec_v)
+                    self._v_basis = bs.SplineBasis.make_from_knots(2, v_knot_new)
+                    #print(self._v_basis.knots)
+                    #print('a')
 
-        logging.info('Computing A and B^TB svds approximation ...')
-        start_time = time.time()
-        bb_norm = scipy.sparse.linalg.eigsh(btb_mat, k=1, ncv=10, tol=1e-2, which='LM',
-                                           maxiter=300, return_eigenvectors=False)
-        a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
-                                          maxiter=300, return_eigenvectors=False)
-        a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
-                                          maxiter=300, return_eigenvectors=False)
-        #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
-        c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
-        end_time = time.time()
-        logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        logging.info('Solving for Z coordinates ...')
-        start_time = time.time()
-        z_vec = scipy.sparse.linalg.spsolve(c_mat, btwb_vec)
-        assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
-        end_time = time.time()
-        logging.info('Computed in: {} s'.format(end_time - start_time))
+            # Approximation itself
+            logging.info('Creating explicitly system of normal equations B^TBz=B^Tb ...')
+            start_time = time.time()
+            btb_mat, btwb_vec, point_loc = self._build_system_of_normal_equations()
+            end_time = time.time()
+            logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        logging.info('Computing error ...')
-        start_time = time.time()
+            logging.info('Creating A matrix ...')
+            start_time = time.time()
+            a_mat = self._build_sparse_reg_matrix()
+            end_time = time.time()
+            logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        diff = self._compute_errors(point_loc, z_vec)
+            logging.info('Computing A and B^TB svds approximation ...')
+            start_time = time.time()
+            bb_norm = scipy.sparse.linalg.eigsh(btb_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                               maxiter=300, return_eigenvectors=False)
+            a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                              maxiter=300, return_eigenvectors=False)
+            a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
+                                              maxiter=300, return_eigenvectors=False)
+            #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+            c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
+            end_time = time.time()
+            logging.info('Computed in: {} s'.format(end_time - start_time))
+
+            logging.info('Solving for Z coordinates ...')
+            start_time = time.time()
+            z_vec = scipy.sparse.linalg.spsolve(c_mat, btwb_vec)
+            assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
+            end_time = time.time()
+            logging.info('Computed in: {} s'.format(end_time - start_time))
+
+            logging.info('Computing error ...')
+            start_time = time.time()
+
+            diff, diff_mat_max, diff_mat_eucl = self._compute_errors(point_loc, z_vec)
+            bool_mat = diff_mat_max > abs_tol
+            ref_vec_u = np.sum(bool_mat, axis=1)
+            ref_vec_v = np.sum(bool_mat, axis=0)
+            print("max_diff=",np.max(diff))
+            n_course = sum(ref_vec_u) + sum(ref_vec_v)
+            if np.logical_or(n_course == 0, iters < max_iters):
+                break
+
+
+        ###
 
         self.error = max_diff = np.max(diff)
         logging.info("Approximation error (max norm): {}".format(max_diff))
@@ -603,6 +657,10 @@ class SurfaceApprox:
         linsp = np.array([0, 1, 2], dtype=int)
         linsp31 = np.repeat(linsp, 3)  # linsp_v
         linsp13 = np.tile(linsp, 3)  # linsp_u
+        err_mat_max = np.zeros((self._u_basis.size - 2, self._v_basis.size - 2))
+        err_mat_eucl = np.zeros((self._u_basis.size - 2, self._v_basis.size - 2))
+
+
 
         for interval_id in range(0, n_patches):
             n_loc_points = len(point_loc[interval_id])
@@ -611,21 +669,29 @@ class SurfaceApprox:
             col = np.zeros(n_loc_points * n_uv_loc_nz, dtype=int)
             data = np.zeros(n_loc_points * n_uv_loc_nz)
             nnz_b = 0
-            for idx in point_loc[interval_id]:
+            if len(point_loc[interval_id]) > 0:
+                idx = point_loc[interval_id][0]
                 u, v = self._uv_quad_points[idx, 0:2]
                 iu = self._u_basis.find_knot_interval(u)
                 iv = self._v_basis.find_knot_interval(v)
-                u_base_vec = self._u_basis.eval_base_vector(iu, u)
-                v_base_vec = self._v_basis.eval_base_vector(iv, v)
-                data[nnz_b:nnz_b + 9] = np.kron(v_base_vec, u_base_vec)
-                col[nnz_b: nnz_b + 9] = (linsp31 + iv) * u_n_basf + iu + linsp13
-                row[nnz_b:nnz_b + 9] = idx
-                nnz_b += 9
-            if len(point_loc[interval_id]) > 0:
+                for idx in point_loc[interval_id]:
+                    u, v = self._uv_quad_points[idx, 0:2]
+                    u_base_vec = self._u_basis.eval_base_vector(iu, u)
+                    v_base_vec = self._v_basis.eval_base_vector(iv, v)
+                    data[nnz_b:nnz_b + 9] = np.kron(v_base_vec, u_base_vec)
+                    col[nnz_b: nnz_b + 9] = (linsp31 + iv) * u_n_basf + iu + linsp13
+                    row[nnz_b:nnz_b + 9] = idx
+                    nnz_b += 9
+
                 mat_b = scipy.sparse.csr_matrix((data, (row, col)), shape=(n, u_n_basf * v_n_basf))
-                err += mat_b.dot(z_vec)
+                patch_err_vec = mat_b.dot(z_vec)
+                patch_err_red = patch_err_vec[point_loc[interval_id]] - g_vec[point_loc[interval_id]]
+                err_mat_max[iu][iv] = np.max(np.abs(patch_err_red))
+                err_mat_eucl[iu][iv] = np.linalg.norm(patch_err_red)
+                err += patch_err_vec
         err = err - g_vec
-        return err
+
+        return err, err_mat_max, err_mat_eucl
 
     def _basis_in_q_points(self, basis):
         n_int = basis.n_intervals

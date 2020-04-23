@@ -56,6 +56,15 @@ class SplineBasis:
         full_knots = [ q for q, mult in knots for i in range(mult)  ]
         return cls(degree, full_knots)
 
+    @classmethod
+    def make_from_knots(cls, degree, knots):
+        """
+        Construct basis from the vector of packed knots.
+        :param degree: Degree of the basis.
+        :param knots: List of knots with their multiplicities, [ (knot, mult), ..]
+        :return: SplineBasis object.
+        """
+        return cls(degree, knots)
 
     def __init__(self, degree, knots):
         """
@@ -96,6 +105,8 @@ class SplineBasis:
     def in_domain(self, t):
         """ True if  't' is in the domain of the basis. """
         return self.domain[0] <= t <= self.domain[1]
+
+
 
     def pack_knots(self):
         """
