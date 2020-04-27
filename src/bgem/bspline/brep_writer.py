@@ -78,6 +78,9 @@ class Location:
         check_matrix(matrix, [3, 4], (int, float))
         self.matrix=matrix
 
+    def translate(self, vector):
+        self.matrix = np.atleast_1d(vector)
+
     def _dfs(self, groups):
         """
         Deep first search that assign numbers to shapes
@@ -640,11 +643,17 @@ class Shape:
 
 
     def index_all(self, location=Location()):
+        """
+        Make depth first search through the model tree with a root in 'self'.
+        - assign BREP ID to the shapes an locations
+        - gather objects into the 'groups' dictionary according to the sections in the BREP file
+        return the 'groups' dictionary
+        """
         # print("Index")
         # print(compound.__class__.__name__) #prints class name
 
         groups = dict(locations=[], curves_2d=[], curves_3d=[], surfaces=[], shapes=[])
-        self._dfs(groups)  # pridej jako parametr dictionary listu jednotlivych grup. v listech primo objekty
+        self._dfs(groups)
         location._dfs(groups)
         # print(groups)
         return groups
@@ -1084,9 +1093,18 @@ class Vertex(Shape):
                 return (r[1], r[2])
         raise KeyError("Vertex not attached to the surface.")
 
+    # def _curve_t(self, curve):
+    #     for r in self.repr:
+    #         if r[0] == self.Repr.Surface and r[3] is surface:
+    #             return (r[1], r[2])
+    #     raise KeyError("Vertex not attached to the surface.")
 
 
 def write_model(stream, compound, location=Location()):
+    """
+    Write a BREP representation of the model 'compound' transformed to the 'location'
+    to the 'stream'.
+    """
 
     groups = compound.index_all(location=location)
 

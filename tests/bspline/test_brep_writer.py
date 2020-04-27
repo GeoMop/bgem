@@ -133,21 +133,24 @@ class TestPlanarGeomeries(unittest.TestCase):
 
     def test_cube(self):
 
-        shell = self._cube()
+        cube_shell = self._cube()
         #shell = self._permuted_cube()
 
-        s1=bw.Solid([ shell ])
+        cube_solid = bw.Solid([ cube_shell ])
 
-        c1=bw.Compound([s1])
+        model = bw.Compound([cube_solid])
 
         loc1=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
-        loc2=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]]) #dej tam tu druhou z prikladu
+        loc2=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
         cloc=bw.ComposedLocation([(loc1,1),(loc2,1)])
 
         with open("_out_test_prism.brep", "w") as f:
-            bw.write_model(f, c1, cloc)
+            bw.write_model(f, model, cloc)
             #bw.write_model(sys.stdout, c1, cloc)
-        print(c1)
+
+        # Modify and make other write
+
+
 
 
 if __name__ == '__main__':

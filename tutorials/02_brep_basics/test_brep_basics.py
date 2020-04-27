@@ -41,7 +41,7 @@ def make_surface_approx(path):
 
     # Make an approximation.
     # 1. Create the approximation object from the points in the grid file.
-    surf_approx = bs_approx.SurfaceApprox.approx_from_file(grid_path)
+    surf_approx = bs_approx.SurfaceApprox.approx_from_file(path)
 
     # 2. Compute minimal surface bounding rectangular of points projected to the XY plane.
     # or use own XY rectangle given as array of shape (4,2) of the four vertices.
