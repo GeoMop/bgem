@@ -1,39 +1,65 @@
-import unittest
+import pytest
+import numpy as np
 from bgem.bspline import brep_writer as bw
 
-
-class TestConstructors(unittest.TestCase):
+class TestLocation:
     def test_Location(self):
         print( "test locations")
         la = bw.Location([[1, 0, 0, 4], [0, 1, 0, 8], [0, 0, 1, 12]])
         lb = bw.Location([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
         lc = bw.ComposedLocation([ (la, 2), (lb, 1) ])
         ld = bw.ComposedLocation([ (lb, 2), (lc, 3) ])
-        with self.assertRaises(bw.ParamError):
+        with pytest.raises(bw.ParamError):
             bw.Location([1,2,3])
-        with self.assertRaises(bw.ParamError):
+        with pytest.raises(bw.ParamError):
             bw.Location([[1], [2], [3]])
-        with self.assertRaises(bw.ParamError):
+        with pytest.raises(bw.ParamError):
             a = 1
             b = 'a'
             lb = bw.Location([[a, b, a, b], [a, b, a, b], [a, b, a, b]])
 
+    def test_transforms(self):
+        points = np.array([[1,0,0,1], [0,1,0,1], [0,0,1,1]])
+        # Translate
+        shift = [1,2,3]
+        translate_loc = bw.Location().translate([1,2,3])
+        assert np.alltrue(translate_loc.matrix == np.array([[1,0,0,1],[0,1,0,2],[0,0,1,3]]))
+        # Apply
+        t_points = translate_loc._apply(points)
+        assert np.alltrue(np.array([[2,1,1,2],[2,3,2,3],[3,3,4,4]]) == t_points)
+        # Rotate
+        rotate_loc = bw.Location().rotate([1,1,1], 2 * np.pi / 3)
+        r_points = rotate_loc._apply(points)
+        ref_r_points = np.array([[0,0,1,1],[1,0,0,1],[0,1,0,1]])
+        assert np.allclose(ref_r_points, r_points)
+        rotate_c_loc = bw.Location().rotate([1, 1, 1], 2 * np.pi / 3, center=[1,0,0])
+        rc_points = rotate_c_loc._apply(points)
+        ref_rc_points = ref_r_points + np.array([1,-1,0])[:, None]
+        assert np.allclose(ref_rc_points, rc_points)
+        # Scale
+        scale_loc = bw.Location().scale([1,2,3], center=[0,1,0])
+        s_points = scale_loc._apply(points)
+        assert np.allclose(np.array([[1,0,0,1],[-1,1,-1,1],[0,0,3,3]]), s_points)
+
+
+class TestConstructors:
+
     def test_Shape(self):
 
         # check sub types
-        with self.assertRaises(bw.ParamError):
+        with pytest.raises(bw.ParamError):
             bw.Wire(['a', 'b'])
         v=bw.Vertex([1,2,3])
-        with self.assertRaises(bw.ParamError):
+        with pytest.raises(bw.ParamError):
             bw.Wire([v, v])
 
 
     def test_Vertex(self):
-        with self.assertRaises(bw.ParamError):
+        with pytest.raises(bw.ParamError):
             bw.Vertex(['a','b','c'])
 
 
-class TestPlanarGeomeries(unittest.TestCase):
+class TestPlanarGeomeries:
 
     def _cube(self):
         # 0, 0; top, bottom

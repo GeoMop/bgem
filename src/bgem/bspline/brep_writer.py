@@ -77,9 +77,63 @@ class Location:
         # checks
         check_matrix(matrix, [3, 4], (int, float))
         self.matrix=matrix
+        self.id = None
+
+    def make_nondefault(self):
+        if self.matrix is None:
+            self.matrix = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
+            self.id = None
+
+    def _apply(self, points:np.array) -> np.array:
+        #  points: shape 3xN
+        return self.matrix[:,:3] @ points  + (self.matrix[:,3])[:, None]
 
     def translate(self, vector):
-        self.matrix = np.atleast_1d(vector)
+        """
+        Apply translation by the shift 'vector'.
+        Returns self, to allow chained application of transforms.
+        """
+        self.make_nondefault()
+        self.matrix[:, 3] += np.array(vector, dtype=float)
+        return self
+
+    def rotate(self, axis, angle, center=[0, 0, 0]):
+        """
+        Assuming the coordinate system:
+
+        ^ Y
+        |
+        Z --> X
+
+        Apply rotation anticlockwise (right hand rule) by the `angle` (radians)
+        around the (normalised) `axis` vector.
+        Optionally the center of the rotation can be specified.
+
+        Returns self, to allow chained application of transforms.
+        """
+        self.make_nondefault()
+        center = np.array(center, dtype=float)
+        axis = np.array(axis, dtype=float)
+        axis /= np.linalg.norm(axis)
+
+        W = np.array(
+            [[0, -axis[2], axis[1]],
+             [axis[2], 0, -axis[0]],
+             [-axis[1], axis[0], 0]])
+        M = np.eye(3) +  np.sin(angle) * W + 2 * np.sin(angle/2) ** 2 *  W @ W
+        self.matrix[:, 3] -= center
+        self.matrix = M @ self.matrix
+        self.matrix[:, 3] += center
+        return self
+
+    def scale(self, scale_vector, center=[0, 0, 0]):
+        self.make_nondefault()
+        center = np.array(center, dtype=float)
+        scale_vector = np.array(scale_vector, dtype=float)
+        self.matrix[:, 3] -= center
+        self.matrix = np.diag(scale_vector) @ self.matrix
+        self.matrix[:, 3] += center
+        return self
 
     def _dfs(self, groups):
         """
