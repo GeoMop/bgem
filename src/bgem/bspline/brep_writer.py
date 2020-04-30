@@ -28,6 +28,7 @@ def check_matrix(mat, shape, values, idx=[]):
     :param values: Type or tuple of  allowed types of elements of the matrix. E.g. ( int, float )
     :param idx: Internal. Used to pass actual index in the matrix for possible error messages.
     :return:
+    TODO: replace check_matrix by conversion to appropriate numpy array.
     '''
     try:
 
@@ -61,6 +62,9 @@ class Location:
     Location defines an affine transformation in 3D space. Corresponds to the <location data 1> in the BREP file.
     BREP format allows to use different transformations for individual shapes.
     Location are numberd from 1. Zero index means identity location.
+
+    TODO: possibly convert transformation methods to returning a Composed Location, that wy we
+    can have a pure functional API.
     """
     def __init__(self, matrix=None):
         """
@@ -194,7 +198,7 @@ def check_knots(deg, knots, N):
 
 # TODO: perform explicit conversion to np.float64 in order to avoid problems on different arch
 # should be unified in bspline as well, convert  to np.arrays as soon as posible
-scalar_types = (int, float, np.int64, np.float64)
+scalar_types = (int, float, np.int32, np.int64, np.float32, np.float64)
 
 
 def curve_from_bs( curve):
