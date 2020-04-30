@@ -137,7 +137,7 @@ def check_knots(deg, knots, N):
 
 # TODO: perform explicit conversion to np.float64 in order to avoid problems on different arch
 # should be unified in bspline as well, convert  to np.arrays as soon as posible
-scalar_types = (int, float, np.int64, np.float64)
+scalar_types = (int, float, np.int32, np.int64, np.float64)
 
 
 def curve_from_bs( curve):
