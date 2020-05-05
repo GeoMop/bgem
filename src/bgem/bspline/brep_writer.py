@@ -1,6 +1,6 @@
 import enum
 import numpy as np
-
+from typing import *
 
 '''
 TODO:
@@ -57,7 +57,74 @@ def check_matrix(mat, shape, values, idx=[]):
         raise ParamError(e)
 
 
-class Location:
+class BREPGroup(enum.IntEnum):
+    locations = 0
+    curves_3d = 1
+    curves_2d = 2
+    surfaces = 3
+    shapes = 4
+
+
+class BREPObject:
+    """
+    Basic class of the BREP objects, define common methods necessary for the
+    file output. Objects forms a tree (or possibly DAG) and can be processed
+    be a graph search without maintaining global structures.
+    """
+    def __init__(self, group : BREPGroup, id_in_postvisit=True) -> None:
+        self._brep_group : BREPGroup = group
+        self._brep_id : Optional[int] = None
+
+        # Set ID and append to the BREP group in either DFS previsit or DFS postvisit.
+        if id_in_postvisit:
+            self._dfs_previsit = self._group_pass
+            self._dfs_postvisit = self._group_append
+        else:
+            self._dfs_previsit = self._group_append
+            self._dfs_postvisit = self._group_pass
+
+    @property
+    def brep_id(self):
+        assert self._brep_id is not None
+        return self._brep_id
+
+
+    def _childs(self):
+        # Generator of the child BREPObjets for the DFS.
+        # Default no childs.
+        return []
+
+
+    def gather_groups(self):
+        # DFS thorough the BREP object fromm the `self` as a root.
+        # Assign BREP IDs and collect BREP objects into groups.
+        group_size = max(BREPGroup) + 1
+        groups = [[] for _ in range(group_size)]
+        self._dfs_gather_groups(groups, set())
+        return groups
+
+
+    def _dfs_gather_groups(self, groups:List[List['BREPObject']], visited:Set[int]):
+        # DFS recursive function.
+        if id(self) in visited:
+            return
+
+        self._dfs_previsit(groups)
+        for ch in self._childs():
+            ch._dfs_gather_groups(groups)
+        self._dfs_postvisit(groups)
+
+
+    def _group_append(self, groups):
+        group = groups[self._brep_group]
+        group.append(self)
+        self._brep_id = len(group)
+
+
+    def _group_pass(self, groups):
+        pass
+
+class Location(BREPObject):
     """
     Location defines an affine transformation in 3D space. Corresponds to the <location data 1> in the BREP file.
     BREP format allows to use different transformations for individual shapes.
@@ -73,6 +140,7 @@ class Location:
         Last column is the translation vector.
         matrix==None means identity location (ID=0).
         """
+        super().__init__(group=BREPGroup.locations)
         if matrix is None:
             self.matrix = None
             self.id = 0
@@ -167,25 +235,31 @@ class ComposedLocation(Location):
 
         :param location_powers: List of pairs (location, power)  where location is instance of Location and power is float.
         """
+
         locs, pows =  zip(*location_powers)
         l = len(locs)
         check_matrix(locs, [ l ], (Location, ComposedLocation) )
         check_matrix(pows, [ l ], int)
+        super().__init__()
+        self._locations = locs
+        self._powers = pows
 
-        self.location_powers=location_powers
 
+    def _childs(self):
+        return self._locations
 
     def _dfs(self, groups):
 
-        for location,power in self.location_powers:
+        for location in self._locations:
             location._dfs(groups)
         Location._dfs(self, groups)
 
     def _brep_output(self, stream, groups):
         stream.write("2 ")
-        for loc, pow in self.location_powers:
-            stream.write("{} {} ".format(loc.id, pow))
+        for loc, pow in zip(self._childs, self._powers):
+            stream.write("{} {} ".format(loc.brep_id, pow))
         stream.write("0\n")
+
 
 def check_knots(deg, knots, N):
     total_multiplicity = 0
@@ -218,7 +292,7 @@ def curve_from_bs( curve):
     c._bs_curve = curve
     return c
 
-class Curve3D:
+class Curve3D(BREPObject):
     """
     Defines a 3D curve as B-spline. We shall work only with B-splines of degree 2.
     Corresponds to "B-spline Curve - <3D curve record 7>" from BREP format description.
@@ -242,6 +316,7 @@ class Curve3D:
         N = len(poles)
         check_knots(degree, knots, N)
 
+        super().__init__(group=BREPGroup.curves_3d)
         self.poles=poles
         self.knots=knots
         self.rational=rational
@@ -274,7 +349,7 @@ class Curve3D:
             stream.write(" ")
         stream.write("\n")
 
-class Curve2D:
+class Curve2D(BREPObject):
     """
     Defines a 2D curve as B-spline. We shall work only with B-splines of degree 2.
     Corresponds to "B-spline Curve - <2D curve record 7>" from BREP format description.
@@ -297,6 +372,8 @@ class Curve2D:
         else:
             check_matrix(poles, [N, 2], scalar_types)
         check_knots(degree, knots, N)
+
+        super().__init__(group=BREPGroup.curves_2d)
 
         self.poles=poles
         self.knots=knots
@@ -341,7 +418,7 @@ def surface_from_bs(surf):
     s._bs_surface = surf
     return s
 
-class Surface:
+class Surface(BREPObject):
     """
     Defines a B-spline surface in 3d space. We shall work only with B-splines of degree 2.
     Corresponds to "B-spline Surface - < surface record 9 >" from BREP format description.
@@ -379,6 +456,7 @@ class Surface:
         check_knots(degree[0], u_knots, self.Nu)
         check_knots(degree[1], v_knots, self.Nv)
 
+        super().__init__(group=BREPGroup.surfaces)
         self.poles=poles
         self.knots=knots
         self.rational=rational
@@ -581,7 +659,7 @@ class ShapeFlag(dict):
         for k in self.flag_names:
             stream.write(str(self[k]))
 
-class Shape:
+class Shape(BREPObject):
     def __init__(self, childs):
         """
         Construct base Shape object.
@@ -605,10 +683,14 @@ class Shape:
         # Thes flags are usualy produced by OCC for all other shapes safe vertices.
         self.flags=ShapeFlag(0,1,0,1,0,0,0)
 
+        super().__init__(group=BREPGroup.shapes)
         # self.shpname: Shape name, defined in childs
         assert hasattr(self, 'shpname'),  self
 
-
+    def _childs(self):
+        for sub_ref in self.childs:
+            yield sub_ref.location
+            yield sub_ref.shape
     """
     Methods to simplify ceration of oriented references.
     """
@@ -706,14 +788,15 @@ class Shape:
         - assign BREP ID to the shapes an locations
         - gather objects into the 'groups' dictionary according to the sections in the BREP file
         return the 'groups' dictionary
-        """
-        # print("Index")
-        # print(compound.__class__.__name__) #prints class name
 
+        TODO: move into Compound, or just move into main writer function.
+        """
         groups = dict(locations=[], curves_2d=[], curves_3d=[], surfaces=[], shapes=[])
         self._dfs(groups)
         location._dfs(groups)
-        # print(groups)
+
+        #groups = self.gather_groups()
+        #location._dfs_gather_groups(groups)
         return groups
 
 
@@ -835,21 +918,34 @@ class Face(Shape):
             assert type(surface) == Surface
             self.repr=[(surface, location)]
 
-
-
-    def _dfs(self, groups):
-        Shape._dfs(self,groups)
+    def _childs(self):
+        # Finalize the shape.
         if not self.repr:
             self.implicit_surface()
         assert len(self.repr) == 1
+
+        yield Shape._childs()
         for repr, loc in self.repr:
-            repr._dfs(groups)
-            loc._dfs(groups)
+            yield repr
+            yield loc
 
         # update geometry representation of edges (add 2D curves)
         for wire in self.subshapes():
             for edge in wire.subshapes():
                 edge._dfs(groups)
+
+
+    def _dfs(self, groups):
+        # finalize.
+        if not self.repr:
+            self.implicit_surface()
+        assert len(self.repr) == 1
+
+        for repr, loc in self.repr:
+            repr._dfs(groups)
+            loc._dfs(groups)
+
+        Shape._dfs(self,groups)
 
             
     def implicit_surface(self):
@@ -858,17 +954,19 @@ class Face(Shape):
         3 and 4 vertices (plane or bilinear surface)
         Should be called in _dfs just after all child shapes are passed.
         :return: None
+
+        TODO: simplify
         """
         edges = {}
         vtxs = []
         for wire in self.subshapes():
             for edge in wire.childs:
-                edges[edge.shape.id] =  edge.shape
+                edges[id(edge.shape)] =  edge.shape
                 e_vtxs = edge.shape.subshapes()
                 if edge.orientation == Orient.Reversed:
                     e_vtxs.reverse()
                 for vtx in e_vtxs:
-                    vtxs.append( (vtx.id, vtx.point) )
+                    vtxs.append( (id(vtx), vtx.point) )
         vtxs = vtxs[1:] + vtxs[:1]
         odd_vtx = vtxs[1::2]
         even_vtx = vtxs[0::2]
@@ -889,8 +987,8 @@ class Face(Shape):
         id_to_uv = dict(zip(ids, vtxs_uv))
         for edge in edges.values():
             e_vtxs = edge.subshapes()
-            v0_uv = id_to_uv[e_vtxs[0].id]
-            v1_uv = id_to_uv[e_vtxs[1].id]
+            v0_uv = id_to_uv[id(e_vtxs[0])]
+            v1_uv = id_to_uv[id(e_vtxs[1])]
             edge.attach_to_surface(surface, v0_uv, v1_uv)
 
         # TODO: Possibly more general attachment of edges to 2D curves for general surfaces, but it depends
@@ -1013,11 +1111,12 @@ class Edge(Shape):
     #def attach_continuity(self):
 
     def _dfs(self, groups):
-        Shape._dfs(self,groups)
+        # finalize
         if not self.repr:
             self.implicit_curve()
         assert len(self.repr) > 0
-        for i,repr in enumerate(self.repr):
+
+        for repr in self.repr:
             if repr[0]==self.Repr.Curve2d:
                 repr[2]._dfs(groups) #curve
                 repr[3]._dfs(groups) #surface
@@ -1025,6 +1124,8 @@ class Edge(Shape):
             elif repr[0]==self.Repr.Curve3d:
                 repr[2]._dfs(groups) #curve
                 repr[3]._dfs(groups) #location
+
+        Shape._dfs(self,groups)
 
     def _subrecordoutput(self, stream): #prints edge data #TODO: tisknu nekolik data representation
         assert len(self.repr) > 0
@@ -1128,7 +1229,6 @@ class Vertex(Shape):
 
 
     def _dfs(self, groups):
-        Shape._dfs(self,groups)
         for repr in self.repr:
             if repr[0]==self.Repr.Curve2d:
                 repr[2]._dfs(groups) #curve
@@ -1137,6 +1237,7 @@ class Vertex(Shape):
             elif repr[0]==self.Repr.Curve3d:
                 repr[2]._dfs(groups) #curve
                 repr[3]._dfs(groups) #location
+        Shape._dfs(self,groups)
 
 
     def _subrecordoutput(self, stream): #prints vertex data
