@@ -2,7 +2,7 @@ from bgem.bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as b
 import numpy as np
 import math
 import pytest
-#import statprof
+import statprof
 
 
 class SurfApprox:
@@ -72,32 +72,27 @@ class TestIsec:
     """
 
 coefficients = [
-        #(np.array([-1, 1, -1, 7])),
+        (np.array([-1, 1, -1, 7])),
         (np.array([-1, 2, -1, 7])),
     ]
 
 control_points = [
-        #([5, 15]),
-        ([11, 10]) #
+        ([5, 15]),
+        ([11, 10]) # best for debug
     ]
 
 length = [
-        #([5, 7]),
-        ([2, 3]), #
-        #([6, 6])
+        ([5, 7]),
+        ([2, 3]), # best for debug
+        ([6, 6])
     ]
 
 
 @pytest.mark.parametrize("plane_coefficients1", coefficients)
 @pytest.mark.parametrize("control_points_1", control_points)
 @pytest.mark.parametrize("length1", length)
-#@pytest.mark.parametrize("plane_coefficients2", enumerate(plane_coefficients2))
-def test_surface_intersection(plane_coefficients1, control_points_1, length1): #plane_coefficients1
+def test_surface_intersection(plane_coefficients1, control_points_1, length1):
 
-        print(plane_coefficients1, control_points_1, length1)
-
-
-        #plane_coefficients1 = np.array([-1, 1, -1, 7])
         plane_coefficients2 = np.array([2, -1, -1, 3])
 
         def cosx(x):
@@ -109,14 +104,12 @@ def test_surface_intersection(plane_coefficients1, control_points_1, length1): #
 
 
         #try:
-#        statprof.start()
+        statprof.start()
         sapp1 = SurfApprox(plane_coefficients1, length1, samples, control_points_1, cosx)
-#        statprof.stop()
-#        statprof.display()
+        statprof.stop()
+        statprof.display()
         #finally:
 
-
-        #sapp1 = SurfApprox(plane_coefficients1, length1, samples, control_points_1, cosx)
         sapp2 = SurfApprox(plane_coefficients2, length2, samples, control_points_2, cosx)
 
 

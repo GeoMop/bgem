@@ -436,8 +436,91 @@ class SurfaceApprox:
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
+        # Approximation itself
+        logging.info('Creating explicitly system of normal equations B^TBz=B^Tb ...')
+        start_time = time.time()
+        btb_mat, btwb_vec, point_loc = self._build_system_of_normal_equations()
+        end_time = time.time()
+        logging.info('Computed in: {} s'.format(end_time - start_time))
+
+        logging.info('Creating A matrix ...')
+        start_time = time.time()
+        a_mat = self._build_sparse_reg_matrix()
+        end_time = time.time()
+        logging.info('Computed in: {} s'.format(end_time - start_time))
+
+        logging.info('Computing A and B^TB svds approximation ...')
+        start_time = time.time()
+        bb_norm = scipy.sparse.linalg.eigsh(btb_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                           maxiter=300, return_eigenvectors=False)
+        a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                          maxiter=300, return_eigenvectors=False)
+        a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
+                                          maxiter=300, return_eigenvectors=False)
+        #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+        c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
+        end_time = time.time()
+        logging.info('Computed in: {} s'.format(end_time - start_time))
+
+        logging.info('Solving for Z coordinates ...')
+        start_time = time.time()
+        z_vec = scipy.sparse.linalg.spsolve(c_mat, btwb_vec)
+        assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
+        end_time = time.time()
+        logging.info('Computed in: {} s'.format(end_time - start_time))
+
+        logging.info('Computing error ...')
+        start_time = time.time()
+
+        diff, diff_mat_max, diff_mat_eucl = self._compute_errors(point_loc, z_vec)
+
+        self.error = max_diff = np.max(diff)
+        logging.info("Approximation error (max norm): {}".format(max_diff))
+        end_time = time.time()
+        logging.info('Computed in: {} s'.format(end_time - start_time))
+
+        # Construct Z-Surface
+        poles_z = z_vec.reshape(self._v_basis.size, self._u_basis.size).T
+        #poles_z *= self.grid_surf.z_scale
+        #poles_z += self.grid_surf.z_shift
+        surface_z = bs.Surface((self._u_basis, self._v_basis), poles_z[:, :, None])
+        self.surface = bs.Z_Surface(self.quad[0:3], surface_z)
+
+        return self.surface
+
+    def compute_adaptive_approximation(self, **kwargs):
+        """
+        Compute approximation of the point set (given to constructor).
+        Approximation parameters can be passed in through kwargs or set in the object before the call.
+        :param quad: [(x1,y1), .. , (x4,y4)] Set vertices of different quad for the point set.
+        :param nuv: (nu, nv) Set number of intervals of the resulting B-spline, in U and V direction
+        :param regularization_wight: Default 0.001, is scaled by the max singular value of B.
+        :return: B-Spline surface
+        """
+
+        self.quad = kwargs.get("quad", self.quad)
+        self.nuv = kwargs.get("nuv", self.nuv)
+        self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
+
+        logging.info('Transforming points (n={}) ...'.format(self._n_points))
+        start_time = time.time()
+        if self.quad is None:
+            self.compute_default_quad()
+        if self.nuv is None:
+            self.compute_default_nuv()
+
+        # TODO: better logic, since this has to be recomputed only if quad is changed.
+        self._compute_uv_points()
+
+        logging.info("Using {} x {} B-spline approximation.".format(self.nuv[0], self.nuv[1]))
+        self._u_basis = bs.SplineBasis.make_equidistant(2, self.nuv[0])
+        self._v_basis = bs.SplineBasis.make_equidistant(2, self.nuv[1])
+
+        end_time = time.time()
+        logging.info('Computed in: {} s'.format(end_time - start_time))
+
         abs_tol = 0.01
-        max_iters = 1
+        max_iters = 2
         n_course = 1
         iters = -1
         while n_course != 0: ### Adaptivity loop
@@ -496,7 +579,7 @@ class SurfaceApprox:
             ref_vec_v = np.sum(bool_mat, axis=0)
             print("max_diff=",np.max(diff))
             n_course = sum(ref_vec_u) + sum(ref_vec_v)
-            if np.logical_or(n_course == 0, iters < max_iters):
+            if np.logical_or(n_course == 0, iters == max_iters):
                 break
 
 
