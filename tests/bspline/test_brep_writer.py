@@ -19,26 +19,26 @@ class TestLocation:
             lb = bw.Location([[a, b, a, b], [a, b, a, b], [a, b, a, b]])
 
     def test_transforms(self):
-        points = np.array([[1,0,0,1], [0,1,0,1], [0,0,1,1]])
+        points = np.array([[1,0,0], [0,1,0], [0,0,1], [1,1,1]]).T
         # Translate
         shift = [1,2,3]
-        translate_loc = bw.Location().translate([1,2,3])
+        translate_loc = bw.Location.Translate([1,2,3])
         assert np.alltrue(translate_loc.matrix == np.array([[1,0,0,1],[0,1,0,2],[0,0,1,3]]))
         # Apply
-        t_points = translate_loc._apply(points)
+        t_points = translate_loc.apply(points)
         assert np.alltrue(np.array([[2,1,1,2],[2,3,2,3],[3,3,4,4]]) == t_points)
         # Rotate
-        rotate_loc = bw.Location().rotate([1,1,1], 2 * np.pi / 3)
-        r_points = rotate_loc._apply(points)
-        ref_r_points = np.array([[0,0,1,1],[1,0,0,1],[0,1,0,1]])
+        rotate_loc = bw.Location.Rotate([1,1,1], 2 * np.pi / 3)
+        r_points = rotate_loc.apply(points)
+        ref_r_points = np.array([[0,1,0], [0,0,1], [1,0,0], [1,1,1]]).T
         assert np.allclose(ref_r_points, r_points)
-        rotate_c_loc = bw.Location().rotate([1, 1, 1], 2 * np.pi / 3, center=[1,0,0])
-        rc_points = rotate_c_loc._apply(points)
+        rotate_c_loc = bw.Location.Rotate([1, 1, 1], 2 * np.pi / 3, center=[1,0,0])
+        rc_points = rotate_c_loc.apply(points)
         ref_rc_points = ref_r_points + np.array([1,-1,0])[:, None]
         assert np.allclose(ref_rc_points, rc_points)
         # Scale
-        scale_loc = bw.Location().scale([1,2,3], center=[0,1,0])
-        s_points = scale_loc._apply(points)
+        scale_loc = bw.Location.Scale([1,2,3], center=[0,1,0])
+        s_points = scale_loc.apply(points)
         assert np.allclose(np.array([[1,0,0,1],[-1,1,-1,1],[0,0,3,3]]), s_points)
 
 

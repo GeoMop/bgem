@@ -1139,7 +1139,7 @@ class LayerGeometry():
         compound.set_free_shapes()
         self.brep_file = os.path.abspath(self.filename_base + ".brep")
         with open(self.brep_file, 'w') as f:
-            bw.write_model(f, compound, bw.Location())
+            bw.write_model(f, compound)
 
     def make_gmsh_shape_dict(self):
         """

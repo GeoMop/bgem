@@ -94,13 +94,15 @@ class BREPObject:
         # Default no childs.
         return []
 
-
-    def gather_groups(self):
+    @staticmethod
+    def gather_groups(objs):
         # DFS thorough the BREP object fromm the `self` as a root.
         # Assign BREP IDs and collect BREP objects into groups.
+        visited = set()
         group_size = max(BREPGroup) + 1
         groups = [[] for _ in range(group_size)]
-        self._dfs_gather_groups(groups, set())
+        for obj in objs:
+            obj._dfs_gather_groups(groups, visited)
         return groups
 
 
@@ -111,7 +113,7 @@ class BREPObject:
 
         self._dfs_previsit(groups)
         for ch in self._childs():
-            ch._dfs_gather_groups(groups)
+            ch._dfs_gather_groups(groups, visited)
         self._dfs_postvisit(groups)
 
 
@@ -124,6 +126,8 @@ class BREPObject:
     def _group_pass(self, groups):
         pass
 
+
+
 class Location(BREPObject):
     """
     Location defines an affine transformation in 3D space. Corresponds to the <location data 1> in the BREP file.
@@ -133,43 +137,22 @@ class Location(BREPObject):
     TODO: possibly convert transformation methods to returning a Composed Location, that wy we
     can have a pure functional API.
     """
-    def __init__(self, matrix=None):
+
+    @staticmethod
+    def _identity_matrix():
+        return np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
+
+    @staticmethod
+    def Translate(vector):
         """
-        Constructor for elementary afine transformation.
-        :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
-        Last column is the translation vector.
-        matrix==None means identity location (ID=0).
+        Create a translation by the shift 'vector'.
         """
-        super().__init__(group=BREPGroup.locations)
-        if matrix is None:
-            self.matrix = None
-            self.id = 0
-            return
+        matrix = Location._identity_matrix()
+        matrix[:, 3] += np.array(vector, dtype=float)
+        return Location(matrix)
 
-        # checks
-        check_matrix(matrix, [3, 4], (int, float))
-        self.matrix=matrix
-        self.id = None
-
-    def make_nondefault(self):
-        if self.matrix is None:
-            self.matrix = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
-            self.id = None
-
-    def _apply(self, points:np.array) -> np.array:
-        #  points: shape 3xN
-        return self.matrix[:,:3] @ points  + (self.matrix[:,3])[:, None]
-
-    def translate(self, vector):
-        """
-        Apply translation by the shift 'vector'.
-        Returns self, to allow chained application of transforms.
-        """
-        self.make_nondefault()
-        self.matrix[:, 3] += np.array(vector, dtype=float)
-        return self
-
-    def rotate(self, axis, angle, center=[0, 0, 0]):
+    @staticmethod
+    def Rotate(axis, angle, center=[0, 0, 0]):
         """
         Assuming the coordinate system:
 
@@ -177,13 +160,11 @@ class Location(BREPObject):
         |
         Z --> X
 
-        Apply rotation anticlockwise (right hand rule) by the `angle` (radians)
+        Create a rotation anticlockwise (right hand rule) by the `angle` (radians)
         around the (normalised) `axis` vector.
         Optionally the center of the rotation can be specified.
-
-        Returns self, to allow chained application of transforms.
         """
-        self.make_nondefault()
+        matrix = Location._identity_matrix()
         center = np.array(center, dtype=float)
         axis = np.array(axis, dtype=float)
         axis /= np.linalg.norm(axis)
@@ -193,37 +174,116 @@ class Location(BREPObject):
              [axis[2], 0, -axis[0]],
              [-axis[1], axis[0], 0]])
         M = np.eye(3) +  np.sin(angle) * W + 2 * np.sin(angle/2) ** 2 *  W @ W
-        self.matrix[:, 3] -= center
-        self.matrix = M @ self.matrix
-        self.matrix[:, 3] += center
-        return self
+        matrix[:, 3] -= center
+        matrix = M @ matrix
+        matrix[:, 3] += center
+        return Location(matrix)
 
-    def scale(self, scale_vector, center=[0, 0, 0]):
-        self.make_nondefault()
+    @staticmethod
+    def Scale(scale_vector, center=[0, 0, 0]):
+        """
+        Create a scaling the 'scale_vector' keeping 'center' unmodified.
+        """
+        matrix = Location._identity_matrix()
         center = np.array(center, dtype=float)
         scale_vector = np.array(scale_vector, dtype=float)
-        self.matrix[:, 3] -= center
-        self.matrix = np.diag(scale_vector) @ self.matrix
-        self.matrix[:, 3] += center
+        matrix[:, 3] -= center
+        matrix = np.diag(scale_vector) @ matrix
+        matrix[:, 3] += center
+        return Location(matrix)
+
+
+
+    def __init__(self, matrix=None):
+        """
+        Constructor for elementary afine transformation.
+        :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
+        Last column is the translation vector.
+        matrix==None means identity location (ID=0).
+
+        TODO: Make matrix parameter obligatory.
+        """
+        super().__init__(group=BREPGroup.locations)
+        if isinstance(matrix, str) and matrix == 'identity':
+            return
+        if matrix is None:
+            print("Warning: 'Location()' is deprecated use 'Identity' instead.")
+            self.matrix = None
+            return
+
+        # checks
+        check_matrix(matrix, [3, 4], (int, float))
+        self.matrix=np.array(matrix)
+
+
+    # def _make_nondefault(self):
+    #     if self.matrix is None:
+    #         self.matrix = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
+
+    def apply(self, points:np.array) -> np.array:
+        #  points: shape 3xN
+        return self.matrix[:, :3] @ points + (self.matrix[:, 3])[:, None]
+
+    def flat(self):
         return self
 
-    def _dfs(self, groups):
+    def __matmul__(self, other: 'Location') -> 'ComposedLocation':
         """
-        Deep first search that assign numbers to shapes
-        :param groups: dict(locations=[], curves_2d=[], curves_3d=[], surfaces=[], shapes=[])
-        :return: None
+        Can use matrix multiplication operator '@' to compose Locations.
+        E.g.
+
+        location = Identity @ Location.Rotate([0,1,0], angle) @ Location.Translate([1,2,3])
+
+        is equivalent to
+
+        location = Identity.rotate([0,1,0], angle).translate([1,2,3])
+
+        Return ComposedLocation.
         """
-        if not hasattr(self, 'id'):
-            id=len(groups['locations'])+1
-            self.id = id
-            groups['locations'].append(self)
+        return ComposedLocation([(self, 1), (other,1)])
+
+    def translate(self, vector):
+        """
+        Apply translation by the shift 'vector'.
+        Return a composed location.
+        """
+        return self @ Location.Translate(vector)
+
+    def rotate(self, axis, angle, center=[0, 0, 0]):
+        """
+        Apply rotation.
+        Return a composed location.
+        """
+        return self @ Location.Rotate(axis, angle, center)
+
+    def scale(self, scale_vector, center=[0, 0, 0]):
+        """
+        Apply scaling.
+        Return a composed location.
+        """
+        return self @ Location.Scale(scale_vector, center)
+
+    def _matrix_expand(self):
+        return np.concatenate([self.matrix, np.array([[0,0,0,1]])], axis=0)
 
     def _brep_output(self, stream, groups):
+        if self.matrix is None:
+            # implicit identity
+            return
         stream.write("1\n")
         for row in self.matrix:
             for number in row:
                 stream.write(" {}".format(number))
             stream.write("\n")
+
+class _Identity(Location):
+    def __init__(self):
+        super().__init__('identity')
+
+    def _brep_output(self, stream, groups):
+        pass
+Identity = _Identity()
+
 
 class ComposedLocation(Location):
     """
@@ -240,23 +300,34 @@ class ComposedLocation(Location):
         l = len(locs)
         check_matrix(locs, [ l ], (Location, ComposedLocation) )
         check_matrix(pows, [ l ], int)
-        super().__init__()
+        super().__init__('identity')
         self._locations = locs
         self._powers = pows
+
+    def apply(self, points:np.array) -> np.array:
+        #  points: shape 3xN
+        return self.flat().apply(points)
+
+    def flat(self):
+        """
+        Return the Location with the same matrix.
+        """
+        matrix = np.eye(4)
+        for loc, pow in reversed(zip(self._locations, self._powers)):
+            for _ in range(pow):
+                full_matrix = loc._matrix_expand()
+                matrix = full_matrix @ matrix
+        return Location(matrix[:-1, :])
+
 
 
     def _childs(self):
         return self._locations
 
-    def _dfs(self, groups):
-
-        for location in self._locations:
-            location._dfs(groups)
-        Location._dfs(self, groups)
 
     def _brep_output(self, stream, groups):
         stream.write("2 ")
-        for loc, pow in zip(self._childs, self._powers):
+        for loc, pow in zip(self._locations, self._powers):
             stream.write("{} {} ".format(loc.brep_id, pow))
         stream.write("0\n")
 
@@ -329,13 +400,6 @@ class Curve3D(BREPObject):
                 raise Exception("Point: {} far from curve repr: {}".format(point, repr_pt))
 
 
-    def _dfs(self, groups):
-        if not hasattr(self, 'id'):
-            id = len(groups['curves_3d']) + 1
-            self.id = id
-            groups['curves_3d'].append(self)
-
-
     def _brep_output(self, stream, groups):
         # writes b-spline curve
         stream.write("7 {} 0  {} {} {} ".format(int(self.rational), self.degree, len(self.poles), len(self.knots)))
@@ -385,12 +449,6 @@ class Curve2D(BREPObject):
             u, v = self._bs_curve.eval(t)
             surface._eval_check(u, v, point)
 
-
-    def _dfs(self, groups):
-        if not hasattr(self, 'id'):
-            id = len(groups['curves_2d']) + 1
-            self.id = id
-            groups['curves_2d'].append(self)
 
     def _brep_output(self, stream, groups):
         # writes b-spline curve
@@ -468,12 +526,6 @@ class Surface(BREPObject):
             if not np.allclose(np.array(point), repr_pt, rtol = 1.0e-3):
                 raise Exception("Point: {} far from curve repr: {}".format(point, repr_pt))
 
-
-    def _dfs(self, groups):
-        if not hasattr(self, 'id'):
-            id = len(groups['surfaces']) + 1
-            self.id = id
-            groups['surfaces'].append(self)
 
     def _brep_output(self, stream, groups):
         #writes b-spline surface
@@ -602,7 +654,7 @@ class ShapeRef:
 
     orient_chars = ['+', '-', 'i', 'e']
 
-    def __init__(self, shape, orient=Orient.Forward, location=Location()):
+    def __init__(self, shape, orient=Orient.Forward, location=Identity):
         """
         :param shape: referenced shape
         :param orient: orientation of the shape, value is enum Orient
@@ -619,10 +671,10 @@ class ShapeRef:
 
     def _writeformat(self, stream, groups):
 
-        stream.write("{}{} {} ".format(self.orient_chars[self.orientation-1], self.shape.id, self.location.id))
+        stream.write("{}{} {} ".format(self.orient_chars[self.orientation-1], self.shape._brep_id, self.location._brep_id))
 
     def __repr__(self):
-        return "{}{} ".format(self.orient_chars[self.orientation-1], self.shape.id)
+        return "{}{} ".format(self.orient_chars[self.orientation-1], self.shape._brep_id)
 
 
 class ShapeFlag(dict):
@@ -738,20 +790,6 @@ class Shape(BREPObject):
         return self.flags['closed']
 
 
-    def _dfs(self, groups):
-        """
-        Deep first search that assign numbers to shapes
-        :param groups: dict(locations=[], curves_2d=[], curves_3d=[], surfaces=[], shapes=[])
-        :return: None
-        """
-        if hasattr(self, 'id'):
-            return
-        for sub_ref in self.childs:
-            sub_ref.location._dfs(groups)
-            sub_ref.shape._dfs(groups)
-        groups['shapes'].append(self)
-        self.id = len(groups['shapes'])
-
     def _brep_output(self, stream, groups):
         stream.write("{}\n".format(self.shpname))
         self._subrecordoutput(stream)
@@ -767,12 +805,12 @@ class Shape(BREPObject):
         stream.write("\n")
 
     def __repr__(self):
-        if not hasattr(self, 'id'):
-            self.index_all()
+        #if not hasattr(self, 'id'):
+        #    self.index_all()
         if len(self.childs)==0:
             return ""
         repr = ""
-        repr+=self.shpname + " " + str(self.id) + " : "
+        repr += self.shpname + " " + str(self._brep_id) + " : "
         for child in self.childs:
             repr+=child.__repr__()
         repr+="\n"
@@ -780,24 +818,6 @@ class Shape(BREPObject):
             repr+=child.shape.__repr__()
         repr+="\n"
         return repr
-
-
-    def index_all(self, location=Location()):
-        """
-        Make depth first search through the model tree with a root in 'self'.
-        - assign BREP ID to the shapes an locations
-        - gather objects into the 'groups' dictionary according to the sections in the BREP file
-        return the 'groups' dictionary
-
-        TODO: move into Compound, or just move into main writer function.
-        """
-        groups = dict(locations=[], curves_2d=[], curves_3d=[], surfaces=[], shapes=[])
-        self._dfs(groups)
-        location._dfs(groups)
-
-        #groups = self.gather_groups()
-        #location._dfs_gather_groups(groups)
-        return groups
 
 
 """
@@ -881,7 +901,7 @@ class Face(Shape):
     Like vertex and edge have some additional parameters in the BREP format.
     """
 
-    def __init__(self, wires, surface=None, location=Location(), tolerance=1.0e-3):
+    def __init__(self, wires, surface=None, location=Identity, tolerance=1.0e-3):
         """
         :param wires: List of wires, or list of edges, or list of ShapeRef tuples of Edges to construct a Wire.
         :param surface: Representation of the face, surface on which face lies.
@@ -924,30 +944,13 @@ class Face(Shape):
             self.implicit_surface()
         assert len(self.repr) == 1
 
-        yield Shape._childs()
         for repr, loc in self.repr:
             yield repr
             yield loc
 
-        # update geometry representation of edges (add 2D curves)
-        for wire in self.subshapes():
-            for edge in wire.subshapes():
-                edge._dfs(groups)
+        yield from super()._childs()
 
 
-    def _dfs(self, groups):
-        # finalize.
-        if not self.repr:
-            self.implicit_surface()
-        assert len(self.repr) == 1
-
-        for repr, loc in self.repr:
-            repr._dfs(groups)
-            loc._dfs(groups)
-
-        Shape._dfs(self,groups)
-
-            
     def implicit_surface(self):
         """
         Construct a surface if surface is None. Works only for
@@ -980,7 +983,7 @@ class Face(Shape):
             raise Exception("Too many vertices {} for implicit surface construction.".format(len(vtxs)))
         (ids, points) = zip(*vtxs)
         (surface, vtxs_uv) =  constructor(list(points))
-        self.repr = [(surface, Location())]
+        self.repr = [(surface, Identity)]
 
         # set representation of edges
         assert len(ids) == len(vtxs_uv)
@@ -998,7 +1001,7 @@ class Face(Shape):
     def _subrecordoutput(self, stream):
         assert len(self.repr) == 1
         surf,loc = self.repr[0]
-        stream.write("{} {} {} {}\n\n".format(self.restriction_flag, self.tol, surf.id, loc.id))
+        stream.write("{} {} {} {}\n\n".format(self.restriction_flag, self.tol, surf._brep_id, loc._brep_id))
 
 
 class Edge(Shape):
@@ -1047,7 +1050,7 @@ class Edge(Shape):
         '''
         return [ vtx.point for vtx in self.subshapes()]
 
-    def attach_to_3d_curve(self, t_range, curve, location=Location()):
+    def attach_to_3d_curve(self, t_range, curve, location=Identity):
         """
         Add vertex representation on a 3D curve.
         :param t_range: Tuple (t_min, t_max).
@@ -1061,7 +1064,7 @@ class Edge(Shape):
         self.repr.append( (self.Repr.Curve3d, t_range, curve, location) )
         return self
 
-    def attach_to_2d_curve(self, t_range, curve, surface, location=Location()):
+    def attach_to_2d_curve(self, t_range, curve, surface, location=Identity):
         """
         Add vertex representation on a 2D curve.
         :param t_range: Tuple (t_min, t_max).
@@ -1110,7 +1113,8 @@ class Edge(Shape):
 
     #def attach_continuity(self):
 
-    def _dfs(self, groups):
+
+    def _childs(self):
         # finalize
         if not self.repr:
             self.implicit_curve()
@@ -1118,25 +1122,27 @@ class Edge(Shape):
 
         for repr in self.repr:
             if repr[0]==self.Repr.Curve2d:
-                repr[2]._dfs(groups) #curve
-                repr[3]._dfs(groups) #surface
-                repr[4]._dfs(groups) #location
+                yield repr[2]
+                yield repr[3]
+                yield repr[4]
             elif repr[0]==self.Repr.Curve3d:
-                repr[2]._dfs(groups) #curve
-                repr[3]._dfs(groups) #location
+                yield repr[2]
+                yield repr[3]
+        yield from super()._childs()
 
-        Shape._dfs(self,groups)
 
-    def _subrecordoutput(self, stream): #prints edge data #TODO: tisknu nekolik data representation
+    def _subrecordoutput(self, stream):
         assert len(self.repr) > 0
         stream.write(" {} {} {} {}\n".format(self.tol,self.edge_flags[0],self.edge_flags[1],self.edge_flags[2]))
         for i,repr in enumerate(self.repr):
             if repr[0] == self.Repr.Curve2d:
                 curve_type, t_range, curve, surface, location = repr
-                stream.write("2 {} {} {} {} {}\n".format(curve.id, surface.id, location.id,t_range[0],t_range[1] )) #TODO: 2 <surface number> <_> <location number> <_> <curve parameter minimal and maximal values>
+                stream.write("2 {} {} {} {} {}\n".format(
+                    curve._brep_id, surface._brep_id, location._brep_id,t_range[0],t_range[1] ))
+
             elif repr[0] == self.Repr.Curve3d:
                 curve_type, t_range, curve, location = repr
-                stream.write("1 {} {} {} {}\n".format(curve.id, location.id, t_range[0], t_range[1])) #TODO: 3
+                stream.write("1 {} {} {} {}\n".format(curve._brep_id, location._brep_id, t_range[0], t_range[1]))
         stream.write("0\n")
 
 
@@ -1152,18 +1158,18 @@ class Vertex(Shape):
         Surface = 3
 
     @staticmethod
-    def on_surface(u, v, surface, location=Location()):
+    def on_surface(u, v, surface, location=Identity):
         point = surface._bs_surface.eval(u, v)
         return Vertex(point).attach_to_surface(u, v, surface, location)
 
     @staticmethod
-    def on_curve_2d(t, curve, surface, location=Location()):
+    def on_curve_2d(t, curve, surface, location=Identity):
         uv = curve._bs_curve.eval(t)
         point = surface._bs_surface.eval(*uv)
         return Vertex(point).attach_to_2d_curve(t, curve, surface, location)
 
     @staticmethod
-    def on_curve_3d(t, curve, location=Location()):
+    def on_curve_3d(t, curve, location=Identity):
         point = curve._bs_curve.eval(t)
         return Vertex(point).attach_to_3d_curve(t, curve, location)
 
@@ -1190,7 +1196,7 @@ class Vertex(Shape):
 
         super().__init__(childs=[])
 
-    def attach_to_3d_curve(self, t, curve, location=Location()):
+    def attach_to_3d_curve(self, t, curve, location=Identity):
         """
         Add vertex representation on a 3D curve.
         :param t: Parameter of the point on the curve.
@@ -1202,7 +1208,7 @@ class Vertex(Shape):
         self.repr.append( (self.Repr.Curve3d, t, curve, location) )
         return self
 
-    def attach_to_2d_curve(self, t, curve, surface, location=Location()):
+    def attach_to_2d_curve(self, t, curve, surface, location=Identity):
         """
         Add vertex representation on a 2D curve on a surface.
         :param t: Parameter of the point on the curve.
@@ -1215,7 +1221,7 @@ class Vertex(Shape):
         self.repr.append( (self.Repr.Curve2d, t, curve, surface, location) )
         return self
 
-    def attach_to_surface(self, u, v, surface, location=Location()):
+    def attach_to_surface(self, u, v, surface, location=Identity):
         """
         Add vertex representation on a 3D curve.
         :param u,v: Parameters u,v  of the point on the surface.
@@ -1227,17 +1233,16 @@ class Vertex(Shape):
         self.repr.append( (self.Repr.Surface, u,v, surface, location) )
         return self
 
-
-    def _dfs(self, groups):
+    def _childs(self):
         for repr in self.repr:
             if repr[0]==self.Repr.Curve2d:
-                repr[2]._dfs(groups) #curve
-                repr[3]._dfs(groups) #surface
-                repr[4]._dfs(groups) #location
+                yield repr[2] #curve
+                yield repr[3] #surface
+                yield repr[4] #location
             elif repr[0]==self.Repr.Curve3d:
-                repr[2]._dfs(groups) #curve
-                repr[3]._dfs(groups) #location
-        Shape._dfs(self,groups)
+                yield repr[2] #curve
+                yield repr[3] #location
+        yield from super()._childs()
 
 
     def _subrecordoutput(self, stream): #prints vertex data
@@ -1259,49 +1264,51 @@ class Vertex(Shape):
     #     raise KeyError("Vertex not attached to the surface.")
 
 
-def write_model(stream, compound, location=Location()):
+def write_model(stream, compound, location=Identity):
     """
     Write a BREP representation of the model 'compound' transformed to the 'location'
     to the 'stream'.
     """
-
-    groups = compound.index_all(location=location)
+    assert isinstance(compound, Compound)
+    groups = BREPObject.gather_groups([Identity, compound, location])
+    locations = groups[BREPGroup.locations]
+    curves_3d = groups[BREPGroup.curves_3d]
+    curves_2d = groups[BREPGroup.curves_2d]
+    surfaces = groups[BREPGroup.surfaces]
+    shapes = groups[BREPGroup.shapes]
 
     # fix shape IDs
-    n_shapes = len(groups['shapes']) + 1
-    for shape in groups['shapes']:
-        shape.id = n_shapes - shape.id
+    n_shapes = len(shapes) + 1
+    for shape in shapes:
+        shape._brep_id = n_shapes - shape._brep_id
 
     stream.write("DBRep_DrawableShape\n\n")
     stream.write("CASCADE Topology V1, (c) Matra-Datavision\n")
-    stream.write("Locations {}\n".format(len(groups['locations'])))
-    for loc in groups['locations']:
+    stream.write("Locations {}\n".format(len(locations)))
+    for loc in locations:
         loc._brep_output(stream, groups)
 
-    stream.write("Curve2ds {}\n".format(len(groups['curves_2d'])))
-    for curve in groups['curves_2d']:
+    stream.write("Curve2ds {}\n".format(len(curves_2d)))
+    for curve in curves_2d:
         curve._brep_output(stream, groups)
 
-    stream.write("Curves {}\n".format(len(groups['curves_3d'])))
-    for curve in groups['curves_3d']:
+    stream.write("Curves {}\n".format(len(curves_3d)))
+    for curve in curves_3d:
         curve._brep_output(stream, groups)
 
     stream.write("Polygon3D 0\n")
 
     stream.write("PolygonOnTriangulations 0\n")
 
-    stream.write("Surfaces {}\n".format(len(groups['surfaces'])))
-    for surface in groups['surfaces']:
+    stream.write("Surfaces {}\n".format(len(surfaces)))
+    for surface in surfaces:
         surface._brep_output(stream, groups)
 
     stream.write("Triangulations 0\n")
 
-    stream.write("\nTShapes {}\n".format(len(groups['shapes'])))
-    for shape in groups['shapes']:
-        #print("# {} id: {} childs: {}\n".format(shape.shpname, shape.id,
-        #                                        [ch.id for ch in shape.subshapes()]))
+    stream.write("\nTShapes {}\n".format(len(shapes)))
+    for shape in shapes:
         shape._brep_output(stream, groups)
     stream.write("\n+1 0")
-    #stream.write("0\n")
 
 
