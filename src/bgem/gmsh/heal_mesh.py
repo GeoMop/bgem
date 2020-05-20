@@ -504,7 +504,6 @@ class HealMesh:
                 return [e for e in self.active(self.node_els[edge_ids[0]])]
         return []
 
-
     def _check_duplicate_element(self, ele):
         dupl = self.is_duplicate_el(ele)
         if len(dupl) > 1:
@@ -699,6 +698,7 @@ class HealMesh:
         n_pos = np.sum(cos_face_norm > 0.0)
         if n_pos == 2:
             # quad flat case
+            # degenerates into quadrilateral
             vtx_faces = np.array(ele.shape.vtxs_faces)
             i_pos_faces = np.arange(4)[cos_face_norm > 0]
             pos_faces = vtx_faces[i_pos_faces, :]
@@ -708,7 +708,9 @@ class HealMesh:
             neg_edge_vtxs = list(set.intersection(*[set(vtxs) for vtxs in neg_faces]))
             return self._heal_quad_flat_case(ele, flat_nodes, pos_edge_vtxs, neg_edge_vtxs)
 
+        # next two cases degenerates into triangles
         elif n_pos == 1:
+            # in which face it degenerates
             outer_face = np.argmax(cos_face_norm > 0)
             return self._heal_triangle_flat_case(ele, flat_nodes, outer_face)
         elif n_pos==3:
@@ -744,6 +746,7 @@ class HealMesh:
         im = np.argmax([np.abs(np.linalg.det(subM)) for subM in sub_mat])
         M = sub_mat[im]
         rhs = (pos_0 - neg_0)[sub_rows[im]]
+        # relative coordinates on the edges
         pos_t, neg_t = np.linalg.solve(M, -rhs)
         isec_point = pos_0 + pos_t * pos_u
 
@@ -755,11 +758,18 @@ class HealMesh:
 
             #tria_nodes = np.stack((flat_nodes[edge[0]], flat_nodes[other_edge[0]], flat_nodes[other_edge[1]]), axis=0)
             #tria_flatness = Triangle(tria_nodes).small_edge_ratio()
-            assert np.abs(t-0) > 0.05, "  flat tetra, degen side, 0 == t: {}".format(t)
+            # assert np.abs(t-0) > 0.05, "  flat tetra, degen side, 0 == t: {}".format(t)
+            if np.abs(t - 0) <= 0.05:
+                print("  flat tetra, degen side, 0 == t: {}".format(t))
+                return []
             #tria_nodes = np.stack((flat_nodes[edge[1]], flat_nodes[other_edge[0]], flat_nodes[other_edge[1]]), axis=0)
             #tria_flatness = Triangle(tria_nodes).small_edge_ratio()
-            assert np.abs(t-1) > 0.05, "  flat tetra, degen side, 1 == t: {}".format(t)
+            # assert np.abs(t-1) > 0.05, "  flat tetra, degen side, 1 == t: {}".format(t)
+            if np.abs(t - 1) <= 0.05:
+                print("  flat tetra, degen side, 1 == t: {}".format(t))
+                return []
 
+        # failing these would mean the intersection of edges lies outside the bounded interval by the nodes
         assert 0 < pos_t < 1 ,(pos_t, neg_t)
         assert 0 < neg_t < 1 ,(pos_t, neg_t)
 
