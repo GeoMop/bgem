@@ -259,7 +259,7 @@ class SurfaceApprox:
         :return: The approximation object.
         """
         with open(filename, 'r') as f:
-            point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
+            point_seq = np.array([l for l in csv.reader(f, delimiter=',')], dtype=float)
 
         # too slow: alternatives: loadtxt (16s), csv.reader (1.6s), pandas. read_csv (0.6s)
         #point_seq = np.loadtxt(filename)
@@ -519,7 +519,7 @@ class SurfaceApprox:
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        abs_tol = 0.01
+        abs_tol = 5.0
         max_iters = 2
         n_course = 1
         iters = -1
@@ -556,10 +556,10 @@ class SurfaceApprox:
                                                maxiter=300, return_eigenvectors=False)
             a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
                                               maxiter=300, return_eigenvectors=False)
-            a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
-                                              maxiter=300, return_eigenvectors=False)
-            #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
-            c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
+            #a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
+            #                                  maxiter=300, return_eigenvectors=False)
+            c_mat = btb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+            #c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -574,10 +574,15 @@ class SurfaceApprox:
             start_time = time.time()
 
             diff, diff_mat_max, diff_mat_eucl = self._compute_errors(point_loc, z_vec)
+            end_time = time.time()
+            logging.info('Computed in: {} s'.format(end_time - start_time))
+
             bool_mat = diff_mat_max > abs_tol
             ref_vec_u = np.sum(bool_mat, axis=1)
             ref_vec_v = np.sum(bool_mat, axis=0)
-            print("max_diff=",np.max(diff))
+            print("iteration =",iters)
+            print("\nmax_diff =",np.max(diff))
+            print("area =", self._u_basis.n_intervals,'x',self._v_basis.n_intervals, "(n_patches =",self._u_basis.n_intervals*self._v_basis.n_intervals,")")
             n_course = sum(ref_vec_u) + sum(ref_vec_v)
             if np.logical_or(n_course == 0, iters == max_iters):
                 break
@@ -757,6 +762,8 @@ class SurfaceApprox:
                 u, v = self._uv_quad_points[idx, 0:2]
                 iu = self._u_basis.find_knot_interval(u)
                 iv = self._v_basis.find_knot_interval(v)
+
+                z_loc = z_vec[]
                 for idx in point_loc[interval_id]:
                     u, v = self._uv_quad_points[idx, 0:2]
                     u_base_vec = self._u_basis.eval_base_vector(iu, u)
@@ -844,13 +851,14 @@ class SurfaceApprox:
         i_local = np.arange(self._u_basis.degree+1, dtype=int)
         iuv_local = (u_n_basf * i_local[:, None] + i_local[None,:]).ravel() # 0,1,2, N+[0,1,2], 2*N+[0,1,2]
         #print("vnint: {} unint: {} nqp: {} prod: {}".format(v_n_inter, u_n_inter, nq_points, v_n_inter* u_n_inter* nq_points*nq_points))
-        jac = 1.0 / u_n_inter / v_n_inter
+        #jac = 1.0 / u_n_inter / v_n_inter
         idx_range = n_uv_loc_nz * n_uv_loc_nz      # 9 * 9 = 81 NZ per single bspline square
         for iv in range(v_n_inter):
             v_val_outer_loc = v_val_outer[:, :, iv]
             dv_val_outer_loc = v_diff_val_outer[:, :, iv]
 
             for iu in range(u_n_inter):
+                jac = 1 / ((self._u_basis.knots[iu+3] - self._u_basis.knots[iu+2]) * (self._v_basis.knots[iv+3] - self._v_basis.knots[iv+2]))
                 u_val_outer_loc = u_val_outer[:, :, iu]
                 du_val_outer_loc = u_diff_val_outer[:, : , iu]
                 # xy_outer_loc have shape 3x3
