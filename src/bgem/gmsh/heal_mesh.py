@@ -237,6 +237,23 @@ class HealMesh:
         print("diam: ", self._abs_node_tol)
 
 
+    def check_used_nodes(self):
+        print("Searching for unused nodes...")
+        used_nodes = dict.fromkeys(self.mesh.nodes.keys(), False)
+
+        for eid, e in self.mesh.elements.items():
+            ele_type, tags, node_ids = e
+            for n in node_ids:
+                assert n in used_nodes.keys()
+                used_nodes[n] = True
+
+        for nid, used in used_nodes.items():
+            if not used:
+                print("Removing unused node ", nid)
+                self.remove_node(nid)
+                # if nid in self.node_els:
+
+
     def make_node_to_el(self):
         # make node -> element map
         self._history = collections.defaultdict(list)
@@ -472,7 +489,9 @@ class HealMesh:
                 modified = self._check_small_edge(ele)
                 if modified: continue
 
-
+        # possibly remove unused nodes
+        # Flow123d is now able to do that on its own
+        self.check_used_nodes()
 
     def _check_dupl_nodes(self, ele):
         if ele.shape.dim == 0:
