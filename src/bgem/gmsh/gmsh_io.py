@@ -80,7 +80,7 @@ class GmshIO:
             if line.startswith('$'):
                 raise Exception("Insufficient number of entries in the $ElementData block: {} time={}".format(field, time))
             columns = line.split()
-            iel = columns[0]
+            iel = int(columns[0])
             values = [float(v) for v in columns[1:]]
             assert len(values) == n_comp
             elem_data[iel] = values
@@ -233,7 +233,7 @@ class GmshIO:
         for name in sorted(self.physical.keys()):
             value = self.physical[name]
             region_id, dim = value
-            print('%d %d %s' % (dim, region_id, name), file=mshfile)
+            print('%d %d "%s"' % (dim, region_id, name), file=mshfile)
         print('$EndPhysicalNames', file=mshfile)
         print('$Nodes\n%d' % len(self.nodes), file=mshfile)
         for node_id in sorted(self.nodes.keys()):
