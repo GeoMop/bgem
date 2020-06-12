@@ -340,6 +340,12 @@ class PolygonDecomposition:
             return obj
         elif dim == 1:
             seg = obj
+            # Snap to endpoints.
+            seg_len = np.linalg.norm(seg.vector)
+            if t*seg_len < self.tolerance:
+                return seg.vtxs[out_vtx]
+            elif (1-t)*seg_len < self.tolerance:
+                return seg.vtxs[in_vtx]
             mid_pt, new_seg = self._point_on_segment(seg, t)
             return mid_pt
         else:
