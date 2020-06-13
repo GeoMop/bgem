@@ -121,7 +121,7 @@ class PolygonDecomposition:
     #     point = self.decomp.points[point_id]
     #     self._rm_point(point)
 
-    def new_segment(self, a_pt, b_pt):
+    def new_segment(self, a_pt, b_pt, deformability=1):
         """
         LAYERS
         Add segment between given existing points. Assumes that there is no intersection with other segment.
@@ -130,7 +130,7 @@ class PolygonDecomposition:
         :param b_pt: End point.
         :return: new segment
         """
-        new_seg = self._add_segment(a_pt, b_pt)
+        new_seg = self._add_segment(a_pt, b_pt, deformability)
         return new_seg
 
 
@@ -446,7 +446,7 @@ class PolygonDecomposition:
         return (2, poly, None)
 
 
-    def add_line(self, a, b):
+    def add_line(self, a, b, deformability=1):
         """
         Try to add new line from point A to point B. Check intersection with any other line and
         call add_point for endpoints, call split_segment for intersections, then call operation new_segment for individual
@@ -463,11 +463,11 @@ class PolygonDecomposition:
 
         if a_point == b_point:
             return a_point
-        result = self.add_line_for_points(a_point, b_point, omit={a_point, b_point})
+        result = self.add_line_for_points(a_point, b_point, omit={a_point, b_point}, deformability = deformability)
         return result
 
 
-    def add_line_for_points(self, a_pt, b_pt, omit=set()):
+    def add_line_for_points(self, a_pt, b_pt, omit=set(), deformability=1):
         """
         Same as add_line, but for known end points.
         :param a_pt:
@@ -505,7 +505,7 @@ class PolygonDecomposition:
 
         # no snapping, subdivide by intersections
         line_div = self._add_line_seg_intersections(a_pt, b_pt)
-        return [seg for seg, change, side in self._add_line_new_segments(a_pt, b_pt, line_div)]
+        return [seg for seg, change, side in self._add_line_new_segments(a_pt, b_pt, line_div, deformability)]
 
     def merge_points(self, a, b):
         """
@@ -514,31 +514,36 @@ class PolygonDecomposition:
         :param a:
         :param b:
         :return:
-        """
-        orig_b = b
-        if a.id > b.id:
-            a, b = b, a
-        #a_diff = (b.xy - a.xy)/2
-        b_diff = (a.xy - b.xy) #/2
-        #a_can_move = self.check_displacment([a],  a_diff)
-        b_can_move = self.check_displacment([b],  b_diff)
-        b_can_move = b_can_move and not b.segment[0].attr.boundary
-        if b_can_move:
-            #a.move(a_diff)
-            for seg, b_idx in list(b.segments()):
-                seg_vtxs = seg.vtxs
-                self._rm_segment(seg)
-                seg_vtxs[b_idx] = a
-                self._add_segment(*seg_vtxs)
-            self._rm_point(b)
-            return a
-        else:
-            # just skip the segment
-            return orig_b
-            #import geomop.plot_polygons as pp
-            #pp.plot_polygon_decomposition(self, [a, b])
-            #assert False, (a_can_move, b_can_move)
 
+        Note: Snap to one of the points because it is faster then weighted merge point.
+        """
+        a_deform = a.deformability
+        b_deform = b.deformability
+
+        # snap to a point
+        if a_deform == 0 and b_deform == 0:
+            return None
+        if a_deform > b_deform:
+            a, b = b, a
+
+        b_diff = b.xy - a.xy
+        b_can_move = self.check_displacment([b],  b_diff)
+
+        # TODO: introduce an exception, that we can not meet the tolerance criteria
+        if not b_can_move:
+            return None
+        pt = b
+        for seg, pt_side in list(pt.segments()):
+            seg_vtxs = seg.vtxs
+            self._rm_segment(seg)
+            seg_vtxs[pt_side] = a
+            new_seg = self._add_segment(*seg_vtxs, seg.deformability)
+            if new_seg is not None:
+                new_seg.attr = seg.attr
+
+
+        self._rm_point(b)
+        return a
 
 
 
@@ -590,7 +595,7 @@ class PolygonDecomposition:
                 line_division[t1] = (mid_pt, seg, new_seg)
         return line_division
 
-    def _add_line_new_segments(self, a_pt, b_pt, line_div):
+    def _add_line_new_segments(self, a_pt, b_pt, line_div, deformability):
         """
         Generator for added new segments of the new line.
         """
@@ -600,14 +605,16 @@ class PolygonDecomposition:
                 continue
             if np.linalg.norm(start_pt.xy - mid_pt.xy) < self.tolerance:
                 # two close intersections, merge points
-                start_pt = self.merge_points(start_pt, mid_pt)
-                continue
-            new_seg = self._add_segment(start_pt, mid_pt)
+                merge_pt = self.merge_points(start_pt, mid_pt)
+                if merge_pt is not None:
+                    start_pt = merge_pt
+                    continue
+            new_seg = self._add_segment(start_pt, mid_pt, deformability)
             yield (new_seg, self.decomp.last_polygon_change, new_seg.vtxs[out_vtx] == start_pt)
             start_pt = mid_pt
 
         if start_pt != b_pt:
-            new_seg = self._add_segment(start_pt, b_pt)
+            new_seg = self._add_segment(start_pt, b_pt, deformability)
             yield (new_seg, self.decomp.last_polygon_change, new_seg.vtxs[out_vtx] == start_pt)
 
 
@@ -638,14 +645,18 @@ class PolygonDecomposition:
         self._rm_point(pt)
 
     @undo.undoable
-    def _add_segment(self, a_pt, b_pt):
+    def _add_segment(self, a_pt, b_pt, deformability):
         a_pt = self.points[a_pt.id]
         b_pt = self.points[b_pt.id]
-        seg = self.decomp.new_segment(a_pt, b_pt)
-        self.segments_lookup.add_object(seg.id, aabb_lookup.make_aabb([a_pt.xy, b_pt.xy], margin=self.tolerance))
-        yield "Add segment", seg
+        if a_pt != b_pt:
+            seg = self.decomp.new_segment(a_pt, b_pt)
+            seg.deformability = deformability
+            self.segments_lookup.add_object(seg.id, aabb_lookup.make_aabb([a_pt.xy, b_pt.xy], margin=self.tolerance))
+            yield "Add segment", seg
+            self._rm_segment(seg)
+        else:
+            yield "Add segment", None
 
-        self._rm_segment(seg)
 
     @undo.undoable
     def _rm_point(self, pt):
@@ -663,7 +674,7 @@ class PolygonDecomposition:
         self.decomp.delete_segment(seg)
         yield "Remove segment"
 
-        self._add_segment(seg.vtxs[0], seg.vtxs[1])
+        self._add_segment(seg.vtxs[0], seg.vtxs[1], seg.deformability)
 
     @undo.undoable
     def _split_segment(self, seg, mid_pt):
