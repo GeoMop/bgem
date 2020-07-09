@@ -295,9 +295,8 @@ class GeometryOCC:
 
         Return an integer value.
         """
-        xy_sides.append(0)
-        corner = np.array(center) - np.array(xy_sides) / 2
-        rec_tag = self.model.addRectangle(*corner.tolist(), *xy_sides[0:2])
+        corner = np.array(center) - np.array([*xy_sides, 0]) / 2
+        rec_tag = self.model.addRectangle(*corner.tolist(), *xy_sides)
         self._need_synchronize = True
         return self.object(2, rec_tag)
 
