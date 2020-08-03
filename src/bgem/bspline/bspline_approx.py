@@ -13,7 +13,8 @@ import scipy.sparse.linalg
 import scipy.interpolate
 
 from bgem.bspline import bspline as bs
-import csv
+#import csv
+import pandas as pd
 
 #logging.basicConfig(level=logging.DEBUG)
 #logging.info("Test info mesg.")
@@ -251,18 +252,23 @@ class SurfaceApprox:
     """
 
     @staticmethod
-    def approx_from_file(filename):
+    def approx_from_file(filename, file_delimiter=" ", file_skip_lines=0):
         """
         Load a sequence of XYZ points on a surface to be approximated.
         Optionally points may have weights (i.e. four values per line: XYZW)
         :param filename: Path to the input text file.
         :return: The approximation object.
         """
-        with open(filename, 'r') as f:
-            point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
+        # with open(filename, 'r') as f:
+        #     point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
 
         # too slow: alternatives: loadtxt (16s), csv.reader (1.6s), pandas. read_csv (0.6s)
         #point_seq = np.loadtxt(filename)
+
+        raw_df = pd.read_csv(filename, header=None, sep=file_delimiter, skiprows=file_skip_lines, index_col=False,
+                             engine="python")
+        point_seq = np.array(raw_df)
+
         return SurfaceApprox(point_seq)
 
 
