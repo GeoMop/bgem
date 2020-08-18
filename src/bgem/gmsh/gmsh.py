@@ -672,7 +672,7 @@ class ObjectSet:
         self.regions = [region.complete(dim) for dim, tag in self.dim_tags]
         return self
 
-    def modify_regions(self, format: str) -> None:
+    def modify_regions(self, format: str):
         """
         For every of object's regions create a new region with a name given by the 'format'
         and original region name.
