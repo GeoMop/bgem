@@ -503,9 +503,12 @@ class GeometryOCC:
         assert cumulsizes[-1] == len(tags_map), str(tags_map[cumulsizes[-1]:])
         for o, end in zip(object_sets, cumulsizes):
             dim_tag_map = tags_map[begin:end]
-            newset = [ObjectSet(self, new_subtags, [reg])
-                        for reg, new_subtags in zip(o.regions, dim_tag_map)]
-            newset = self.group(*newset)
+            object_list = []
+            for reg, step, new_subtags in zip(o.regions, o.mesh_step_size, dim_tag_map):
+                newobj = ObjectSet(self, new_subtags, [reg])
+                newobj.mesh_step(step)
+                object_list.append(newobj)
+            newset = self.group(*object_list)
             new_sets.append(newset)
             begin = end
             o.invalidate()
@@ -952,8 +955,11 @@ class ObjectSet:
 
         # assign regions
         assert len(self.regions) == len(self.dim_tags), (len(self.regions), len(self.dim_tags))
-        old_tags_objects = [ObjectSet(self.factory, new_subtags, [reg])
-                            for reg, new_subtags in zip(self.regions, old_tags_map[:len(self.dim_tags)])]
+        old_tags_objects = []
+        for reg, step, new_subtags in zip(self.regions, self.mesh_step_size, old_tags_map[:len(self.dim_tags)]):
+            newobj = ObjectSet(self.factory, new_subtags, [reg])
+            newobj.mesh_step(step)
+            old_tags_objects.append(newobj)
         new_obj = self.factory.group(*old_tags_objects)
 
         # store auxiliary information
