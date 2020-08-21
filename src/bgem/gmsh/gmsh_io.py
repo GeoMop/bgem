@@ -85,6 +85,35 @@ class GmshIO:
             assert len(values) == n_comp
             elem_data[iel] = values
 
+    def read_physical_names(self, mshfile=None):
+        """Read physical names from a Gmsh .msh file.
+
+        Reads Gmsh format 1.0 and 2.0 mesh files,
+        reads only '$PhysicalNames' section.
+        """
+
+        if not mshfile:
+            mshfile = open(self.filename, 'r')
+
+        readmode = 0
+        print('Reading %s' % mshfile.name)
+        line = 'a'
+        while line:
+            line = mshfile.readline()
+            line = line.strip()
+
+            if line.startswith('$'):
+                if line == '$PhysicalNames':
+                    readmode = 5
+                else:
+                    readmode = 0
+            elif readmode == 5:
+                columns = line.split()
+                if len(columns) == 3:
+                    self.physical[str(columns[2]).strip('\"')] = (int(columns[1]), int(columns[0]))
+        mshfile.close()
+
+        return self.physical
 
     def read(self, mshfile=None):
         """Read a Gmsh .msh file.
