@@ -228,6 +228,10 @@ class GeometryOCC:
 
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
 
+    @staticmethod
+    def get_logger():
+        return gmsh.logger
+
     def reinit(self):
         """
         Clear whole geometry model.
