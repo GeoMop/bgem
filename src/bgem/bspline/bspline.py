@@ -27,7 +27,7 @@ class SplineBasis:
     """
 
     @classmethod
-    def make_equidistant(cls, degree, n_intervals, knot_range=[0.0, 1.0]):
+    def make_equidistant(cls, degree, n_intervals, knot_range=[0.0, 1.0], n_boundary=(None, None)):
         """
         Returns spline basis for an eqidistant knot vector
         having 'n_intervals' subintervals.
@@ -36,14 +36,15 @@ class SplineBasis:
         :param knot_range: support of the spline, min and max valid 't'
         :return: SplineBasis object.
         """
-        n = n_intervals + 2 * degree + 1
+        multiplicity_begin, multiplicity_end = [degree if n is None else n for n in n_boundary]
+        n = n_intervals + multiplicity_begin + multiplicity_end + 1
         knots = np.array((knot_range[0],) * n)
         diff = (knot_range[1] - knot_range[0]) / n_intervals
-        for i in range(degree + 1, n - degree):
-            knots[i] = (i - degree) * diff + knot_range[0]
-        knots[-degree - 1:] = knot_range[1]
+        for i in range(multiplicity_begin + 1, n - multiplicity_end):
+            knots[i] = (i - multiplicity_begin) * diff + knot_range[0]
+        knots[-multiplicity_end - 1:] = knot_range[1]
         return cls(degree, knots)
-
+        # TODO: test and push
 
     @classmethod
     def make_from_packed_knots(cls, degree, knots):
