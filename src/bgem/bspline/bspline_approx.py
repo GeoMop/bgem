@@ -137,34 +137,48 @@ def curve_from_grid(points, **kwargs):
 
 
 def convex_hull_2d(sample):
+    """
+
+    Args:
+        sample: Points in plane as array of shape (N,2)
+
+    Returns:
+
+    """
     link = lambda a, b: np.concatenate((a, b[1:]))
-    edge = lambda a, b: np.concatenate(([a], [b]))
+
 
     def dome(sample, base):
         """
         Return convex hull of the points on the right side from the base.
-        :param sample: Nx2 nupy array of points
+        :param sample: Nx2 numpy array of points
         :param base: A segment, np array  [[x0,y0], [x1,y1]]
         :return: np array of points Nx2 on forming the convex hull
         """
+        # print("sample: ", len(sample))
         # End points of line.
         h, t = base
-        normal = np.dot(((0,-1),(1,0)),(t-h))
+        normal = np.dot( ((0, -1), (1, 0)), (t - h))
         # Distances from the line.
-        dists = np.dot(sample-h, normal)
+        dists = np.dot(sample - h, normal)
 
-        outer = np.repeat(sample, dists>0, 0)
-        if len(outer):
-            pivot = sample[np.argmax(dists)]
-            return link(dome(outer, edge(h, pivot)),
-                    dome(outer, edge(pivot, t)))
-        else:
+        outer = sample[dists > 0, :] # extract points on the positive half-plane
+        n_outer = len(outer)
+        if n_outer == 0:
             return base
+        elif n_outer == 1:
+            # prevents infinite recursion due to rounding errors
+            return [h, outer[0], t]
+        else:
+            # at least two outer point -> pivot exists
+            pivot = sample[np.argmax(dists)]
+            return link(dome(outer, [h, pivot]),
+                        dome(outer, [pivot, t]))
 
     if len(sample) > 2:
-        axis = sample[:,0]
+        x_coords = sample[:, 0]
         # Get left most and right most points.
-        base = np.take(sample, [np.argmin(axis), np.argmax(axis)], 0)
+        base = [sample[np.argmin(x_coords)], sample[np.argmax(x_coords)]] # extreme points in X coord
         return link(dome(sample, base), dome(sample, base[::-1]))
     else:
         return sample
