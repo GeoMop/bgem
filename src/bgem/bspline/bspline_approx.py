@@ -145,7 +145,7 @@ def convex_hull_2d(sample):
 
     """
     link = lambda a, b: np.concatenate((a, b[1:]))
-    edge = lambda a, b: np.concatenate(([a], [b]))
+
 
     def dome(sample, base):
         """
@@ -154,24 +154,26 @@ def convex_hull_2d(sample):
         :param base: A segment, np array  [[x0,y0], [x1,y1]]
         :return: np array of points Nx2 on forming the convex hull
         """
+        print("sample: ", len(sample))
         # End points of line.
         h, t = base
-        normal = np.dot(((0,-1),(1,0)),(t-h))
+        normal = np.dot( ((0, -1), (1, 0)), (t - h))
         # Distances from the line.
-        dists = np.dot(sample-h, normal)
+        dists = np.dot(sample - h, normal)
 
-        outer = np.repeat(sample, dists>0, 0) # extract points on the positive half-plane
-        if len(outer):
+        outer = np.repeat(sample, dists > 0, 0) # extract points on the positive half-plane
+        if len(outer) > 0:
+            # at least one outer point -> pivot exists
             pivot = sample[np.argmax(dists)]
-            return link(dome(outer, edge(h, pivot)),
-                    dome(outer, edge(pivot, t)))
+            return link(dome(outer, [h, pivot]),
+                        dome(outer, [pivot, t]))
         else:
             return base
 
     if len(sample) > 2:
         x_coords = sample[:, 0]
         # Get left most and right most points.
-        base = np.take(sample, [np.argmin(x_coords), np.argmax(x_coords)], 0) # extreme points in X coord
+        base = [sample[np.argmin(x_coords)], sample[np.argmax(x_coords)]] # extreme points in X coord
         return link(dome(sample, base), dome(sample, base[::-1]))
     else:
         return sample
