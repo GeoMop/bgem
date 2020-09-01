@@ -154,7 +154,7 @@ def convex_hull_2d(sample):
         :param base: A segment, np array  [[x0,y0], [x1,y1]]
         :return: np array of points Nx2 on forming the convex hull
         """
-        print("sample: ", len(sample))
+        # print("sample: ", len(sample))
         # End points of line.
         h, t = base
         normal = np.dot( ((0, -1), (1, 0)), (t - h))
@@ -162,13 +162,17 @@ def convex_hull_2d(sample):
         dists = np.dot(sample - h, normal)
 
         outer = sample[dists > 0, :] # extract points on the positive half-plane
-        if len(outer) > 0:
-            # at least one outer point -> pivot exists
+        n_outer = len(outer)
+        if n_outer == 0:
+            return base
+        elif n_outer == 1:
+            # prevents infinite recursion due to rounding errors
+            return [h, outer[0], t]
+        else:
+            # at least two outer point -> pivot exists
             pivot = sample[np.argmax(dists)]
             return link(dome(outer, [h, pivot]),
                         dome(outer, [pivot, t]))
-        else:
-            return base
 
     if len(sample) > 2:
         x_coords = sample[:, 0]
