@@ -161,7 +161,7 @@ def convex_hull_2d(sample):
         # Distances from the line.
         dists = np.dot(sample - h, normal)
 
-        outer = np.repeat(sample, dists > 0, 0) # extract points on the positive half-plane
+        outer = sample[dists > 0, :] # extract points on the positive half-plane
         if len(outer) > 0:
             # at least one outer point -> pivot exists
             pivot = sample[np.argmax(dists)]
