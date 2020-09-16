@@ -30,8 +30,8 @@ class SurfApprox:
 
     def surf_app(self):
         self.approx = bsa.SurfaceApprox.approx_from_file("/home/jiri/Github/real_data/grid_50_m.csv")
-        surfz = self.approx.compute_adaptive_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="spsolve",
-                                                           adapt_type="absolute")
+        surfz = self.approx.compute_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),
+                                                  solver="cg",adapt_type="absolute")
         err = self.approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf
@@ -40,12 +40,12 @@ class TestAdapt:
 
     def test_surface_intersection(self):
 
-        control_points = [60, 60]
+        control_points = [50, 50]
         sapp = SurfApprox(control_points)
         app = sapp.approx
         myplot = bp.Plotting((bp.PlottingPlotly()))
         myplot.plot_surface_3d(sapp.surfz, poles=False)
-        #myplot.scatter_3d(app._xy_points[:, 0], app._xy_points[:, 1], app._z_points)
+        #myplot.scatter_3d(app._xy_points[:, 0], app._xy_points[:, 1], app._z_points) points
         myplot.show() # view
 
 

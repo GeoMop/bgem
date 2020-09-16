@@ -4,13 +4,16 @@ Collection of functions to produce Bspline curves and surfaces as approximation 
 
 import logging
 import time
-#import math
+import math
 
 import numpy as np
 import numpy.linalg as la
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.interpolate
+
+import matplotlib.pylab as plt
+import scipy.sparse as sparse
 
 from bgem.bspline import bspline as bs
 import csv
@@ -259,7 +262,8 @@ class SurfaceApprox:
         :return: The approximation object.
         """
         with open(filename, 'r') as f:
-            point_seq = np.array([l for l in csv.reader(f, delimiter=',')], dtype=float)
+            point_seq = np.array([l for l in csv.reader(f, delimiter=',')], dtype=float) #delim
+            #point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
 
         # too slow: alternatives: loadtxt (16s), csv.reader (1.6s), pandas. read_csv (0.6s)
         #point_seq = np.loadtxt(filename)
@@ -439,7 +443,7 @@ class SurfaceApprox:
         # Approximation itself
         logging.info('Creating explicitly system of normal equations B^TBz=B^Tb ...')
         start_time = time.time()
-        btb_mat, btwb_vec, point_loc = self._build_system_of_normal_equations()
+        btb_mat, btwb_vec, point_loc, avg_vec = self._build_system_of_normal_equations()
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -455,16 +459,20 @@ class SurfaceApprox:
                                            maxiter=300, return_eigenvectors=False)
         a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
                                           maxiter=300, return_eigenvectors=False)
-        a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
-                                          maxiter=300, return_eigenvectors=False)
-        #c_mat = bb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
-        c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
+        c_mat = btb_mat + 1000 * self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+        #c_mat = btb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
         logging.info('Solving for Z coordinates ...')
         start_time = time.time()
+
         z_vec = scipy.sparse.linalg.spsolve(c_mat, btwb_vec)
+
+        #fig = plt.figure()
+        #plt.spy(c_mat,markersize=1)
+        #plt.show()
+
         assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
@@ -501,6 +509,8 @@ class SurfaceApprox:
         self.quad = kwargs.get("quad", self.quad)
         self.nuv = kwargs.get("nuv", self.nuv)
         self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
+        self.solver = kwargs.get("solver","spsolve")
+        self.adapt_type = kwargs.get("adapt_type","absolute") # "euclidean"
 
         logging.info('Transforming points (n={}) ...'.format(self._n_points))
         start_time = time.time()
@@ -519,28 +529,28 @@ class SurfaceApprox:
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
-        abs_tol = 5.0
-        max_iters = 2
+        abs_tol = 5
+        max_iters = 5
+
         n_course = 1
         iters = -1
         while n_course != 0: ### Adaptivity loop
             iters += 1
 
             if iters > 0:
-                if np.sum(ref_vec_u) > 0:
-                    u_knot_new = self._refine_knots(self._u_basis.knots, ref_vec_u)
-                    self._u_basis = bs.SplineBasis. make_from_knots(2, u_knot_new)
-                if np.sum(ref_vec_v) > 0:
-                    v_knot_new = self._refine_knots(self._v_basis.knots, ref_vec_v)
-                    self._v_basis = bs.SplineBasis.make_from_knots(2, v_knot_new)
-                    #print(self._v_basis.knots)
-                    #print('a')
-
+                if (iters % 2) == 0:
+                    if np.sum(ref_vec_u) > 0:
+                        u_knot_new = self._refine_knots(self._u_basis.knots, ref_vec_u)
+                        self._u_basis = bs.SplineBasis. make_from_knots(2, u_knot_new)
+                else:
+                    if np.sum(ref_vec_v) > 0:
+                        v_knot_new = self._refine_knots(self._v_basis.knots, ref_vec_v)
+                        self._v_basis = bs.SplineBasis.make_from_knots(2, v_knot_new)
 
             # Approximation itself
             logging.info('Creating explicitly system of normal equations B^TBz=B^Tb ...')
             start_time = time.time()
-            btb_mat, btwb_vec, point_loc = self._build_system_of_normal_equations()
+            btb_mat, btwb_vec, point_loc, avg_vec = self._build_system_of_normal_equations()
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -552,20 +562,35 @@ class SurfaceApprox:
 
             logging.info('Computing A and B^TB svds approximation ...')
             start_time = time.time()
-            bb_norm = scipy.sparse.linalg.eigsh(btb_mat, k=1, ncv=10, tol=1e-2, which='LM',
-                                               maxiter=300, return_eigenvectors=False)
-            a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
-                                              maxiter=300, return_eigenvectors=False)
-            #a_min = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='SM',
-            #                                  maxiter=300, return_eigenvectors=False)
-            c_mat = btb_mat + self.regularization_weight * (bb_norm[0] / a_norm[0]) * a_mat
+            if iters >= 0:
+                bb_norm = scipy.sparse.linalg.eigsh(btb_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                                    maxiter=300, return_eigenvectors=False)
+                a_norm = scipy.sparse.linalg.eigsh(a_mat, k=1, ncv=10, tol=1e-2, which='LM',
+                                                   maxiter=300, return_eigenvectors=False)
+                reg_coef = bb_norm[0] / a_norm[0]
+
+            c_mat = btb_mat +  reg_coef * a_mat
             #c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
 
             logging.info('Solving for Z coordinates ...')
             start_time = time.time()
-            z_vec = scipy.sparse.linalg.spsolve(c_mat, btwb_vec)
+
+            if self.solver == 'spsolve':
+                z_vec = scipy.sparse.linalg.spsolve(c_mat, btwb_vec,use_umfpack=True)
+            elif self.solver == 'cg':
+                # Hegedus trick (for initial condition)
+                Ax = c_mat.dot(avg_vec)
+                bAx = btwb_vec.dot(Ax)
+                Ax_norm = np.linalg.norm(Ax)
+                ksi = bAx / (Ax_norm * Ax_norm)
+                avg_vec = ksi * avg_vec
+                App = scipy.sparse.diags(c_mat.diagonal())  # Jacobi preconditioner
+                z_vec = scipy.sparse.linalg.cg(c_mat, btwb_vec, x0=ksi * avg_vec, tol=1e-10, maxiter=100, M=App,
+                                               callback=None, atol=None)  # None
+                z_vec = z_vec[0]
+
             assert not np.isnan(np.sum(z_vec)), "Singular matrix for approximation."
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
@@ -577,18 +602,17 @@ class SurfaceApprox:
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
 
-            bool_mat = diff_mat_max > abs_tol
-            ref_vec_u = np.sum(bool_mat, axis=1)
-            ref_vec_v = np.sum(bool_mat, axis=0)
+            # Regularization coefficient
+            reg_coef = diff.dot(diff) / z_vec.dot(a_mat.dot(z_vec))
+
+            ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, diff_mat_eucl, self.adapt_type)
+
             print("iteration =",iters)
             print("\nmax_diff =",np.max(diff))
             print("area =", self._u_basis.n_intervals,'x',self._v_basis.n_intervals, "(n_patches =",self._u_basis.n_intervals*self._v_basis.n_intervals,")")
             n_course = sum(ref_vec_u) + sum(ref_vec_v)
             if np.logical_or(n_course == 0, iters == max_iters):
                 break
-
-
-        ###
 
         self.error = max_diff = np.max(diff)
         logging.info("Approximation error (max norm): {}".format(max_diff))
@@ -604,6 +628,34 @@ class SurfaceApprox:
 
         return self.surface
 
+    def  _refine_patches(self,diff_mat_max, diff_mat_eucl,type):
+        """
+        Determines interval in knot vector that have to be refined
+        :return ref_vec_u, ref_vec_v as numpy array
+        """
+        std_dev = 1 #??
+        abs_tol = 5
+        ref_part = 0.2 # kwargs
+
+        if type == "absolute":
+            bool_mat = diff_mat_max > abs_tol
+            ref_vec_u = np.sum(bool_mat, axis=1)
+            ref_vec_v = np.sum(bool_mat, axis=0)
+        elif type == "euclidean":
+            eucl_vec_u = np.sum(diff_mat_eucl, axis=1)
+            eucl_vec_v = np.sum(diff_mat_eucl, axis=0)
+            eucl_vec_u_cp = -np.sort(-eucl_vec_u)
+            eucl_vec_v_cp = -np.sort(-eucl_vec_v)
+            n_u = np.sum(eucl_vec_u > 0.0)
+            n_v = np.sum(eucl_vec_v > 0.0)
+            u_bound_pos = math.ceil(ref_part * n_u)
+            u_bound = eucl_vec_u_cp[u_bound_pos]
+            v_bound_pos = math.ceil(ref_part * n_v)
+            v_bound = eucl_vec_v_cp[v_bound_pos]
+            ref_vec_u = eucl_vec_u >= u_bound
+            ref_vec_v = eucl_vec_v >= v_bound
+
+        return ref_vec_u, ref_vec_v
 
     def _compute_default_nuv(self, n_points):
         """
@@ -705,10 +757,13 @@ class SurfaceApprox:
         n_points = self._uv_quad_points.shape[0]
         row, col, data, point_loc = self._init_coo_structure()
         vec_BTb = np.zeros(normal_matrix_size)
+        avg_vec = np.ones(normal_matrix_size)
+        avg = 0
 
         for idx in range(n_points):
             u, v = self._uv_quad_points[idx, 0:2]
             b_entry = self._z_quad_points[idx]
+            avg += b_entry
             iu = self._u_basis.find_knot_interval(u)
             iv = self._v_basis.find_knot_interval(v)
             idp = self.patch_pos2id(iu, iv)
@@ -722,8 +777,12 @@ class SurfaceApprox:
             vec_BTb[b_row.tolist()] += b_entry * w_data9
             point_loc[idp].append(idx)
 
+        avg = avg / n_points
+        avg_vec = avg_vec * avg
+
+
         mat_BTB = scipy.sparse.csr_matrix((data, (row, col)), shape=(normal_matrix_size, normal_matrix_size))
-        return mat_BTB, vec_BTb, point_loc
+        return mat_BTB, vec_BTb, point_loc, avg_vec
 
     def _compute_errors(self, point_loc, z_vec):
         """
@@ -756,30 +815,35 @@ class SurfaceApprox:
             row = np.zeros(n_loc_points * n_uv_loc_nz, dtype=int)
             col = np.zeros(n_loc_points * n_uv_loc_nz, dtype=int)
             data = np.zeros(n_loc_points * n_uv_loc_nz)
-            nnz_b = 0
+            datad = np.zeros([n_loc_points, n_uv_loc_nz])
             if len(point_loc[interval_id]) > 0:
                 idx = point_loc[interval_id][0]
                 u, v = self._uv_quad_points[idx, 0:2]
                 iu = self._u_basis.find_knot_interval(u)
                 iv = self._v_basis.find_knot_interval(v)
-
-                z_loc = z_vec[]
-                for idx in point_loc[interval_id]:
+                col = (linsp31 + iv) * u_n_basf + iu + linsp13
+                z_loc = z_vec[col]
+                nnz_b = 0
+                n_points = 0
+                patch_point_loc = point_loc[interval_id]
+                for idx in patch_point_loc:
                     u, v = self._uv_quad_points[idx, 0:2]
                     u_base_vec = self._u_basis.eval_base_vector(iu, u)
                     v_base_vec = self._v_basis.eval_base_vector(iv, v)
-                    data[nnz_b:nnz_b + 9] = np.kron(v_base_vec, u_base_vec)
-                    col[nnz_b: nnz_b + 9] = (linsp31 + iv) * u_n_basf + iu + linsp13
-                    row[nnz_b:nnz_b + 9] = idx
-                    nnz_b += 9
+                    datad[n_points, :] = np.kron(v_base_vec, u_base_vec)
+                    #col[nnz_b: nnz_b + 9] = col
+                    #row[nnz_b:nnz_b + 9] = idx
+                    n_points += 1
 
-                mat_b = scipy.sparse.csr_matrix((data, (row, col)), shape=(n, u_n_basf * v_n_basf))
-                patch_err_vec = mat_b.dot(z_vec)
-                patch_err_red = patch_err_vec[point_loc[interval_id]] - g_vec[point_loc[interval_id]]
+                #mat_b = scipy.sparse.csr_matrix((data, (row, col)), shape=(n, u_n_basf * v_n_basf))
+                #patch_err_vec = mat_b.dot(z_vec)
+                patch_err_vec = datad.dot(z_loc)
+                #patch_err_red = patch_err_vec[point_loc[interval_id]] - g_vec[point_loc[interval_id]]
+                patch_err_red = patch_err_vec - g_vec[patch_point_loc]
                 err_mat_max[iu][iv] = np.max(np.abs(patch_err_red))
                 err_mat_eucl[iu][iv] = np.linalg.norm(patch_err_red)
-                err += patch_err_vec
-        err = err - g_vec
+                err[patch_point_loc] = patch_err_red
+
 
         return err, err_mat_max, err_mat_eucl
 

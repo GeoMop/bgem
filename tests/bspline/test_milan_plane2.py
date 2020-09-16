@@ -29,9 +29,9 @@ class SurfApprox:
         self.err, self.surfz = self.surf_app()
 
     def surf_app(self):
-        self.approx = bsa.SurfaceApprox.approx_from_file("/home/jiri/Github/real_data/grid_50_m.csv")
-        surfz = self.approx.compute_adaptive_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="spsolve",
-                                                           adapt_type="absolute")
+        #self.approx = bsa.SurfaceApprox.approx_from_file("/home/jiri/Github/real_data/grid_50_m.csv")
+        self.approx = bsa.SurfaceApprox.approx_from_file("/home/jiri/Github/milan/zdrojova_data_plochy.txt")
+        surfz = self.approx.compute_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]))
         err = self.approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf
@@ -40,7 +40,7 @@ class TestAdapt:
 
     def test_surface_intersection(self):
 
-        control_points = [60, 60]
+        control_points = [100, 100]
         sapp = SurfApprox(control_points)
         app = sapp.approx
         myplot = bp.Plotting((bp.PlottingPlotly()))
