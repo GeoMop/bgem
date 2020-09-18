@@ -503,6 +503,10 @@ class SurfaceApprox:
         :param quad: [(x1,y1), .. , (x4,y4)] Set vertices of different quad for the point set.
         :param nuv: (nu, nv) Set number of intervals of the resulting B-spline, in U and V direction
         :param regularization_wight: Default 0.001, is scaled by the max singular value of B.
+        :param solver: default direct sparse solver (spsolve), conjugate gradient method "cg" also possible
+        :param adapt_type: default adaptivity based on infinite norm (absolute), Euclidean variant (euclidean) also possible
+        :param max_diff: determines maximum error in infinite norm for absolute adaptivity
+        :param max_part: determines relative part of patches to be refined (1.0 is maximum) for Euclidean adaptivity
         :return: B-Spline surface
         """
 
@@ -511,6 +515,8 @@ class SurfaceApprox:
         self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
         self.solver = kwargs.get("solver","spsolve")
         self.adapt_type = kwargs.get("adapt_type","absolute") # "euclidean"
+        self.max_diff = kwargs.get("max_diff",10.0) # for absolute adaptivity
+        self.max_part = kwargs.get("max_part",0.2) # for Euclidean adaptivity
 
         logging.info('Transforming points (n={}) ...'.format(self._n_points))
         start_time = time.time()
@@ -541,7 +547,7 @@ class SurfaceApprox:
                 if (iters % 2) == 0:
                     if np.sum(ref_vec_u) > 0:
                         u_knot_new = self._refine_knots(self._u_basis.knots, ref_vec_u)
-                        self._u_basis = bs.SplineBasis. make_from_knots(2, u_knot_new)
+                        self._u_basis = bs.SplineBasis.make_from_knots(2, u_knot_new)
                 else:
                     if np.sum(ref_vec_v) > 0:
                         v_knot_new = self._refine_knots(self._v_basis.knots, ref_vec_v)
@@ -633,12 +639,10 @@ class SurfaceApprox:
         Determines interval in knot vector that have to be refined
         :return ref_vec_u, ref_vec_v as numpy array
         """
-        std_dev = 1 #??
-        abs_tol = 5
-        ref_part = 0.2 # kwargs
+        #std_dev = 1 #??
 
         if type == "absolute":
-            bool_mat = diff_mat_max > abs_tol
+            bool_mat = diff_mat_max > self.max_diff
             ref_vec_u = np.sum(bool_mat, axis=1)
             ref_vec_v = np.sum(bool_mat, axis=0)
         elif type == "euclidean":
@@ -648,9 +652,9 @@ class SurfaceApprox:
             eucl_vec_v_cp = -np.sort(-eucl_vec_v)
             n_u = np.sum(eucl_vec_u > 0.0)
             n_v = np.sum(eucl_vec_v > 0.0)
-            u_bound_pos = math.ceil(ref_part * n_u)
+            u_bound_pos = math.ceil(self.max_part * n_u)
             u_bound = eucl_vec_u_cp[u_bound_pos]
-            v_bound_pos = math.ceil(ref_part * n_v)
+            v_bound_pos = math.ceil(self.max_part * n_v)
             v_bound = eucl_vec_v_cp[v_bound_pos]
             ref_vec_u = eucl_vec_u >= u_bound
             ref_vec_v = eucl_vec_v >= v_bound
