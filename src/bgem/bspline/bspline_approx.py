@@ -480,10 +480,11 @@ class SurfaceApprox:
         logging.info('Computing error ...')
         start_time = time.time()
 
-        diff, diff_mat_max, diff_mat_eucl = self._compute_errors(point_loc, z_vec)
+        diff, diff_mat_max, err_mat_eucl2, std_dev = self._compute_errors(point_loc, z_vec)
 
         self.error = max_diff = np.max(diff)
         logging.info("Approximation error (max norm): {}".format(max_diff))
+        logging.info("Standard deviation: {}".format(std_dev))
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -507,6 +508,7 @@ class SurfaceApprox:
         :param adapt_type: default adaptivity based on infinite norm (absolute), Euclidean variant (euclidean) also possible
         :param max_diff: determines maximum error in infinite norm for absolute adaptivity
         :param max_part: determines relative part of patches to be refined (1.0 is maximum) for Euclidean adaptivity
+
         :return: B-Spline surface
         """
 
@@ -514,9 +516,10 @@ class SurfaceApprox:
         self.nuv = kwargs.get("nuv", self.nuv)
         self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
         self.solver = kwargs.get("solver","spsolve")
-        self.adapt_type = kwargs.get("adapt_type","absolute") # "euclidean"
-        self.max_diff = kwargs.get("max_diff",10.0) # for absolute adaptivity
-        self.max_part = kwargs.get("max_part",0.2) # for Euclidean adaptivity
+        self.adapt_type = kwargs.get("adapt_type", "absolute") # "std_dev"
+        self.max_diff = kwargs.get("max_diff", 10.0) # for absolute based adaptivity
+        self.max_part = kwargs.get("max_part", 0.2) # for standard deviation based adaptivity
+        self.std_dev = kwargs.get("std_dev", 1)  # for  standard deviation based adaptivity
 
         logging.info('Transforming points (n={}) ...'.format(self._n_points))
         start_time = time.time()
@@ -536,7 +539,7 @@ class SurfaceApprox:
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
         abs_tol = 5
-        max_iters = 5
+        max_iters = 10
 
         n_course = 1
         iters = -1
@@ -604,14 +607,14 @@ class SurfaceApprox:
             logging.info('Computing error ...')
             start_time = time.time()
 
-            diff, diff_mat_max, diff_mat_eucl = self._compute_errors(point_loc, z_vec)
+            diff, diff_mat_max, err_mat_eucl2, std_dev = self._compute_errors(point_loc, z_vec)
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
 
             # Regularization coefficient
             reg_coef = diff.dot(diff) / z_vec.dot(a_mat.dot(z_vec))
 
-            ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, diff_mat_eucl, self.adapt_type)
+            ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, err_mat_eucl2, std_dev, self.adapt_type)
 
             print("iteration =",iters)
             print("\nmax_diff =",np.max(diff))
@@ -622,6 +625,7 @@ class SurfaceApprox:
 
         self.error = max_diff = np.max(diff)
         logging.info("Approximation error (max norm): {}".format(max_diff))
+        logging.info("Standard deviation: {}".format(std_dev))
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -634,30 +638,32 @@ class SurfaceApprox:
 
         return self.surface
 
-    def  _refine_patches(self,diff_mat_max, diff_mat_eucl,type):
+    def _refine_patches(self,diff_mat_max, err_mat_eucl2, std_dev,type):
         """
         Determines interval in knot vector that have to be refined
         :return ref_vec_u, ref_vec_v as numpy array
         """
-        #std_dev = 1 #??
+        n_u = self.nuv[0]
+        n_v = self.nuv[1]
+        ref_vec_u = np.zeros(n_u)
+        ref_vec_v = np.zeros(n_v)
 
         if type == "absolute":
             bool_mat = diff_mat_max > self.max_diff
             ref_vec_u = np.sum(bool_mat, axis=1)
             ref_vec_v = np.sum(bool_mat, axis=0)
         elif type == "euclidean":
-            eucl_vec_u = np.sum(diff_mat_eucl, axis=1)
-            eucl_vec_v = np.sum(diff_mat_eucl, axis=0)
-            eucl_vec_u_cp = -np.sort(-eucl_vec_u)
-            eucl_vec_v_cp = -np.sort(-eucl_vec_v)
-            n_u = np.sum(eucl_vec_u > 0.0)
-            n_v = np.sum(eucl_vec_v > 0.0)
-            u_bound_pos = math.ceil(self.max_part * n_u)
-            u_bound = eucl_vec_u_cp[u_bound_pos]
-            v_bound_pos = math.ceil(self.max_part * n_v)
-            v_bound = eucl_vec_v_cp[v_bound_pos]
-            ref_vec_u = eucl_vec_u >= u_bound
-            ref_vec_v = eucl_vec_v >= v_bound
+            if std_dev >= self.std_dev:
+                eucl2_vec_u = np.sum(err_mat_eucl2, axis=1)
+                eucl2_vec_v = np.sum(err_mat_eucl2, axis=0)
+                eucl2_vec_u_cp = -np.sort(-eucl2_vec_u)
+                eucl2_vec_v_cp = -np.sort(-eucl2_vec_v)
+                u_bound_pos = math.ceil(self.max_part * n_u)-1 #
+                u_bound = eucl2_vec_u_cp[u_bound_pos]
+                v_bound_pos = math.ceil(self.max_part * n_v)-1
+                v_bound = eucl2_vec_v_cp[v_bound_pos]
+                ref_vec_u = eucl2_vec_u >= u_bound
+                ref_vec_v = eucl2_vec_v >= v_bound
 
         return ref_vec_u, ref_vec_v
 
@@ -800,7 +806,7 @@ class SurfaceApprox:
         n_patches = (self._u_basis.size - 2) * (self._v_basis.size - 2)
         u_n_basf = self._u_basis.size
         v_n_basf = self._v_basis.size
-
+        n_points_glob = 0
         g_vec = self._z_quad_points[:]
         n = g_vec.shape[0]
         err = np.zeros([n])
@@ -809,9 +815,7 @@ class SurfaceApprox:
         linsp31 = np.repeat(linsp, 3)  # linsp_v
         linsp13 = np.tile(linsp, 3)  # linsp_u
         err_mat_max = np.zeros((self._u_basis.size - 2, self._v_basis.size - 2))
-        err_mat_eucl = np.zeros((self._u_basis.size - 2, self._v_basis.size - 2))
-
-
+        err_mat_eucl2 = np.zeros((self._u_basis.size - 2, self._v_basis.size - 2))
 
         for interval_id in range(0, n_patches):
             n_loc_points = len(point_loc[interval_id])
@@ -838,18 +842,19 @@ class SurfaceApprox:
                     #col[nnz_b: nnz_b + 9] = col
                     #row[nnz_b:nnz_b + 9] = idx
                     n_points += 1
-
+                n_points_glob = n_points_glob + n_points
                 #mat_b = scipy.sparse.csr_matrix((data, (row, col)), shape=(n, u_n_basf * v_n_basf))
                 #patch_err_vec = mat_b.dot(z_vec)
                 patch_err_vec = datad.dot(z_loc)
                 #patch_err_red = patch_err_vec[point_loc[interval_id]] - g_vec[point_loc[interval_id]]
                 patch_err_red = patch_err_vec - g_vec[patch_point_loc]
                 err_mat_max[iu][iv] = np.max(np.abs(patch_err_red))
-                err_mat_eucl[iu][iv] = np.linalg.norm(patch_err_red)
+                err_mat_eucl2[iu][iv] = np.linalg.norm(patch_err_red)*np.linalg.norm(patch_err_red)
                 err[patch_point_loc] = patch_err_red
 
+            std_dev = math.sqrt(np.sum(np.sum(err_mat_eucl2, axis=0))/(n_points_glob - 1))
 
-        return err, err_mat_max, err_mat_eucl
+        return err, err_mat_max, err_mat_eucl2, std_dev
 
     def _basis_in_q_points(self, basis):
         n_int = basis.n_intervals
