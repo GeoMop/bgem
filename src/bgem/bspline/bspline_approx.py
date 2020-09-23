@@ -515,11 +515,11 @@ class SurfaceApprox:
         self.quad = kwargs.get("quad", self.quad)
         self.nuv = kwargs.get("nuv", self.nuv)
         self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
-        self.solver = kwargs.get("solver","spsolve")
+        self.solver = kwargs.get("solver","spsolve") # cg
         self.adapt_type = kwargs.get("adapt_type", "absolute") # "std_dev"
         self.max_diff = kwargs.get("max_diff", 10.0) # for absolute based adaptivity
         self.max_part = kwargs.get("max_part", 0.2) # for standard deviation based adaptivity
-        self.std_dev = kwargs.get("std_dev", 1)  # for  standard deviation based adaptivity
+        self.std_dev = kwargs.get("std_dev", 1)  # for standard deviation based adaptivity
 
         logging.info('Transforming points (n={}) ...'.format(self._n_points))
         start_time = time.time()
@@ -652,13 +652,13 @@ class SurfaceApprox:
             bool_mat = diff_mat_max > self.max_diff
             ref_vec_u = np.sum(bool_mat, axis=1)
             ref_vec_v = np.sum(bool_mat, axis=0)
-        elif type == "euclidean":
+        elif type == "std_dev":
             if std_dev >= self.std_dev:
                 eucl2_vec_u = np.sum(err_mat_eucl2, axis=1)
                 eucl2_vec_v = np.sum(err_mat_eucl2, axis=0)
                 eucl2_vec_u_cp = -np.sort(-eucl2_vec_u)
                 eucl2_vec_v_cp = -np.sort(-eucl2_vec_v)
-                u_bound_pos = math.ceil(self.max_part * n_u)-1 #
+                u_bound_pos = math.ceil(self.max_part * n_u)-1
                 u_bound = eucl2_vec_u_cp[u_bound_pos]
                 v_bound_pos = math.ceil(self.max_part * n_v)-1
                 v_bound = eucl2_vec_v_cp[v_bound_pos]
