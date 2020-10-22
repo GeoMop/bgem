@@ -30,7 +30,26 @@ class SurfApprox:
 
     def surf_app(self):
         self.approx = bsa.SurfaceApprox.approx_from_file("/home/jiri/Github/real_data/grid_50_m.csv")
-        surfz = self.approx.compute_adaptive_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="spsolve",
+        #self.approx._xy_points
+        #self.approx._z_points
+        #self.approx._weights
+
+
+#        n = len(self.approx._xy_points)
+#        lsp = np.linspace(0, n - 1, n,dtype=int)
+#        red_lsp = np.random.choice(lsp, int(np.ceil(n*0.6)))
+#        compl_lsp = np.setxor1d(lsp, red_lsp)
+#        compl_xy_points = self.approx._xy_points[compl_lsp]
+#        compl_z_points = self.approx._z_points[compl_lsp]
+#        compl_weights = self.approx._weights[compl_lsp]
+#        self.approx._xy_points = self.approx._xy_points[red_lsp]
+#        self.approx._z_points = self.approx._z_points[red_lsp]
+#        self.approx._weights = self.approx._weights[red_lsp]
+
+
+
+
+        surfz = self.approx.compute_adaptive_approximation_reducedset(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="spsolve",
                                                            adapt_type="std_dev")
         err = self.approx.error
         surfzf = surfz.make_full_surface()
