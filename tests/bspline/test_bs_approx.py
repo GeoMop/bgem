@@ -178,7 +178,7 @@ class TestSurfaceApprox:
         points = bs.make_function_grid(function_sin_cos, 50, 50)
         points = points.reshape( (-1, 3) )
         n_sample_points= 400 # this is near the limit number of points to keep desired precision
-        random_subset = np.random.random_integers(0, len(points)-1, n_sample_points)
+        random_subset = np.random.randint(0, len(points), n_sample_points)
         points_random = points[random_subset, :]
 
         approx = bs_approx.SurfaceApprox(points_random)
