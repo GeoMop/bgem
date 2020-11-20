@@ -32,7 +32,7 @@ class IsecPoint:
         self.tol:float = 1  # have to be implemented
         self.xyz:np.array = xyz
         # Position of the intersection in 3d space.
-        self.connected:bool = 0
+        self.connected:bool = False
         # True if the point is connected to a curve.
 
 
