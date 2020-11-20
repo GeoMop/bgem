@@ -983,8 +983,8 @@ class SurfaceApprox:
             iu = self._u_basis.find_knot_interval(u)
             iv = self._v_basis.find_knot_interval(v)
             idp = self.patch_pos2id(iu, iv)
-            u_base_vec = self._u_basis.eval_base_vector(iu, u)
-            v_base_vec = self._v_basis.eval_base_vector(iv, v)
+            u_base_vec = self._u_basis.eval_vector(iu, u)
+            v_base_vec = self._v_basis.eval_vector(iv, v)
             data9 = np.kron(v_base_vec, u_base_vec)
             b_row = col[idp * 81: idp * 81 + 9]
             ##  B^TWBz=B^TWb
@@ -1042,8 +1042,8 @@ class SurfaceApprox:
                 patch_point_loc = point_loc[interval_id]
                 for idx in patch_point_loc:
                     u, v = self._uv_quad_points[idx, 0:2]
-                    u_base_vec = self._u_basis.eval_base_vector(iu, u)
-                    v_base_vec = self._v_basis.eval_base_vector(iv, v)
+                    u_base_vec = self._u_basis.eval_vector(iu, u)
+                    v_base_vec = self._v_basis.eval_vector(iv, v)
                     datad[n_points, :] = np.kron(v_base_vec, u_base_vec) # self._w_quad_points[idx] *
                     n_points += 1
                 n_points_glob = n_points_glob + n_points
@@ -1072,8 +1072,8 @@ class SurfaceApprox:
             for j in range(nq_points):
                 up = us + uil * self._q_points[j]
                 q_point[n] = up
-                u_base_vec = basis.eval_base_vector(i, up)
-                u_base_vec_diff = basis.eval_diff_base_vector(i, up)
+                u_base_vec = basis.eval_vector(i, up)
+                u_base_vec_diff = basis.eval_diff_vector(i, up)
                 point_val_outer[:, :, i] += self._q_weights[j] * np.outer(u_base_vec,u_base_vec)
                 d_point_val_outer[:, :, i] += self._q_weights[j] * np.outer(u_base_vec_diff,u_base_vec_diff)
                 n += 1
