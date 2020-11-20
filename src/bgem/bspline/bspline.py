@@ -260,10 +260,18 @@ class SplineBasis:
         :param t: Where to evaluate.
         :return: Numpy array of three values.
         """
-        values = []
-        for ib in range(i_int, i_int + self.degree + 1):
-            values.append( self.eval(ib, t))
-        return values
+        if isinstance(t, float):
+            values = []
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append(self.eval(ib, t))
+            return np.array(values)
+        else:
+            assert isinstance(t, np.ndarray)
+            values = []
+            t = np.atleast_1d(t)
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append([self.eval(ib, t_item) for t_item in t])
+            return np.stack(values)
 
 
     def eval_diff_vector(self, i_int, t):
@@ -273,10 +281,18 @@ class SplineBasis:
         :param t: Where to evaluate.
         :return: Numpy array of three values.
         """
-        values = []
-        for ib in range(i_int, i_int + self.degree + 1):
-            values.append( self.eval_diff(ib, t))
-        return values
+        if isinstance(t, float):
+            values = []
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append(self.eval_diff(ib, t))
+            return np.array(values)
+        else:
+            assert isinstance(t, np.ndarray)
+            values = []
+            t = np.atleast_1d(t)
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append([self.eval_diff(ib, t_item) for t_item in t])
+            return np.stack(values)
 
 
     """
@@ -294,10 +310,8 @@ class SplineBasis:
         :return: Numpy array of three values.
         Note: Keep code redundancy with 'diff' as optimization.
         """
-
-        basis_values = np.zeros(3)
-
-        tk1, tk2, tk3, tk4 = self.knots[i_int + 1 : i_int + 5]
+        deg = 2
+        tk1, tk2, tk3, tk4 = self.knots[i_int + 1 : i_int + deg + 3]
 
         d31 = tk3 - tk1
         d32 = tk3 - tk2
@@ -311,11 +325,13 @@ class SplineBasis:
         d31_d32 = d31 * d32
         d42_d32 = d42 * d32
 
-        basis_values[0] = (d3t * d3t) / d31_d32
-        basis_values[1] = ((dt1 * d3t) / d31_d32) + ((dt2 * d4t) / d42_d32)
-        basis_values[2] = (dt2 * dt2) / d42_d32
+        basis_values = (
+            (d3t * d3t) / d31_d32,
+            ((dt1 * d3t) / d31_d32) + ((dt2 * d4t) / d42_d32),
+            (dt2 * dt2) / d42_d32
+        )
+        return np.stack(basis_values)
 
-        return basis_values
 
 
     def _eval_diff_vector_deg_2(self, i_int, t):
@@ -326,10 +342,8 @@ class SplineBasis:
         :return: Numpy array of three values.
         Note: Keep code redundancy with 'diff' as optimization.
         """
-
-        basis_values = np.zeros(3)
-
-        tk1, tk2, tk3, tk4 = self.knots[i_int + 1: i_int + 5]
+        deg = 2
+        tk1, tk2, tk3, tk4 = self.knots[i_int + 1: i_int + deg + 3]
 
         d31 = tk3 - tk1
         d32 = tk3 - tk2
@@ -343,11 +357,13 @@ class SplineBasis:
         d31_d32 = d31 * d32
         d42_d32 = d42 * d32
 
-        basis_values[0] = -2 * d3t / d31_d32
-        basis_values[1] = (d3t - dt1) / d31_d32 + (d4t - dt2) / d42_d32
-        basis_values[2] = 2 * dt2 / d42_d32
+        basis_values = (
+            -2 * d3t / d31_d32,
+            (d3t - dt1) / d31_d32 + (d4t - dt2) / d42_d32,
+            2 * dt2 / d42_d32
+        )
+        return np.stack(basis_values)
 
-        return basis_values
 
 
 class Curve:

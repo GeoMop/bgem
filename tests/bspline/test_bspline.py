@@ -159,11 +159,15 @@ class TestSplineBasis:
         self.check_eval_vec(basis, 3, 0.8)
         self.check_eval_vec(basis, 3, 1.0)
 
+        points = np.array([0.1, 0.15, 0.2])
+        self.check_eval_vec(basis, 0, points)
+        self.check_eval_vec(basis, 1, points + 0.25)
+
 
 
     def check_diff_vec(self, basis, i, t):
         t = np.atleast_1d(t)
-        vec = basis.eval_vector(i, t)
+        vec = basis.eval_diff_vector(i, t)
         assert vec.shape[0] == basis.degree + 1
         n = vec.shape[1]
         for j in range(basis.degree + 1):
@@ -196,8 +200,8 @@ class TestSplineBasis:
         self.check_diff_vec(basis, 3, 1.0)
 
         points = np.array([0.1, 0.15, 0.2])
-        self.check_diff_eval_vec(basis, 0, points)
-        self.check_diff_eval_vec(basis, 1, points + 0.25)
+        self.check_diff_vec(basis, 0, points)
+        self.check_diff_vec(basis, 1, points + 0.25)
 
         basis = bs.SplineBasis.make_equidistant(3, 4)
         # self.plot_basis_diff(basis)
@@ -207,6 +211,9 @@ class TestSplineBasis:
         self.check_diff_vec(basis, 3, 0.8)
         self.check_diff_vec(basis, 3, 1.0)
 
+        points = np.array([0.1, 0.15, 0.2])
+        self.check_diff_vec(basis, 0, points)
+        self.check_diff_vec(basis, 1, points + 0.25)
 
 
 class TestCurve:
