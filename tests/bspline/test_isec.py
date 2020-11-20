@@ -2,7 +2,7 @@ from bgem.bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as b
 import numpy as np
 import math
 import pytest
-import statprof
+#import statprof
 
 
 class SurfApprox:

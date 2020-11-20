@@ -99,8 +99,8 @@ class SplineBasis:
 
         # Set optimized functions for specific degrees.
         if self.degree == 2:
-            self.eval_base_vector = self._eval_vector_deg_2
-            self.eval_diff_base_vector = self._eval_diff_vector_deg_2
+            self.eval_vector = self._eval_vector_deg_2
+            self.eval_diff_vector = self._eval_diff_vector_deg_2
 
     def in_domain(self, t):
         """ True if  't' is in the domain of the basis. """
@@ -253,7 +253,7 @@ class SplineBasis:
         return poles
 
 
-    def eval_vector(self, i_base, t):
+    def eval_vector(self, i_int, t):
         """
         This function compute base function of B-Spline curve on given subinterval.
         :param i_int: Interval in which 't' belongs. Three nonzero basis functions on this interval are evaluated.
@@ -261,12 +261,12 @@ class SplineBasis:
         :return: Numpy array of three values.
         """
         values = []
-        for ib in range(i_base, i_base + self.degree + 1):
+        for ib in range(i_int, i_int + self.degree + 1):
             values.append( self.eval(ib, t))
         return values
 
 
-    def eval_diff_vector(self, i_base, t):
+    def eval_diff_vector(self, i_int, t):
         """
         This function compute derivative of base function of B-Spline curve on given subinterval.
         :param i_int: Interval in which 't' belongs. Derivatives of the 3 nonzero basis functions on this interval are evaluated.
@@ -274,7 +274,7 @@ class SplineBasis:
         :return: Numpy array of three values.
         """
         values = []
-        for ib in range(i_base, i_base + self.degree + 1):
+        for ib in range(i_int, i_int + self.degree + 1):
             values.append( self.eval_diff(ib, t))
         return values
 
