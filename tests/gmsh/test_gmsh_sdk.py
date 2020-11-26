@@ -7,6 +7,72 @@ Auxiliary tests of the GMSH SDK API.
 Mainly tests to get insight how individual operations work and reproduce possible problems.
 """
 
+
+def test_extrude_polygon():
+    """
+    Test extrusion of an polygon.
+
+    BUG: Currently failing:
+    - in this setting (set mesh step directly to nodes of polygon) it generates elements but writes empty mesh
+    - when setting mesh step by getting boundary inside make_mesh, it fails
+    """
+
+    gmsh.initialize()
+    file_name = "extrude_polygon"
+    gmsh.model.add(file_name)
+
+    # plane directional vectors vector
+    u = np.array([1, 1, 0])
+    u = u / np.linalg.norm(u)
+    v = np.array([0, 1, 1])
+    v = v / np.linalg.norm(v)
+
+    #normal
+    n = np.cross(u,v)
+    n = n / np.linalg.norm(n)
+
+    # add some points in the plane
+    points= []
+    points.append(u)
+    points.append(2 * u + 1 * v)
+    points.append(5 * u + -2 * v)
+    points.append(5 * u + 3 * v)
+    points.append(4 * u + 5 * v)
+    points.append(-2 * u + 3*v)
+    points.append(v)
+
+    point_tags = [gmsh.model.occ.addPoint(*p) for p in points]
+    # point_tags = [gmsh.model.occ.addPoint(*p, meshSize=0.2) for p in points]
+    lines = [gmsh.model.occ.addLine(point_tags[i - 1], point_tags[i]) for i in range(len(points))]
+    cl = gmsh.model.occ.addCurveLoop(lines)
+    pol = gmsh.model.occ.addPlaneSurface([cl])
+
+    ext_dimtags = gmsh.model.occ.extrude([(2, pol)], *(3*n))
+    tube_dimtags = [ext_dimtags[1]]
+
+    gmsh.model.occ.synchronize()
+    nodes = gmsh.model.getBoundary(tube_dimtags, combined=False, oriented=False, recursive=True)
+    print(nodes)
+    p_dimtags = [(0, tag) for tag in point_tags]
+    gmsh.model.occ.setMeshSize(p_dimtags, size=0.2)
+    gmsh.model.occ.synchronize()
+    # generate mesh, write to file and output number of entities that produced error
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 0.2)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthMin", 0.1)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 1.0)
+
+    gmsh.model.mesh.generate(3)
+    gmsh.model.mesh.removeDuplicateNodes()
+    bad_entities = gmsh.model.mesh.getLastEntityError()
+    print(bad_entities)
+    # gmsh.fltk.run()
+    gmsh.write(file_name + ".msh2")
+    gmsh.finalize()
+
+
+
 @pytest.mark.skip
 def generate_mesh():
     gmsh.initialize()
