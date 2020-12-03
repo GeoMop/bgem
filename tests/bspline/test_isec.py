@@ -104,10 +104,10 @@ def test_surface_intersection(plane_coefficients1, control_points_1, length1):
 
 
         #try:
-        statprof.start()
+        #statprof.start()
         sapp1 = SurfApprox(plane_coefficients1, length1, samples, control_points_1, cosx)
-        statprof.stop()
-        statprof.display()
+        #statprof.stop()
+        #statprof.display()
         #finally:
 
         sapp2 = SurfApprox(plane_coefficients2, length2, samples, control_points_2, cosx)

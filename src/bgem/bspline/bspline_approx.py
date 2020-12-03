@@ -321,7 +321,6 @@ class SurfaceApprox:
         # Degree of approximation in U anv V directions, fixed to 2.
         self._degree = np.array((2, 2))
 
-
         assert( points.shape[1] >= 3 )
         # XYZ points
         self._n_points = points.shape[0]
