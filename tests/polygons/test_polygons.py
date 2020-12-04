@@ -126,3 +126,8 @@ def test_check_displacement():
     assert not res
     assert decomp.get_last_polygon_changes() == (PolygonChange.shape, [1,2,3], None)
 
+def test_delete():
+    decomp = PolygonDecomposition()
+    pt = decomp.add_point((0, 0))
+    decomp.delete_point(pt)
+    pt = decomp.add_point((10, 10))
