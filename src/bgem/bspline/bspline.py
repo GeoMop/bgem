@@ -330,7 +330,7 @@ class SplineBasis:
             ((dt1 * d3t) / d31_d32) + ((dt2 * d4t) / d42_d32),
             (dt2 * dt2) / d42_d32
         )
-        return np.stack(basis_values,axis=-1)
+        return np.stack(basis_values) # axis=-1
 
 
 
@@ -362,7 +362,7 @@ class SplineBasis:
             (d3t - dt1) / d31_d32 + (d4t - dt2) / d42_d32,
             2 * dt2 / d42_d32
         )
-        return np.stack(basis_values,axis=-1)
+        return np.stack(basis_values) # ,axis=-1
 
 
 

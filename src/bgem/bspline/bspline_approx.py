@@ -838,8 +838,8 @@ class SurfaceApprox:
             iu = self._u_basis.find_knot_interval(u)
             iv = self._v_basis.find_knot_interval(v)
             idp = self.patch_pos2id(iu, iv)
-            u_base_vec = self._u_basis.eval_vector(iu, u)
-            v_base_vec = self._v_basis.eval_vector(iv, v)
+            u_base_vec = self._u_basis.eval_vector(iu, u).transpose()
+            v_base_vec = self._v_basis.eval_vector(iv, v).transpose()
             point_loc[idp].append(idx)
 
         self.point_loc = point_loc
@@ -864,8 +864,8 @@ class SurfaceApprox:
                 w_loc_vec = self._w_quad_points[patch_point_loc]
                 b_loc_vec = self._z_quad_points[patch_point_loc]
                 iu, iv = self.patch_id2pos(patch_id)
-                u_loc_base_vec = self._u_basis.eval_vector(iu, u_loc_vec)
-                v_loc_base_vec = self._v_basis.eval_vector(iv, v_loc_vec)
+                u_loc_base_vec = self._u_basis.eval_vector(iu, u_loc_vec).transpose()
+                v_loc_base_vec = self._v_basis.eval_vector(iv, v_loc_vec).transpose()
                 v_kron_u = (v_loc_base_vec[:, :, None] @ u_loc_base_vec[:, None, :]).reshape(len(self.point_loc[patch_id]),9)
                 w_mult_v_kron_u  =   w_loc_vec[None].transpose() * v_kron_u
                 loc_norm_mat = w_mult_v_kron_u.transpose() @ w_mult_v_kron_u
@@ -908,8 +908,8 @@ class SurfaceApprox:
                 iv = self._v_basis.find_knot_interval(v_vec[0])
                 col = (linsp31 + iv) * u_n_basf + iu + linsp13
                 z_loc = z_vec[col]
-                u_base_vec = self._u_basis.eval_vector(iu, u_vec)
-                v_base_vec = self._v_basis.eval_vector(iv, v_vec)
+                u_base_vec = self._u_basis.eval_vector(iu, u_vec).transpose()
+                v_base_vec = self._v_basis.eval_vector(iv, v_vec).transpose()
                 z_mat_loc = z_loc.reshape(self._v_basis.degree + 1, self._u_basis.degree + 1)
                 #v_z_mat = v_base_vec.dot(z_mat_loc)
                 v_z_mat = v_base_vec @ z_mat_loc
