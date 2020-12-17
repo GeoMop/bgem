@@ -534,21 +534,31 @@ class SurfaceApprox:
         Approximation parameters can be passed in through kwargs or set in the object before the call.
         :param quad: [(x1,y1), .. , (x4,y4)] Set vertices of different quad for the point set.
         :param nuv: (nu, nv) Set number of intervals of the resulting B-spline, in U and V direction
-        :param regularization_weight: Default 0.001, is scaled by the max singular value of B.
         :param solver: default direct sparse solver (spsolve), conjugate gradient method "cg" also possible
+        :param max_iters: determines number refinement steps of the knot vectors , default (20)
         :param adapt_type: default adaptivity refinement based on infinite norm (absolute), standard deviation based variant (std_dev) also possible
         :param max_diff: determines maximum error in infinite norm for absolute adaptivity that should be achieved
         :param max_part: determines relative part of patches to be refined (1.0 is maximum) for standard deviation based adaptivity
         :param std_dev: determines standard deviation that should be achieved
         :parem input_data_reduction: determines relative part of the input point to be used
-
         :return: B-Spline surface
+
+         absolute norm based adaptivity
+         maximum norm is evaluated on every patch, if it holds: patch maximum norm > max_diff (param)
+         then both of the knot vectors ("u" AND "v") are refined in corresponding intervals
+         finished: number of iteration achieved max_iters (param) OR maximum norm on every patch < max_diff (param)
+
+         standard deviation based adaptivity
+         Euclidean norms of the errors are computed with respect u,v knot intervals
+         even iteration: max_part (param) ratio of the "u" knot intervals involving the largest norm are refined
+         odd iteration: max_part (param) ratio of the "v" knot intervals involving the largest norm are refined
+         finished: number of iteration achieved max_iters (param) OR standard deviation < std_dev (param)
         """
 
         self.quad = kwargs.get("quad", self.quad)
         self.nuv = kwargs.get("nuv", self.nuv)
-        self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
         self.solver = kwargs.get("solver","spsolve") # cg
+        self.max_iters = kwargs.get("max_iters", 20)  #
         self.adapt_type = kwargs.get("adapt_type", "absolute") # "std_dev"
         self.max_diff = kwargs.get("max_diff", 10.0) # for absolute based adaptivity
         self.max_part = kwargs.get("max_part", 0.2) # for standard deviation based adaptivity
@@ -584,9 +594,6 @@ class SurfaceApprox:
 
         end_time = time.time()
         logging.info('Computed in: {} s'.format(end_time - start_time))
-
-        #abs_tol = 5
-        max_iters = 1
 
         n_course = 1
         iters = -1
@@ -626,6 +633,7 @@ class SurfaceApprox:
                                                    maxiter=300, return_eigenvectors=False)
                 reg_coef = bb_norm[0] / a_norm[0]
 
+            reg_coef = 0.0
             c_mat = btb_mat + reg_coef * a_mat
             #c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
             end_time = time.time()
@@ -649,11 +657,12 @@ class SurfaceApprox:
             if self.input_data_reduction != 1.0:
                 diff_red = diff * self._w_quad_points # make sense only fow w_i in set(0,1)
 
+            ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, err_mat_eucl2, std_dev, self.adapt_type)
+
             # Regularization coefficient
             reg_coef = diff.dot(diff) / z_vec.dot(a_mat.dot(z_vec))
 
-            ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, err_mat_eucl2, std_dev, self.adapt_type)
-
+            print("reg_coef =", reg_coef)
             print("iteration =",iters)
             print("\nmax_diff =",np.max(diff))
             print("area =", self._u_basis.n_intervals,'x',self._v_basis.n_intervals, "(n_patches =",self._u_basis.n_intervals*self._v_basis.n_intervals,")")
@@ -661,7 +670,7 @@ class SurfaceApprox:
                 logging.info("Efficient points ratio: {}".format(self.input_data_reduction))
                 logging.info("Ratio of the errors (efficient/complete): {}".format(np.linalg.norm(diff_red) / np.linalg.norm(diff)))
             n_course = sum(ref_vec_u) + sum(ref_vec_v)
-            if np.logical_or(n_course == 0, iters == max_iters):
+            if np.logical_or(n_course == 0, iters == self.max_iters):
                 break
 
             self.error = max_diff = np.max(diff)
@@ -838,8 +847,8 @@ class SurfaceApprox:
             iu = self._u_basis.find_knot_interval(u)
             iv = self._v_basis.find_knot_interval(v)
             idp = self.patch_pos2id(iu, iv)
-            u_base_vec = self._u_basis.eval_vector(iu, u).transpose()
-            v_base_vec = self._v_basis.eval_vector(iv, v).transpose()
+            #u_base_vec = self._u_basis.eval_vector(iu, u).transpose()
+            #v_base_vec = self._v_basis.eval_vector(iv, v).transpose()
             point_loc[idp].append(idx)
 
         self.point_loc = point_loc
@@ -864,14 +873,20 @@ class SurfaceApprox:
                 w_loc_vec = self._w_quad_points[patch_point_loc]
                 b_loc_vec = self._z_quad_points[patch_point_loc]
                 iu, iv = self.patch_id2pos(patch_id)
-                u_loc_base_vec = self._u_basis.eval_vector(iu, u_loc_vec).transpose()
-                v_loc_base_vec = self._v_basis.eval_vector(iv, v_loc_vec).transpose()
-                v_kron_u = (v_loc_base_vec[:, :, None] @ u_loc_base_vec[:, None, :]).reshape(len(self.point_loc[patch_id]),9)
-                w_mult_v_kron_u  =   w_loc_vec[None].transpose() * v_kron_u
-                loc_norm_mat = w_mult_v_kron_u.transpose() @ w_mult_v_kron_u
+                #u_loc_base_vec = self._u_basis.eval_vector(iu, u_loc_vec).transpose()
+                #v_loc_base_vec = self._v_basis.eval_vector(iv, v_loc_vec).transpose()
+                u_loc_base_vecx = self._u_basis.eval_vector(iu, u_loc_vec)
+                v_loc_base_vecx = self._v_basis.eval_vector(iv, v_loc_vec)
+                #v_kron_u = (v_loc_base_vec[:, :, None] * u_loc_base_vec[:, None, :]).reshape(len(self.point_loc[patch_id]),9)
+                v_kron_ux = (u_loc_base_vecx[None, :, :] * v_loc_base_vecx[:, None, :]).reshape(9,len(self.point_loc[patch_id]))
+                w_mult_v_kron_ux = w_loc_vec[None] * v_kron_ux
+                #w_mult_v_kron_u  =   w_loc_vec[None].transpose() * v_kron_u
+                #loc_norm_mat = w_mult_v_kron_u.transpose() @ w_mult_v_kron_u.reshape(81)
+                loc_norm_matx = np.sum(w_mult_v_kron_ux[None,:,:] * w_mult_v_kron_ux[:,None,:],axis=2).reshape(81)
                 b_row = col[patch_id * 81: patch_id * 81 + 9]
-                data[patch_id*81:(patch_id+1)*81] = loc_norm_mat.reshape(81)
-                vec_BTb[b_row.tolist()] +=  (b_loc_vec[None] @ w_mult_v_kron_u).reshape(9)
+                data[patch_id*81:(patch_id+1)*81] = loc_norm_matx
+                vec_BTb[b_row.tolist()] += np.sum((b_loc_vec * w_mult_v_kron_ux),axis=1)
+                    #(b_loc_vec[None] @ w_mult_v_kron_u).reshape(9)
 
         mat_BTB = scipy.sparse.csr_matrix((data, (row, col)), shape=(normal_matrix_size, normal_matrix_size))
         return mat_BTB, vec_BTb, avg_vec
@@ -908,13 +923,16 @@ class SurfaceApprox:
                 iv = self._v_basis.find_knot_interval(v_vec[0])
                 col = (linsp31 + iv) * u_n_basf + iu + linsp13
                 z_loc = z_vec[col]
-                u_base_vec = self._u_basis.eval_vector(iu, u_vec).transpose()
-                v_base_vec = self._v_basis.eval_vector(iv, v_vec).transpose()
+                #u_base_vec = self._u_basis.eval_vector(iu, u_vec).transpose()
+                #v_base_vec = self._v_basis.eval_vector(iv, v_vec).transpose()
+                u_base_vecx = self._u_basis.eval_vector(iu, u_vec)
+                v_base_vecx = self._v_basis.eval_vector(iv, v_vec)
                 z_mat_loc = z_loc.reshape(self._v_basis.degree + 1, self._u_basis.degree + 1)
-                #v_z_mat = v_base_vec.dot(z_mat_loc)
-                v_z_mat = v_base_vec @ z_mat_loc
-                patch_z_vec = (u_base_vec[:, None, :] @ v_z_mat[:, :, None]).reshape(len(self.point_loc[patch_id]))
-                patch_err = (patch_z_vec - g_vec[patch_point_loc])#*self._w_quad_points[patch_point_loc]
+                #v_z_mat = v_base_vec @ z_mat_loc
+                z_u_mat = z_mat_loc @ u_base_vecx
+                #patch_z_vec = (u_base_vec[:, None, :] @ v_z_mat[:, :, None]).reshape(len(self.point_loc[patch_id]))
+                patch_z_vecx = np.sum( v_base_vecx * z_u_mat, axis=0)
+                patch_err = (patch_z_vecx - g_vec[patch_point_loc])#*self._w_quad_points[patch_point_loc]
                 err_mat_max[iu][iv] = np.max(np.abs(patch_err))
                 err_mat_eucl2[iu][iv] = np.linalg.norm(patch_err)*np.linalg.norm(patch_err)
                 err[patch_point_loc] = patch_err

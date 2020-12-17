@@ -51,7 +51,7 @@ class SurfApprox:
 
 
         surfz = self.approx.compute_adaptive_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="cg",
-                                                           adapt_type="std_dev", input_data_reduction=0.6)
+                                                           adapt_type="std_dev", input_data_reduction=0.6,max_iters=10)
         err = self.approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf
