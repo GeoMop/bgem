@@ -804,11 +804,8 @@ class SurfaceApprox:
         col = np.zeros(n_nz, dtype=int)
         data = np.zeros(n_nz)
         linsp = np.array([0, 1, 2], dtype=int)
-        #linsp_u = np.linspace(0, self._u_basis.degree, self._u_basis.degree + 1, dtype=int)
-        #linsp_v = np.linspace(0, self._v_basis.degree, self._v_basis.degree + 1, dtype=int)
         linsp31 = np.repeat(linsp, 3) # linsp_v
         linsp13 = np.tile(linsp, 3) # linsp_u
-
         nnz_b = 0
 
         for iu in range(0, u_n_int):
@@ -847,8 +844,6 @@ class SurfaceApprox:
             iu = self._u_basis.find_knot_interval(u)
             iv = self._v_basis.find_knot_interval(v)
             idp = self.patch_pos2id(iu, iv)
-            #u_base_vec = self._u_basis.eval_vector(iu, u).transpose()
-            #v_base_vec = self._v_basis.eval_vector(iv, v).transpose()
             point_loc[idp].append(idx)
 
         self.point_loc = point_loc
@@ -873,20 +868,14 @@ class SurfaceApprox:
                 w_loc_vec = self._w_quad_points[patch_point_loc]
                 b_loc_vec = self._z_quad_points[patch_point_loc]
                 iu, iv = self.patch_id2pos(patch_id)
-                #u_loc_base_vec = self._u_basis.eval_vector(iu, u_loc_vec).transpose()
-                #v_loc_base_vec = self._v_basis.eval_vector(iv, v_loc_vec).transpose()
-                u_loc_base_vecx = self._u_basis.eval_vector(iu, u_loc_vec)
-                v_loc_base_vecx = self._v_basis.eval_vector(iv, v_loc_vec)
-                #v_kron_u = (v_loc_base_vec[:, :, None] * u_loc_base_vec[:, None, :]).reshape(len(self.point_loc[patch_id]),9)
-                v_kron_ux = (u_loc_base_vecx[None, :, :] * v_loc_base_vecx[:, None, :]).reshape(9,len(self.point_loc[patch_id]))
-                w_mult_v_kron_ux = w_loc_vec[None] * v_kron_ux
-                #w_mult_v_kron_u  =   w_loc_vec[None].transpose() * v_kron_u
-                #loc_norm_mat = w_mult_v_kron_u.transpose() @ w_mult_v_kron_u.reshape(81)
-                loc_norm_matx = np.sum(w_mult_v_kron_ux[None,:,:] * w_mult_v_kron_ux[:,None,:],axis=2).reshape(81)
+                u_loc_base_vec = self._u_basis.eval_vector(iu, u_loc_vec)
+                v_loc_base_vec = self._v_basis.eval_vector(iv, v_loc_vec)
+                v_kron_u = (u_loc_base_vec[None, :, :] * v_loc_base_vec[:, None, :]).reshape(9,len(self.point_loc[patch_id]))
+                w_mult_v_kron_u = w_loc_vec[None] * v_kron_u
+                loc_norm_mat = np.sum(w_mult_v_kron_u[None,:,:] * w_mult_v_kron_u[:,None,:],axis=2).reshape(81)
                 b_row = col[patch_id * 81: patch_id * 81 + 9]
-                data[patch_id*81:(patch_id+1)*81] = loc_norm_matx
-                vec_BTb[b_row.tolist()] += np.sum((b_loc_vec * w_mult_v_kron_ux),axis=1)
-                    #(b_loc_vec[None] @ w_mult_v_kron_u).reshape(9)
+                data[patch_id*81:(patch_id+1)*81] = loc_norm_mat
+                vec_BTb[b_row.tolist()] += np.sum((b_loc_vec * w_mult_v_kron_u),axis=1)
 
         mat_BTB = scipy.sparse.csr_matrix((data, (row, col)), shape=(normal_matrix_size, normal_matrix_size))
         return mat_BTB, vec_BTb, avg_vec
@@ -923,16 +912,12 @@ class SurfaceApprox:
                 iv = self._v_basis.find_knot_interval(v_vec[0])
                 col = (linsp31 + iv) * u_n_basf + iu + linsp13
                 z_loc = z_vec[col]
-                #u_base_vec = self._u_basis.eval_vector(iu, u_vec).transpose()
-                #v_base_vec = self._v_basis.eval_vector(iv, v_vec).transpose()
-                u_base_vecx = self._u_basis.eval_vector(iu, u_vec)
-                v_base_vecx = self._v_basis.eval_vector(iv, v_vec)
+                u_base_vec = self._u_basis.eval_vector(iu, u_vec)
+                v_base_vec = self._v_basis.eval_vector(iv, v_vec)
                 z_mat_loc = z_loc.reshape(self._v_basis.degree + 1, self._u_basis.degree + 1)
-                #v_z_mat = v_base_vec @ z_mat_loc
-                z_u_mat = z_mat_loc @ u_base_vecx
-                #patch_z_vec = (u_base_vec[:, None, :] @ v_z_mat[:, :, None]).reshape(len(self.point_loc[patch_id]))
-                patch_z_vecx = np.sum( v_base_vecx * z_u_mat, axis=0)
-                patch_err = (patch_z_vecx - g_vec[patch_point_loc])#*self._w_quad_points[patch_point_loc]
+                z_u_mat = z_mat_loc @ u_base_vec
+                patch_z_vec = np.sum( v_base_vec * z_u_mat, axis=0)
+                patch_err = (patch_z_vec - g_vec[patch_point_loc])
                 err_mat_max[iu][iv] = np.max(np.abs(patch_err))
                 err_mat_eucl2[iu][iv] = np.linalg.norm(patch_err)*np.linalg.norm(patch_err)
                 err[patch_point_loc] = patch_err
