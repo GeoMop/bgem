@@ -30,7 +30,7 @@ class SurfApprox:
         self.err, self.surfz = self.surf_app()
 
     def surf_app(self):
-        self.approx = bsa.SurfaceApprox.approx_from_file("./grid_50_m.csv",file_delimiter=",")
+        self.approx = bsa.SurfaceApprox.approx_from_file("./grid_200_m.csv",file_delimiter=",")
         #self.approx._xy_points
         #self.approx._z_points
         #self.approx._weights

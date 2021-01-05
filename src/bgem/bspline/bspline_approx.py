@@ -648,7 +648,7 @@ class SurfaceApprox:
                                                    maxiter=300, return_eigenvectors=False)
                 reg_coef = bb_norm[0] / a_norm[0]
 
-            reg_coef = 0.0
+            #reg_coef = 0.0
             c_mat = btb_mat + reg_coef * a_mat
             #c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
             end_time = time.time()
@@ -675,10 +675,13 @@ class SurfaceApprox:
             ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, err_mat_eucl2, std_dev, self.adapt_type)
 
             # Regularization coefficient
+            print("L2 diff: ", diff.dot(diff))
+            print("A2 diff: ", z_vec.dot(a_mat.dot(z_vec)))
             reg_coef = diff.dot(diff) / z_vec.dot(a_mat.dot(z_vec))
 
             print("reg_coef =", reg_coef)
             print("iteration =",iters)
+            print("\nL2_diff =", std_dev)
             print("\nmax_diff =",np.max(diff))
             print("area =", self._u_basis.n_intervals,'x',self._v_basis.n_intervals, "(n_patches =",self._u_basis.n_intervals*self._v_basis.n_intervals,")")
             if self.input_data_reduction != 1.0:
