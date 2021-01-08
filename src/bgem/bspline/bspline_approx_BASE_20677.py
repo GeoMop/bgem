@@ -11,8 +11,9 @@ import numpy.linalg as la
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.interpolate
+import scipy
 
-
+import scipy.sparse as sparse
 
 from bgem.bspline import bspline as bs
 #import csv
@@ -413,9 +414,7 @@ class SurfaceApprox:
         return self.nuv
 
     def _refine_knots(self, knot, ref_vec):
-        """
-        Subdivide intervals of the knot vector that are marked by the 'ref_vec[i]>0'.
-        """
+
         knotlist = []
         for i in range(0, len(knot) - 5):
             knotlist.append([])
@@ -531,39 +530,25 @@ class SurfaceApprox:
 
     def compute_adaptive_approximation(self, **kwargs):
         """
-        Approximate the point set (given to the constructor) by a B-spline surface.
-        The knot vectors in u and V direction are adaptively refined until a prescribed tolerance is reached.
-        In order to prevent overfitting we regularize by penalizing the gradients of the constructed surface.
-        The regularization parameter is automatically tuned to balance the approximation error |Z - surf(b)|
-        and the regularization |grad surf(b)|_L2. Alternatively the cross-validation method can be applied.
-
-        Compute approximation of the point set .
+        Compute approximation of the point set (given to constructor).
         Approximation parameters can be passed in through kwargs or set in the object before the call.
         :param quad: [(x1,y1), .. , (x4,y4)] Set vertices of different quad for the point set.
         :param nuv: (nu, nv) Set number of intervals of the resulting B-spline, in U and V direction
+        :param solver: default direct sparse solver (spsolve), conjugate gradient method "cg" also possible
         :param max_iters: determines number refinement steps of the knot vectors , default (20)
-        :param solver:
-            'spsolve' (default) use the sparse direct solver scipy.sparse.linalg.spsolve ,
-            'cg' use conjugate gradient solver scipy.sparse.linalg.cg
-        :param adapt_type: 
-            Adaptivity type to use. Denoting 'z(x,y)' the surface value and (x_i, y_i, z_i) given points:
-            'absolute' (default) refine patches where |z(x_i, y_i) - z_i|_inf > max_diff 
-            'std_dev' If the total L2 error is greater then 'std_dev', refine 'max_part' fraction of the rows/columns with highest L2 error contibution.
-        :param max_diff: infinite norm tolerance for the 'absolute' refinement
-        :param max_part: fraction of the raws/columns to be refined (1.0 is maximum) for the 'std_dev' refinement
-        :param std_dev: Standard deviance of the Z components of the input points, or equivalently L2 norm tolerance. Used in 'std_dev' refinement method. achieved
-        :param input_data_reduction: Determine regularization parameter using the cross-validation. Fit only to the random fraction 'input_data_reducion' 
-             and use the remaining data for the cross-validation.
+        :param adapt_type: default adaptivity refinement based on infinite norm (absolute), standard deviation based variant (std_dev) also possible
+        :param max_diff: determines maximum error in infinite norm for absolute adaptivity that should be achieved
+        :param max_part: determines relative part of patches to be refined (1.0 is maximum) for standard deviation based adaptivity
+        :param std_dev: determines standard deviation that should be achieved
+        :parem input_data_reduction: determines relative part of the input point to be used
         :return: B-Spline surface
 
-        Two refinement algorithms:
-        
-        absolute norm based adaptivity
+         absolute norm based adaptivity
          maximum norm is evaluated on every patch, if it holds: patch maximum norm > max_diff (param)
          then both of the knot vectors ("u" AND "v") are refined in corresponding intervals
          finished: number of iteration achieved max_iters (param) OR maximum norm on every patch < max_diff (param)
 
-        standard deviation based adaptivity
+         standard deviation based adaptivity
          Euclidean norms of the errors are computed with respect u,v knot intervals
          even iteration: max_part (param) ratio of the "u" knot intervals involving the largest norm are refined
          odd iteration: max_part (param) ratio of the "v" knot intervals involving the largest norm are refined
@@ -592,7 +577,7 @@ class SurfaceApprox:
         self._compute_uv_points()
 
         ###
-        # self._w_quad_points = np.ones(len(self._w_quad_points))
+        self._w_quad_points = np.ones(len(self._w_quad_points))
         if self.input_data_reduction != 1.0:
             n = len(self._uv_quad_points)
             lsp = np.linspace(0, n - 1, n, dtype=int)
@@ -648,7 +633,9 @@ class SurfaceApprox:
                                                    maxiter=300, return_eigenvectors=False)
                 reg_coef = bb_norm[0] / a_norm[0]
 
+            reg_coef = 0.0
             c_mat = btb_mat + reg_coef * a_mat
+            #c_mat = btb_mat + self.regularization_weight * (bb_norm[0] * a_min[0] / a_norm[0]) * a_mat
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
 
@@ -673,13 +660,10 @@ class SurfaceApprox:
             ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, err_mat_eucl2, std_dev, self.adapt_type)
 
             # Regularization coefficient
-            print("L2 diff: ", diff.dot(diff))
-            print("A2 diff: ", z_vec.dot(a_mat.dot(z_vec)))
             reg_coef = diff.dot(diff) / z_vec.dot(a_mat.dot(z_vec))
 
             print("reg_coef =", reg_coef)
             print("iteration =",iters)
-            print("\nL2_diff =", std_dev)
             print("\nmax_diff =",np.max(diff))
             print("area =", self._u_basis.n_intervals,'x',self._v_basis.n_intervals, "(n_patches =",self._u_basis.n_intervals*self._v_basis.n_intervals,")")
             if self.input_data_reduction != 1.0:
@@ -932,7 +916,7 @@ class SurfaceApprox:
                 v_base_vec = self._v_basis.eval_vector(iv, v_vec)
                 z_mat_loc = z_loc.reshape(self._v_basis.degree + 1, self._u_basis.degree + 1)
                 z_u_mat = z_mat_loc @ u_base_vec
-                patch_z_vec = np.sum(v_base_vec * z_u_mat, axis=0)
+                patch_z_vec = np.sum( v_base_vec * z_u_mat, axis=0)
                 patch_err = (patch_z_vec - g_vec[patch_point_loc])
                 err_mat_max[iu][iv] = np.max(np.abs(patch_err))
                 err_mat_eucl2[iu][iv] = np.linalg.norm(patch_err)*np.linalg.norm(patch_err)
@@ -1017,7 +1001,7 @@ class SurfaceApprox:
             dv_val_outer_loc = v_diff_val_outer[:, :, iv]
 
             for iu in range(u_n_inter):
-                jac = (self._u_basis.knots[iu+3] - self._u_basis.knots[iu+2]) * (self._v_basis.knots[iv+3] - self._v_basis.knots[iv+2])
+                jac = 1 / ((self._u_basis.knots[iu+3] - self._u_basis.knots[iu+2]) * (self._v_basis.knots[iv+3] - self._v_basis.knots[iv+2]))
                 u_val_outer_loc = u_val_outer[:, :, iu]
                 du_val_outer_loc = u_diff_val_outer[:, : , iu]
                 # xy_outer_loc have shape 3x3
@@ -1025,6 +1009,7 @@ class SurfaceApprox:
                 v_du = np.kron(v_val_outer_loc, du_val_outer_loc)
                 dv_u = np.kron(dv_val_outer_loc, u_val_outer_loc)
                 data_m[nnz_a:nnz_a + idx_range] = jac * ( v_du + dv_u).ravel()  # 9x9 values
+
                 iuv = iu + iv * u_n_basf
                 colv = iuv + iuv_local
                 col_m[nnz_a:nnz_a + idx_range] = np.repeat(colv, n_uv_loc_nz)

@@ -648,6 +648,10 @@ class SurfaceApprox:
                                                    maxiter=300, return_eigenvectors=False)
                 reg_coef = bb_norm[0] / a_norm[0]
 
+<<<<<<< HEAD
+=======
+            #reg_coef = 0.0
+>>>>>>> b8f7713a48e15a658a9f21e373d9bb1da728ec28
             c_mat = btb_mat + reg_coef * a_mat
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
