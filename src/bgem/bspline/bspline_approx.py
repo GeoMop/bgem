@@ -592,7 +592,7 @@ class SurfaceApprox:
         self._compute_uv_points()
 
         ###
-        # self._w_quad_points = np.ones(len(self._w_quad_points))
+        #self._w_quad_points = np.ones(len(self._w_quad_points))
         if self.input_data_reduction != 1.0:
             n = len(self._uv_quad_points)
             lsp = np.linspace(0, n - 1, n, dtype=int)

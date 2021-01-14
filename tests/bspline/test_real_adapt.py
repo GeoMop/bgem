@@ -31,7 +31,7 @@ class SurfApprox:
     def surf_app(self):
         self.approx = bsa.SurfaceApprox.approx_from_file("./grid_200_m.csv",file_delimiter=",")
         surfz = self.approx.compute_adaptive_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="spsolve",
-                                                           adapt_type="std_dev",max_iters=25)
+                                                           adapt_type="std_dev",max_iters=5)
         err = self.approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf
