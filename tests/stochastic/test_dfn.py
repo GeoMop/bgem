@@ -17,6 +17,7 @@ from bgem.gmsh import gmsh
 from bgem.gmsh import options as gmsh_options
 from bgem.gmsh import field as gmsh_field
 from bgem.stochastic import fracture
+from bgem.bspline import brep_writer as bw
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -477,14 +478,47 @@ def test_gmsh_dfn():
     factory, mesh = make_mesh(geometry_dict, fractures, "geothermal_dnf")
 
 
-@pytest.mark.skip
+#@pytest.mark.skip
 def test_brep_dfn():
     np.random.seed()
     fractures = generate_fractures(geometry_dict, fracture_stats)
+    make_brep(geometry_dict, fractures, "_test_fractures.brep")
 
     # TODO:
     #dfn = dfn.DFN(fractures)
     #dfn_simplified = dfn.simplify()
     #brep = dfn_simplified.make_brep()
 
+
+def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name:str):
+    """
+    Create the BREP file from a list of fractures using the brep writer interface.
+    """
+    fracture_mesh_step = geometry_dict['fracture_mesh_step']
+    dimensions = geometry_dict["box_dimensions"]
+
+
+    print("n fractures:", len(fractures))
+
+    faces = []
+    for i,fr in enumerate(fractures):
+        fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]])
+        # ref_frac = fracture.SquareShape()
+        frac_points = fr.transform(fr_points)
+
+        v1 = bw.Vertex(frac_points[0, :])
+        v2 = bw.Vertex(frac_points[1, :])
+        v3 = bw.Vertex(frac_points[2, :])
+        v4 = bw.Vertex(frac_points[3, :])
+        e1 = bw.Edge([v1, v2])
+        e2 = bw.Edge([v2, v3])
+        e3 = bw.Edge([v3, v4])
+        e4 = bw.Edge([v4, v1])
+        f1 = bw.Face([e1, e2, e3, e4])
+        faces.append(f1)
+
+    comp = bw.Compound(faces)
+    loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+    with open(brep_name, "w") as f:
+        bw.write_model(f, comp, loc)
 

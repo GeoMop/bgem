@@ -137,7 +137,7 @@ class Quat:
         return w, x, y, z
 
     def q_to_axisangle(self, q):
-        # convert from quaternion to ratation given by axis and angle
+        # convert from quaternion to rotation given by axis and angle
         w, v = q[0], q[1:]
         theta = np.acos(w) * 2.0
         return v / np.linalg.norm(v), theta
