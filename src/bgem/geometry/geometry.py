@@ -192,7 +192,7 @@ class Surface():
         :param geom_file_base:
         :return:
         """
-        self.z_surface = bspline_io.bs_zsurface_read(self.approximation)
+        self.z_surface = self.bs_zsurface_read(self.approximation)
         # Surface approx conatains transform
         #self.z_surface.transform(self.xy_transform)
 
@@ -256,6 +256,17 @@ class Surface():
 
         plt.plot(xy[:, 0], xy[:, 1], color='green')
         plt.show()
+
+    @staticmethod
+    def bs_zsurface_read(z_surface_io):
+        io = z_surface_io
+        u_basis = bs.SplineBasis(io.u_degree, io.u_knots)
+        v_basis = bs.SplineBasis(io.v_degree, io.v_knots)
+
+        z_surf = bs.Surface((u_basis, v_basis), io.poles, io.rational)
+        surf = bs.Z_Surface(io.orig_quad, z_surf)
+        surf.transform(io.xy_map, io.z_map)
+        return surf
 
 
 class Interface:

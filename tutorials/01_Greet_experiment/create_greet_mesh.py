@@ -218,13 +218,13 @@ def generate_mesh(geom):
     )
 
     # translate and rotate all to final position
-    objs_to_rotate = [box_outer_cut, box_inner_cut, cut_fracture_box, *tunnel, *sides.values()]
+    objs_to_rotate = [box_outer, box_outer_cut, box_inner_cut, cut_fracture_box, *tunnel, *sides.values()]
     outer_box_points = np.array(geometry_dict['outer_box']["nodes"])
     barycenter = [np.average(outer_box_points[:, 0]), np.average(outer_box_points[:, 1]),
                   np.average(outer_box_points[:, 2])]
-    rot_x = float(geometry_dict['outer_box']["rot_x"])
-    rot_y = float(geometry_dict['outer_box']["rot_y"])
-    rot_z = float(geometry_dict['outer_box']["rot_z"])
+    rot_x = float(geometry_dict['model_rotation']["rot_x"])
+    rot_y = float(geometry_dict['model_rotation']["rot_y"])
+    rot_z = float(geometry_dict['model_rotation']["rot_z"])
     for obj in objs_to_rotate:
         if rot_x != 0:
             obj.rotate([1, 0, 0], rot_x)
@@ -233,8 +233,6 @@ def generate_mesh(geom):
         if rot_z != 0:
             obj.rotate([0, 0, 1], rot_z)
         obj.translate(barycenter)
-    # I have no idea, why I have to do this separately..
-    box_outer.translate(barycenter)
 
     # create fractures
     fractures = []
