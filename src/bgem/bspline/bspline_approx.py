@@ -719,7 +719,7 @@ class SurfaceApprox:
             App = scipy.sparse.diags(c_mat.diagonal())  # Jacobi preconditioner
             z_vec, info = scipy.sparse.linalg.cg(c_mat, btwb_vec, x0=ksi * avg_vec, tol=1e-8, maxiter=100, M=App,
                                            callback=None, atol=0.0)  # None
-            z_vec = z_vec[0]
+            #z_vec = z_vec[0]
 
         return z_vec
 
