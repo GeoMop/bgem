@@ -598,7 +598,7 @@ class SurfaceApprox:
             lsp = np.linspace(0, n - 1, n, dtype=int)
             red_lsp = np.random.choice(lsp, int(np.ceil(n * self.input_data_reduction)))
             compl_lsp = np.setxor1d(lsp, red_lsp)
-            self._w_quad_points = np.ones(len(self._w_quad_points)) # set all the weights equal to 1!!!
+            self._w_quad_points = np.ones(n) # set all the weights equal to 1!!!
             self._w_quad_points[compl_lsp] = np.zeros(len(compl_lsp))
         ###
 
@@ -675,7 +675,7 @@ class SurfaceApprox:
             # Regularization coefficient
             print("L2 diff: ", diff.dot(diff))
             print("A2 diff: ", z_vec.dot(a_mat.dot(z_vec)))
-            reg_coef = diff.dot(diff) / z_vec.dot(a_mat.dot(z_vec))
+            #reg_coef = diff.dot(diff) / z_vec.dot(a_mat.dot(z_vec)) # shoud be replaced by a more stable formula
 
             print("reg_coef =", reg_coef)
             print("iteration =",iters)
@@ -717,8 +717,8 @@ class SurfaceApprox:
             ksi = bAx / (Ax_norm * Ax_norm)
             avg_vec = ksi * avg_vec
             App = scipy.sparse.diags(c_mat.diagonal())  # Jacobi preconditioner
-            z_vec = scipy.sparse.linalg.cg(c_mat, btwb_vec, x0=ksi * avg_vec, tol=1e-10, maxiter=100, M=App,
-                                           callback=None, atol=None)  # None
+            z_vec, info = scipy.sparse.linalg.cg(c_mat, btwb_vec, x0=ksi * avg_vec, tol=1e-8, maxiter=100, M=App,
+                                           callback=None, atol=0.0)  # None
             z_vec = z_vec[0]
 
         return z_vec
