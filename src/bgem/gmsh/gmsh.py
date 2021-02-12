@@ -424,6 +424,17 @@ class GeometryOCC:
         surface = self.model.addPlaneSurface([loop], tag=-1)
         return self.object(2, surface)
 
+    def import_shapes(self, fileName, highestDimOnly=True):
+        """
+        Import BREP, STEP or IGES shapes from the file fileName in the OpenCASCADE CAD representation.
+        :param fileName:
+        :param highestDimOnly:
+
+        """
+        shapes = self.model.importShapes(fileName, highestDimOnly=highestDimOnly)
+        self._need_synchronize = True
+        return ObjectSet(self, shapes, [Region.default_region[dim] for dim, _ in shapes])
+
 
 
     def synchronize(self):
