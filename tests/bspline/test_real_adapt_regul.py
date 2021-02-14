@@ -3,6 +3,7 @@ import numpy as np
 import logging
 import sys
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+import matplotlib.pylab as plt
 import math
 import pytest
 #import statprof
@@ -29,7 +30,7 @@ class SurfApprox:
         self.err, self.surfz = self.surf_app()
 
     def surf_app(self):
-        self.approx = bsa.SurfaceApprox.approx_from_file("/home/jiri/Github/real_data/grid_50_m.csv")
+        self.approx = bsa.SurfaceApprox.approx_from_file("./grid_200_m.csv",file_delimiter=",")
         #self.approx._xy_points
         #self.approx._z_points
         #self.approx._weights
@@ -49,8 +50,8 @@ class SurfApprox:
 
 
 
-        surfz = self.approx.compute_adaptive_approximation_reducedset(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="spsolve",
-                                                           adapt_type="std_dev")
+        surfz = self.approx.compute_adaptive_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]),solver="cg",
+                                                           adapt_type="std_dev", input_data_reduction=0.6,max_iters=10)
         err = self.approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf
@@ -59,7 +60,7 @@ class TestAdapt:
 
     def test_surface_intersection(self):
 
-        control_points = [120, 120]
+        control_points = [50, 50]
         sapp = SurfApprox(control_points)
         app = sapp.approx
         myplot = bp.Plotting((bp.PlottingPlotly()))

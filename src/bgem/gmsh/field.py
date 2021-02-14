@@ -41,6 +41,67 @@ def distance_edges(curves, nodes_per_edge=8, coordinate_fields=None) -> Field:
         gmsh_field.setNumber(id, "FieldZ", fz)
     return id
 
+def math_eval(expr) -> Field:
+    """
+    Temporary solution.
+
+    Usage:
+    dist = field.distance(nodes)
+    box = field.box(...)
+    formula = f'1/F{dist} + F{box}'
+    f = field.math_eval(formula)
+
+    TODO: Use Field to catch native Python operations, provide basic functions: in the field namespace:
+    GMSH use MathEx, which supports:
+    operators:
+    unary + -
+    binary + - * / ^ % < >
+
+    functions:
+           { "abs",     fabs },
+         { "acos",    acos },
+         { "asin",    asin },
+         { "atan",    atan },
+         { "cos",     cos },
+         { "cosh",    cosh },
+         { "deg",     deg },   // added
+         { "exp",     exp },
+         { "fac",     fac },   // added, round to int, factorial for 0..170,
+         { "log",     log },
+         { "log10",   log10 },
+         // { "pow10",   pow10 } // in future, add it?
+         { "rad",     rad },   // added
+         { "round",   round }, // added
+         { "sign",    sign },
+         { "sin",     sin },
+         { "sinh",    sinh },
+         // { "sqr",     sqr }, // added
+         { "sqrt",    sqrt },
+         { "step",    step }, // (x>=0), not necessary
+         { "tan",     tan },
+         { "tanh",    tanh },
+#if !defined(WIN32)
+         { "atanh",   atanh },
+#endif
+         { "trunc",   trunc }, // added
+         { "floor",   floor }, // largest integer not grather than x
+         { "ceil",    ceil }, // smallest integer not less than x
+
+         addfunc("rand", p_rand, 0); // rand()
+
+         addfunc("sum", p_sum, UNDEFARGS);  // sum(1,2,...)
+
+         addfunc("max", p_max, UNDEFARGS);
+
+         addfunc("min", p_min, UNDEFARGS);
+
+         addfunc("med", p_med, UNDEFARGS);  // average !!
+
+    """
+    id = gmsh_field.add('MathEval')
+    gmsh_field.setString(id, 'F', expr)
+    return id
+
 
 def threshold(field, lower_bound, upper_bound=None, sigmoid=False) -> Field:
     """
