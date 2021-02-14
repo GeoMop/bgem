@@ -287,6 +287,14 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(dim, res)
 
+    def point(self, coord=[0, 0, 0]):
+        """
+        Add a geometrical point.
+        """
+        point_tag = self.model.addPoint(*coord)
+        self._need_synchronize = True
+        return self.object(0, point_tag)
+
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
         """
         TODO: Better match GMSH API, possibly use origin as the default left corner.
