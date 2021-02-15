@@ -7,6 +7,9 @@ import numpy as np
 import gmsh
 import re
 
+from bgem.gmsh.field import Field
+from bgem.gmsh import options as gmsh_options
+
 
 
 """
@@ -226,7 +229,8 @@ class GeometryOCC:
 
         self._region_names = {}
         self._need_synchronize = False
-
+        self.mesh_options = gmsh_options.Mesh()
+        self.geom_options = gmsh_options.Geometry()
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
 
     @staticmethod
@@ -593,6 +597,13 @@ class GeometryOCC:
         nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
         gmsh.model.mesh.setSize(nodes, step)
 
+
+
+    def set_mesh_step_field(self, field: Field) -> None:
+        field.reset_id()
+        id = field.construct()
+        gmsh.model.mesh.field.setAsBackgroundMesh(id)
+
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:
         """
         Generate mesh for given objects.
@@ -631,6 +642,7 @@ class GeometryOCC:
         Format is given by extension (see MeshFormat for supported formats)
         If 'filename' is not provided it is determined by the model name given in constructor.
         In such case the format is given by the 'format' parameter.
+        TODO: check that mesh is created.
         """
         if filename is None:
             gmsh.option.setNumber('Mesh.Format', format)
