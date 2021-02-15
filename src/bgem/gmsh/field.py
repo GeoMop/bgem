@@ -349,41 +349,42 @@ def min(*fields: Field) -> Field:
 
 
 
-# @field_function
-# def threshold(field:Field, lower_bound:Tuple[float, float], upper_bound:Tuple[float, float]=None, sigmoid:bool=False) -> Field:
-#     """
-#     Apply a threshold function to the 'field'.
-#
-#     field_min, threshold_min = lower_bound
-#     field_max, threshold_max = lower_bound
-#
-#     Threshold function:
-#     threshold = threshold_min IF field <= field_min
-#     threshold = threshold_max IF field >= field_max
-#     interpolation otherwise.
-#
-#     upper_bound = None is equivalent to field_max = infinity
-#
-#     For sigmoid = True, use sigmoid as a smooth approximation of the threshold function.
-#
-#     TODO: not clear why field_min and field_max are necessary, if it can make transition discontinuous.
-#     """
-#     id = gmsh_field.add('Threshold')
-#
-#     gmsh_field.setNumber(id, "IField", field)
-#     field_min, threshold_min = lower_bound
-#     gmsh_field.setNumber(id, "DistMin", field_min)
-#     gmsh_field.setNumber(id, "LcMin", threshold_min)
-#     if upper_bound:
-#         field_max, threshold_max = lower_bound
-#         gmsh_field.setNumber(id, "DistMax", field_max)
-#         gmsh_field.setNumber(id, "LcMax", threshold_max)
-#     else:
-#         gmsh_field.setNumber(id, "StopAtDistMax", True)
-#
-#     if sigmoid:
-#         gmsh_field.setNumber(id, "Sigmoid", True)
-#     return id
+
+def threshold(field:Field, lower_bound:Tuple[float, float],
+              upper_bound:Tuple[float, float]=None, sigmoid:bool=False) -> Field:
+    """
+    Apply a threshold function to the 'field'.
+
+    field_min, threshold_min = lower_bound
+    field_max, threshold_max = lower_bound
+
+    Threshold function:
+    threshold = threshold_min IF field <= field_min
+    threshold = threshold_max IF field >= field_max
+    interpolation otherwise.
+
+    upper_bound = None is equivalent to field_max = infinity
+
+    For sigmoid = True, use sigmoid as a smooth approximation of the threshold function.
+
+    TODO: not clear why field_min and field_max are necessary, if it can make transition discontinuous.
+    """
+    field_min, threshold_min = lower_bound
+    if upper_bound is None:
+        field_max, threshold_max = (None, None)
+        stop_at_dist_max = True
+    else:
+        field_max, threshold_max = upper_bound
+        stop_at_dist_max = False
+
+    return Field('Threshold',
+                 IField=Par.Field(field),
+                 DistMin=field_min,
+                 LcMin=threshold_min,
+                 DistMax=field_max,
+                 LcMax=threshold_max,
+                 StopAtDistMax=stop_at_dist_max,
+                 Sigmoid=sigmoid)
 
 
 

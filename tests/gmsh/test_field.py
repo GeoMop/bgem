@@ -82,7 +82,7 @@ def test_distance_nodes_2d():
         return max(0.5 * dist, 0.1)
     apply_field(f_distance, ref_size, dim=2, tolerance=0.7, max_mismatch=10)
 
-#@pytest.mark.skip
+
 def test_minmax_nodes_2d():
     f_distance = field.min(10, field.max(5, field.distance_nodes([1, 3]))) # points: (-50, -50), (50, 50)
     def ref_size(x):
@@ -90,3 +90,22 @@ def test_minmax_nodes_2d():
                    np.linalg.norm(np.array(x) - np.array([50,50,0])))
         return min(10, max(5, dist))
     apply_field(f_distance, ref_size, dim=2, tolerance=0.4, max_mismatch=10)
+
+
+def test_threshold_2d():
+    f_distance = field.threshold(field.distance_nodes([1, 3]),
+                                 lower_bound=(10,5), upper_bound=(30, 10))
+
+    def thold(x,minx,miny,maxx,maxy):
+        if x < minx:
+            return miny
+        elif x > maxx:
+            return maxy
+        else:
+            return (x - minx)/(maxx - minx) * (maxy - miny) + miny
+
+    def ref_size(x):
+        dist = min(np.linalg.norm(np.array(x) - np.array([-50,-50,0])),
+                   np.linalg.norm(np.array(x) - np.array([50,50,0])))
+        return thold(dist, 10, 5, 30, 10)
+    apply_field(f_distance, ref_size, dim=2, tolerance=0.3, max_mismatch=3)
