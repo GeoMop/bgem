@@ -1,5 +1,7 @@
 import pytest
 import numpy as np
+import os
+import filecmp
 from bgem.bspline import brep_writer as bw
 
 class TestLocation:
@@ -57,6 +59,16 @@ class TestConstructors:
     def test_Vertex(self):
         with pytest.raises(bw.ParamError):
             bw.Vertex(['a','b','c'])
+
+def compare_brep(compound, ref_brep):
+    full_ref_brep = os.path.join('ref_brepwriter', ref_brep)
+    new_brep = '_'.join(ref_brep.split('_')[:-1]) + '_tst.brep'
+    full_new_brep = os.path.join('ref_brepwriter', new_brep)
+    with open(full_new_brep, "w") as f:
+        bw.write_model(f, compound)
+
+    return filecmp.cmp(full_new_brep, full_ref_brep)
+
 
 
 class TestPlanarGeomeries:
@@ -177,7 +189,25 @@ class TestPlanarGeomeries:
         # Modify and make other write
 
 
+def test_tetrahedron():
+    v0 = bw.Vertex([0,0,0])
+    v1 = bw.Vertex([1,0,0])
+    v2 = bw.Vertex([0,1,0])
+    v3 = bw.Vertex([0,0,1])
 
+    e01 = bw.Edge([v0, v1])
+    e02 = bw.Edge([v0, v2])
+    e03 = bw.Edge([v0, v3])
+    e12 = bw.Edge([v1, v2])
+    e23 = bw.Edge([v2, v3])
+    e13 = bw.Edge([v1, v3])
 
-if __name__ == '__main__':
-    unittest.main()
+    f1 = bw.Face([e01, e12, e02.m()])
+    f2 = bw.Face([e02, e23, e03.m()])
+    f3 = bw.Face([e03, e13.m(), e01.m()])
+    f4 = bw.Face([e12, e23, e13.m()])
+
+    shell = bw.Shell([f1, f2, f3, f4])
+    s = bw.Solid([shell])
+    c = bw.Compound([s])
+    assert compare_brep(c, 'tetrahedron_ref.brep')
