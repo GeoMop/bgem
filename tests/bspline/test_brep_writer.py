@@ -60,136 +60,124 @@ class TestConstructors:
         with pytest.raises(bw.ParamError):
             bw.Vertex(['a','b','c'])
 
-def compare_brep(compound, ref_brep):
+def compare_brep(compound, ref_brep, location):
     full_ref_brep = os.path.join('ref_brepwriter', ref_brep)
     new_brep = '_'.join(ref_brep.split('_')[:-1]) + '_tst.brep'
     full_new_brep = os.path.join('ref_brepwriter', new_brep)
     with open(full_new_brep, "w") as f:
-        bw.write_model(f, compound)
+        bw.write_model(f, compound, location)
 
     return filecmp.cmp(full_new_brep, full_ref_brep)
 
 
-
-class TestPlanarGeomeries:
-
-    def _cube(self):
-        # 0, 0; top, bottom
-        v1=bw.Vertex((0.0, 0.0, 1.0))
-        v2=bw.Vertex((0.0, 0.0, 0.0))
-
-        v3=bw.Vertex((0.0, 1.0, 1.0))
-        v4=bw.Vertex((0.0, 1.0, 0.0))
-
-        v5=bw.Vertex((1.0, 0.0, 1.0))
-        v6=bw.Vertex((1.0, 0.0, 0.0))
-
-        # vertical edges
-        e1=bw.Edge([v1,v2])
-        e2=bw.Edge([v3,v4])
-        e3=bw.Edge([v5,v6])
-
-        # face v12 - v34
-        # top
-        e4=bw.Edge([v1,v3])
-        # bottom
-        e5=bw.Edge([v2,v4])
-        f1 = bw.Face([e1.m(), e4, e2, e5.m()])
-
-        # face v34 - v56
-        # top
-        e6=bw.Edge([v3, v5])
-        # bottom
-        e7=bw.Edge([v4, v6])
-        f2 = bw.Face([e2.m(), e6, e3, e7.m()])
-
-        # face v56 - v12
-        # top
-        e8=bw.Edge([v5, v1])
-        # bottom
-        e9=bw.Edge([v6, v2])
-        f3 = bw.Face([e3.m(), e8, e1, e9.m()])
-
-        # top cup
-        f4 = bw.Face([e4, e6, e8])
-        # bot cup
-        w5=bw.Wire([e5, e7, e9])
-        f5 = bw.Face([w5.m()])
-
-        shell = bw.Shell([ f1, f2, f3, f4, f5.m() ])
-        return shell
-
-    def _permuted_cube(self):
-        # 0, 0; top, bottom
-        v1=bw.Vertex((0.0, 0.0, 1.0))
-        v2=bw.Vertex((0.0, 0.0, 0.0))
-
-        v3=bw.Vertex((0.0, 1.0, 1.0))
-        v4=bw.Vertex((0.0, 1.0, 0.0))
-
-        v5=bw.Vertex((1.0, 0.0, 1.0))
-        v6=bw.Vertex((1.0, 0.0, 0.0))
-
-        # face v12 - v34
-        # top
-        e4=bw.Edge([v1,v3])
-        # top
-        e6=bw.Edge([v3, v5])
-        # top
-        e8=bw.Edge([v5, v1])
-
-        # top cup
-        f4 = bw.Face([e4, e6, e8])
-
-        # bottom
-        e5=bw.Edge([v2,v4])
-        # face v34 - v56
-        # bottom
-        e7=bw.Edge([v4, v6])
-        # face v56 - v12
-        # bottom
-        e9=bw.Edge([v6, v2])
-
-        # bot cup
-        w5=bw.Wire([e5, e7, e9])
-        f5 = bw.Face([w5.m()])
+def composed_location():
+    loc1=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
+    loc2=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
+    cloc=bw.ComposedLocation([(loc1,1),(loc2,1)])
+    return cloc
 
 
-        # vertical edges
-        e1=bw.Edge([v1,v2])
-        e2=bw.Edge([v3,v4])
-        e3=bw.Edge([v5,v6])
+def prism():
+    # 0, 0; top, bottom
+    v1=bw.Vertex((0.0, 0.0, 1.0))
+    v2=bw.Vertex((0.0, 0.0, 0.0))
 
-        f1 = bw.Face([e1.m(), e4, e2, e5.m()])
+    v3=bw.Vertex((0.0, 1.0, 1.0))
+    v4=bw.Vertex((0.0, 1.0, 0.0))
 
-        f2 = bw.Face([e2.m(), e6, e3, e7.m()])
+    v5=bw.Vertex((1.0, 0.0, 1.0))
+    v6=bw.Vertex((1.0, 0.0, 0.0))
 
-        f3 = bw.Face([e3.m(), e8, e1, e9.m()])
+    # vertical edges
+    e1=bw.Edge([v1,v2])
+    e2=bw.Edge([v3,v4])
+    e3=bw.Edge([v5,v6])
 
-        shell = bw.Shell([ f4, f5.m(), f1, f2, f3 ])
-        return shell
+    # face v12 - v34
+    # top
+    e4=bw.Edge([v1,v3])
+    # bottom
+    e5=bw.Edge([v2,v4])
+    f1 = bw.Face([e1.m(), e4, e2, e5.m()])
 
-    def test_cube(self):
+    # face v34 - v56
+    # top
+    e6=bw.Edge([v3, v5])
+    # bottom
+    e7=bw.Edge([v4, v6])
+    f2 = bw.Face([e2.m(), e6, e3, e7.m()])
 
-        cube_shell = self._cube()
-        #shell = self._permuted_cube()
+    # face v56 - v12
+    # top
+    e8=bw.Edge([v5, v1])
+    # bottom
+    e9=bw.Edge([v6, v2])
+    f3 = bw.Face([e3.m(), e8, e1, e9.m()])
 
-        cube_solid = bw.Solid([ cube_shell ])
+    # top cup
+    f4 = bw.Face([e4, e6, e8])
+    # bot cup
+    w5=bw.Wire([e5, e7, e9])
+    f5 = bw.Face([w5.m()])
 
-        model = bw.Compound([cube_solid])
-
-        loc1=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
-        loc2=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
-        cloc=bw.ComposedLocation([(loc1,1),(loc2,1)])
-
-        with open("_out_test_prism.brep", "w") as f:
-            bw.write_model(f, model, cloc)
-            #bw.write_model(sys.stdout, c1, cloc)
-
-        # Modify and make other write
+    shell = bw.Shell([ f1, f2, f3, f4, f5.m() ])
+    cube_solid = bw.Solid([ shell ])
+    model = bw.Compound([cube_solid])
+    return model, composed_location()
 
 
-def test_tetrahedron():
+def prism_perturbed():
+    # 0, 0; top, bottom
+    v1=bw.Vertex((0.0, 0.0, 1.0))
+    v2=bw.Vertex((0.0, 0.0, 0.0))
+
+    v3=bw.Vertex((0.0, 1.0, 1.0))
+    v4=bw.Vertex((0.0, 1.0, 0.0))
+
+    v5=bw.Vertex((1.0, 0.0, 1.0))
+    v6=bw.Vertex((1.0, 0.0, 0.0))
+
+    # face v12 - v34
+    # top
+    e4=bw.Edge([v1,v3])
+    # top
+    e6=bw.Edge([v3, v5])
+    # top
+    e8=bw.Edge([v5, v1])
+
+    # top cup
+    f4 = bw.Face([e4, e6, e8])
+
+    # bottom
+    e5=bw.Edge([v2,v4])
+    # face v34 - v56
+    # bottom
+    e7=bw.Edge([v4, v6])
+    # face v56 - v12
+    # bottom
+    e9=bw.Edge([v6, v2])
+
+    # bot cup
+    w5=bw.Wire([e5, e7, e9])
+    f5 = bw.Face([w5.m()])
+
+
+    # vertical edges
+    e1=bw.Edge([v1,v2])
+    e2=bw.Edge([v3,v4])
+    e3=bw.Edge([v5,v6])
+
+    f1 = bw.Face([e1.m(), e4, e2, e5.m()])
+    f2 = bw.Face([e2.m(), e6, e3, e7.m()])
+    f3 = bw.Face([e3.m(), e8, e1, e9.m()])
+
+    shell = bw.Shell([ f4, f5.m(), f1, f2, f3 ])
+    cube_solid = bw.Solid([ shell ])
+    model = bw.Compound([cube_solid])
+    return model, composed_location()
+
+
+def tetrahedron():
     v0 = bw.Vertex([0,0,0])
     v1 = bw.Vertex([1,0,0])
     v2 = bw.Vertex([0,1,0])
@@ -209,5 +197,16 @@ def test_tetrahedron():
 
     shell = bw.Shell([f1, f2, f3, f4])
     s = bw.Solid([shell])
-    c = bw.Compound([s])
-    assert compare_brep(c, 'tetrahedron_ref.brep')
+    return bw.Compound([s]), bw.Identity
+
+
+
+
+
+@pytest.mark.parametrize("compound_fn",
+    [prism, prism_perturbed, tetrahedron])
+def test_geometries(compound_fn):
+    name = compound_fn.__name__ + '_ref.brep'
+    compound, location = compound_fn()
+    assert compare_brep(compound, name, location)
+
