@@ -3,6 +3,7 @@ import numpy as np
 import os
 import filecmp
 from bgem.bspline import brep_writer as bw
+this_source_dir = os.path.dirname(os.path.realpath(__file__))
 
 class TestLocation:
     def test_Location(self):
@@ -61,9 +62,9 @@ class TestConstructors:
             bw.Vertex(['a','b','c'])
 
 def compare_brep(compound, ref_brep, location):
-    full_ref_brep = os.path.join('ref_brepwriter', ref_brep)
+    full_ref_brep = os.path.join(this_source_dir,'ref_brepwriter', ref_brep)
     new_brep = '_'.join(ref_brep.split('_')[:-1]) + '_tst.brep'
-    full_new_brep = os.path.join('ref_brepwriter', new_brep)
+    full_new_brep = os.path.join(this_source_dir,'ref_brepwriter', new_brep)
     with open(full_new_brep, "w") as f:
         bw.write_model(f, compound, location)
 

@@ -113,7 +113,7 @@ class BREPObject:
         # DFS recursive function.
         if id(self) in visited:
             return
-        print(f"visited: {self}")
+        #print(f"visited: {self}")
         visited.add(id(self))
 
         self._dfs_previsit(groups)
@@ -135,7 +135,7 @@ class BREPObject:
 
 
     def _group_append(self, groups):
-        print(f"append: {id(self):x} {self} ")
+        #print(f"append: {id(self):x} {self} ")
         group = groups[self._brep_group]
         group.append(self)
         self._brep_id = len(group)
@@ -1096,7 +1096,7 @@ class Edge(Shape):
         :param location: Location object. Default is None = identity location.
         :return: None
         """
-        print(f"attach: {self} {curve}")
+        #print(f"attach: {self} {curve}")
         assert type(surface) == Surface
         assert type(curve) == Curve2D
         curve._eval_check(t_range[0], surface, self.points()[0])
@@ -1149,19 +1149,17 @@ class Edge(Shape):
 
         for repr in self.repr:
             if repr[0] == self.Repr.Curve2d:
-                print(f"2d childs:\n  {repr[2]}\n  {repr[3]}\n  {repr[4]}")
                 yield repr[2]
                 yield repr[3]
                 yield repr[4]
             elif repr[0] == self.Repr.Curve3d:
-                print(f"3d childs:\n  {repr[2]}\n  {repr[3]}")
                 yield repr[2]
                 yield repr[3]
         yield from super()._childs()
 
 
     def _subrecordoutput(self, stream):
-        print(f"subrecord: {self} {id(self):x}")
+        #print(f"subrecord: {self} {id(self):x}")
         assert len(self.repr) > 0
         stream.write(" {} {} {} {}\n".format(self.tol,self.edge_flags[0],self.edge_flags[1],self.edge_flags[2]))
         for i,repr in enumerate(self.repr):
