@@ -272,3 +272,95 @@ class TestCurveApprox:
     def test_approx_2d(self):
         # self.plot_approx_2d()
         pass
+
+
+class TestRealProblems:
+
+    def test_cg(self):
+        control_points = [50, 50]
+        file = "./grid_200_m.csv"
+        solver="cg"
+        adapt_type="absolute"
+        max_iters= 5
+        max_diff = 10
+        std_dev = None
+        input_data_reduction = 1.0
+
+        sapp = SurfApprox(control_points,file,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
+        #app = sapp.approx
+        myplot = bs_plot.Plotting((bs_plot.PlottingPlotly()))
+        myplot.plot_surface_3d(sapp.surfz, poles=False)
+        # myplot.scatter_3d(app._xy_points[:, 0], app._xy_points[:, 1], app._z_points)
+        #myplot.show()  # view
+
+    def test_adapt(self):
+        control_points = [60, 60]
+        file = "./grid_200_m.csv"
+        solver="spsolve"
+        adapt_type="std_dev"
+        max_iters=5
+        max_diff = None
+        std_dev = 1
+        input_data_reduction = 1.0
+
+        sapp = SurfApprox(control_points,file,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
+        #app = sapp.approx
+        myplot = bs_plot.Plotting((bs_plot.PlottingPlotly()))
+        myplot.plot_surface_3d(sapp.surfz, poles=False)
+        # myplot.scatter_3d(app._xy_points[:, 0], app._xy_points[:, 1], app._z_points)
+        #myplot.show()  # view
+
+
+    def test_adapt_regul(self):
+        control_points = [50, 50]
+        file = "./grid_200_m.csv"
+        solver="cg"
+        adapt_type="std_dev"
+        max_iters=10
+        max_diff = None
+        std_dev = 1
+        input_data_reduction = 0.6
+
+        sapp = SurfApprox(control_points,file,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
+        #app = sapp.approx
+        myplot = bs_plot.Plotting((bs_plot.PlottingPlotly()))
+        myplot.plot_surface_3d(sapp.surfz, poles=False)
+        # myplot.scatter_3d(app._xy_points[:, 0], app._xy_points[:, 1], app._z_points)
+        #myplot.show()  # view
+
+
+class SurfApprox:
+
+    def __init__(self, control_points,file,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction):
+        """
+         :param plane_normal_vector: plane vector as numpy array 4x1
+         :param x_size: x range as double
+         :param y_size: y range as double
+         :param x_n_samples: number of sample points in x range as double
+         :param y_n_samples: number of sample points in y range as double
+         :param x_n_control_points: x control points as double
+         :param y_n_control_points: y control points as double
+         :return:
+         """
+
+        self.x_n_control_points = control_points[0]
+        self.y_n_control_points = control_points[1]
+        self.err = None
+        self.surfz = None
+        self.solver = solver
+        self.adapt_type = adapt_type
+        self.max_iters = max_iters
+        self.max_diff = max_diff
+        self.std_dev = std_dev
+        self.file = file
+        self.input_data_reduction= input_data_reduction
+        self.err, self.surfz = self.surf_app()
+
+    def surf_app(self):
+        self.approx = bs_approx.SurfaceApprox.approx_from_file(self.file, file_delimiter=",")
+        surfz = self.approx.compute_adaptive_approximation(
+            nuv=np.array([self.x_n_control_points, self.y_n_control_points]), solver=self.solver,
+            adapt_type=self.adapt_type, max_iters=self.max_iters, max_diff = self.max_diff, std_dev = self.std_dev, input_data_reduction = self.input_data_reduction)
+        err = self.approx.error
+        surfzf = surfz.make_full_surface()
+        return err, surfzf
