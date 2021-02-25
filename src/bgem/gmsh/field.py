@@ -16,61 +16,112 @@ TODO:
 
 
 class Par:
+    """
+    Helper class to define new field factory functions.
+    The type specification static methods: Field, Field, Number, Numbers
+    are used to wrap parameters provided by user. These methods create the Par instance
+    which contain a particular GMSH field settr function: _
+    Usage:
+
+    """
 
     @staticmethod
     def Field(x):
+        """
+        Make an argument for a parameter of the type Field parameter.
+        Numerical values are wrapped as the 'constant' field.
+        """
         x = Field.wrap(x)
         return Par(Par._set_field, x)
 
     @staticmethod
     def Fields(fields):
+        """
+        Make an argument for a parameter of the type List[Field].
+        Numerical values are wrapped as the 'constant' field.
+        """
         fields = [Field.wrap(f) for f in fields]
         return Par(Par._set_fields, fields)
 
-    @staticmethod
-    def Numbers(x):
-        return Par(gmsh_field.setNumbers, x)
 
     @staticmethod
     def Number(x):
-        if isinstance(x, Par):
-            return x
-        elif isinstance(x, numbers.Number):
-            return Par(gmsh_field.setNumber, x)
-        else:
-            assert False, f"Wrong field argument: {x}"
+        """
+        Make an argument for a parameter of the type Number
+        (i.e. any value convertible to double).
+        """
+        return Par(Par._set_number, float(x))
 
     @staticmethod
-    def _set_field(id, parameter, field):
-        gmsh_field.setNumber(id, parameter, field.construct())
+    def Numbers(x):
+        """
+        Make an argument for a parameter of the type List[Number]
+        (Number is  any value convertible to double).
+        """
+        return Par(Par._set_numbers, [float(v) for v in x])
+
+    @staticmethod
+    def _set_number(field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.Number. """
+        gmsh_field.setNumber(field_id, parameter, x)
+
+    @staticmethod
+    def _set_numbers(field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.Number. """
+        gmsh_field.setNumbers(field_id, parameter, x)
+
+    @staticmethod
+    def _set_field(field_id, parameter, field):
+        """ Auxiliary setter method used in the Par.Field. """
+        gmsh_field.setNumber(field_id, parameter, field.construct())
+
+    @staticmethod
+    def _set_field(field_id, parameter, field):
+        """ Auxiliary setter method used in the Par.Field. """
+        gmsh_field.setNumber(field_id, parameter, field.construct())
 
     @staticmethod
     def _set_fields(id, parameter, fields):
+        """ Auxiliary setter method used in the Par.Fields. """
         gmsh_field.setNumbers(id, parameter, [f.construct() for f in fields])
 
 
     def __init__(self, setter, value):
         self._setter = setter
+        """A method used to set the field argument. One of `Par._set_*`"""
         self._value = value
+        """The argument value."""
 
-    def set(self, field_id, parameter):
+    def _set_field_argument(self, field_id, parameter):
+        """
+        Set the `parameter` of the GMSH field with the `field_id` to
+        the stored argument `self._value`.
+        Skip the None values.
+        """
         if self._value is not None:
             self._setter(field_id, parameter, self._value)
 
-    def reset_id(self):
+    def _reset_id(self):
         if self._setter == self._set_field and self._value is not None:
-            self._value.reset_id()
+            self._value._reset_id()
         elif self._setter == self._set_fields:
             for f in self._value:
-                f.reset_id()
+                f._reset_id()
 
 
 class Field:
     """
     A scalar or tensor field used to specify mesh step distribution.
-    The Field object represents the field but particular apprication to the gmsh model is done
+    The Field object represents the field but particular application to the gmsh model is done
     through GmshOCC.set_mesh_step_field(field).
+
+    TODO: implement GmshOCC.set_boundary_layer_field(field)
     """
+
+    # Special IDs marking state of the field.
+    unset = -2
+    unfinished = -1
+
 
     @staticmethod
     def wrap(x):
@@ -96,19 +147,36 @@ class Field:
         - Par.Number is applied automatically
         """
         self._gmsh_field = gmsh_field
-        self._args = [ (k, Par.Number(v)) for k, v in kwargs.items()]
-        self._id = None
+        self._args = kwargs
+        self._id = Field.unset
+        """ 
+        Field.unset : uninitialized field
+        Field.unfinished : GMSH field created but arguments not set yet (for detection of cycles)
+        >0   : GMSH field id 
+        """
 
     def reset_id(self):
+        """Unset whole field DAG to (-2), assuming all _ids > 0."""
+        if self._id == Field.unset:
+            return
+
+        assert self._id != Field.unfinished, "Cyclic field dependency."
+        self._id = Field.unfinished
+        for param, arg in self._args.items():
+            arg._reset_id()
         self._id = None
-        for param, arg in self._args:
-            arg.reset_id()
 
     def construct(self):
-        assert self._id is None, "Cyclic field dependency."
-        self._id = gmsh_field.add(self._gmsh_field)
-        for parameter, arg in self._args:
-            arg.set(self._id, parameter)
+        """Create the GMSH field with all arguments, return its ID."""
+        if self._id > 0:
+            return self._id
+
+        assert self._id != Field.unfinished, "Cyclic field dependency."
+        self._id = Field.unfinished
+        field_id = gmsh_field.add(self._gmsh_field)
+        for parameter, arg in self._args.items():
+            arg._set_field_argument(field_id, parameter)
+        self._id = field_id
         return self._id
 
 
@@ -116,16 +184,30 @@ class Field:
 #     Define operators.
 #     """
 #
-#
-# class FieldExpr(Field):
-#     def __init__(self, expr_fmt, inputs):
-#         self._expr = expr_fmt
-#         self._inputs = inputs
-#
-#     def evaluate(self):
-#         # substitute all FieldExpr and form the expression
-#
-#         # creata MathEval
+    def __add__(self, other):
+        return FieldExpr("{1}+{2}", [self, other])
+
+
+class FieldExpr(Field):
+    def __init__(self, expr_fmt, inputs):
+        self._expr = expr_fmt
+        self._inputs = inputs
+
+    def _make_math_eval_expr(self):
+        pass
+        # arg_exprs, arg_inputs = zip(
+        #     [in_field._make_math_eval_expr() for in_field in self._inputs]
+        # )
+        # self._expr.format()
+
+    def construct(self):
+        expr, inputs = self._make_math_eval_expr()
+        field = Field("MathEval", Par.Fields(inputs))
+        return field.construct()
+
+        # substitute all FieldExpr and form the expression
+
+        # creata MathEval
 
 
 # @field_function
@@ -152,23 +234,20 @@ def box(pt_min: Point, pt_max: Point, v_in:float, v_out:float=1e300) -> Field:
     Can be used instead of a constant field.
     """
     return Field('Box',
-                 VIn = v_in,
-                 VOut = v_out,
-                 XMax = pt_max[0],
-                 XMin = pt_min[0],
-                 YMax = pt_max[1],
-                 YMin = pt_min[1],
-                 ZMax = pt_max[2],
-                 ZMin = pt_min[2])
+                 VIn = Par.Number(v_in),
+                 VOut = Par.Number(v_out),
+                 XMax = Par.Number(pt_max[0]),
+                 XMin = Par.Number(pt_min[0]),
+                 YMax = Par.Number(pt_max[1]),
+                 YMin = Par.Number(pt_min[1]),
+                 ZMax = Par.Number(pt_max[2]),
+                 ZMin = Par.Number(pt_min[2]))
 
 
 
 def constant(value):
     """
     Make a field with constant value = value.
-    Emulated using a box field with box containing shpere in origin with given 'readius'.
-
-    TODO: automatic choice of radius.
     """
     return box((-1, -1, -1), (1, 1, 1), v_in=value, v_out=value)
 
@@ -379,12 +458,12 @@ def threshold(field:Field, lower_bound:Tuple[float, float],
 
     return Field('Threshold',
                  IField=Par.Field(field),
-                 DistMin=field_min,
-                 LcMin=threshold_min,
-                 DistMax=field_max,
-                 LcMax=threshold_max,
-                 StopAtDistMax=stop_at_dist_max,
-                 Sigmoid=sigmoid)
+                 DistMin=Par.Number(field_min),
+                 LcMin=Par.Number(threshold_min),
+                 DistMax=Par.Number(field_max),
+                 LcMax=Par.Number(threshold_max),
+                 StopAtDistMax=Par.Number(stop_at_dist_max),
+                 Sigmoid=Par.Number(sigmoid))
 
 
 
