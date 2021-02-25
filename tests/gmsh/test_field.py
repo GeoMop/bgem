@@ -5,12 +5,11 @@ import numpy as np
 
 
 
-def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5):
+def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh_name="field_mesh"):
     """
     Create a mesh of dimension dim on a unit cube and
     compare element sizes to given reference funcion of coordinates.
     """
-    mesh_name = "test_mesh"
     model = gmsh.GeometryOCC(mesh_name)
     rec = model.rectangle([100, 100])
     model.set_mesh_step_field(field)
@@ -54,6 +53,21 @@ def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5):
     assert n_mismatch <= max_mismatch
     print(f"n_mismatch: {n_mismatch}, max n mismatch: {max_mismatch}")
     print(f"max rel error: {max_rel_error}")
+
+
+# def test_field_dag():
+#     f_const = field.constant(7)
+#
+#     f_min = field.min(f_const, 10)
+#     f_max = field.max(f_const, 1)
+#     f =
+#
+#     f_dag_box = field.threshold(field.distance_nodes([1, 3]),
+#                                  lower_bound=(10,5), upper_bound=(30, 10), sigmoid=True)
+#     def ref_size(x):
+#         return 11 if np.max(np.abs(x)) > 20 else 7
+#     apply_field(f_dag_box, ref_size, dim=2, tolerance=0.3, max_mismatch=15)
+
 
 #@pytest.mark.skip
 def test_constant_2d():
@@ -108,4 +122,22 @@ def test_threshold_2d():
         dist = min(np.linalg.norm(np.array(x) - np.array([-50,-50,0])),
                    np.linalg.norm(np.array(x) - np.array([50,50,0])))
         return thold(dist, 10, 5, 30, 10)
-    apply_field(f_distance, ref_size, dim=2, tolerance=0.3, max_mismatch=3)
+    apply_field(f_distance, ref_size, dim=2, tolerance=0.3, max_mismatch=3, mesh_name = "thd")
+
+
+def test_threshold_sigmoid_2d():
+    f_distance = field.threshold(field.distance_nodes([1, 3]),
+                                 lower_bound=(10,5), upper_bound=(30, 10), sigmoid=True)
+
+    def thold(x,minx,miny,maxx,maxy):
+        scaled_X = (x - minx)/(maxx - minx)
+        y = 1/(1 + np.exp(-scaled_X))
+        return  y * (maxy - miny) + miny
+
+    def ref_size(x):
+        dist = min(np.linalg.norm(np.array(x) - np.array([-50,-50,0])),
+                   np.linalg.norm(np.array(x) - np.array([50,50,0])))
+        return thold(dist, 10, 5, 30, 10)
+    apply_field(f_distance, ref_size, dim=2, tolerance=0.4, max_mismatch=8, mesh_name = "thds")
+
+
