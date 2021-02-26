@@ -1,4 +1,6 @@
+
 import numbers
+import sys
 from typing import *
 import numpy as np
 import gmsh
@@ -59,6 +61,20 @@ class Par:
         (Number is  any value convertible to double).
         """
         return Par(Par._set_numbers, [float(v) for v in x])
+
+    @staticmethod
+    def String(x):
+        """
+        Make an argument for a parameter of the type Number
+        (i.e. any value convertible to double).
+        """
+        return Par(Par._set_string, x)
+
+
+    @staticmethod
+    def _set_string(field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.Number. """
+        gmsh_field.setString(field_id, parameter, x)
 
     @staticmethod
     def _set_number(field_id, parameter, x):
@@ -179,36 +195,185 @@ class Field:
         self._id = field_id
         return self._id
 
+    def _expand(self):
+        return f"F{self.construct()}"
 
 #     """
 #     Define operators.
 #     """
 #
     def __add__(self, other):
-        return FieldExpr("{1}+{2}", [self, other])
+        return FieldExpr("{0}+{1}", [self, other])
+
+    def __radd__(self, other):
+        return FieldExpr("{0}+{1}", [other, self])
+
+    def __sub__(self, other):
+        return FieldExpr("{0}-{1}", [self, other])
+
+    def __rsub__(self, other):
+        return FieldExpr("{0}-{1}", [other, self])
+
+    def __mul__(self, other):
+        return FieldExpr("{0}*{1}", [self, other])
+
+    def __rmul__(self, other):
+        return FieldExpr("{0}*{1}", [other, self])
+
+    def __truediv__(self, other):
+        return FieldExpr("{0}/{1}", [self, other])
+
+    def __rtruediv__(self, other):
+        return FieldExpr("{0}/{1}", [other, self])
+
+    def __mod__(self, other):
+        return FieldExpr("{0}%{1}", [self, other])
+
+    def __rmod__(self, other):
+        return FieldExpr("{0}%{1}", [other, self])
+
+    def __pow__(self, power):
+        return FieldExpr("{0}^{1}", [self, power])
+
+    def __rpow__(self, base):
+        return FieldExpr("{0}^{1}", [base, self])
+
+    def __neg__(self):
+        return FieldExpr("-{0}", [self])
+
+    def __pos__(self):
+        return FieldExpr("+{0}", [self])
+
+    def __lt__(self, other):
+        return FieldExpr("{0}<{1}", [self, other])
+
+    def __gt__(self, other):
+        return FieldExpr("{0}>{1}", [self, other])
+
+    def __le__(self, other):
+        return FieldExpr("{0}<={1}", [self, other])
+
+    def __ge__(self, other):
+        return FieldExpr("{0}=>{1}", [self, other])
+
+# @field_function
+# def math_eval(expr) -> Field:
+#     """
+#     Temporary solution.
+#
+#     Usage:
+#     dist = field.distance(nodes)
+#     box = field.box(...)
+#     formula = f'1/F{dist} + F{box}'
+#     f = field.math_eval(formula)
+#
+#          addfunc("rand", p_rand, 0); // rand()
+#
+#          addfunc("sum", p_sum, UNDEFARGS);  // sum(1,2,...)
+#
+#          addfunc("max", p_max, UNDEFARGS);
+#
+#          addfunc("min", p_min, UNDEFARGS);
+#
+#          addfunc("med", p_med, UNDEFARGS);  // average !!
+#
+#     """
+#     id = gmsh_field.add('MathEval')
+#     gmsh_field.setString(id, 'F', expr)
+#     return id
+
+"""
+Field functions.
+"""
+
+functions = [
+"abs",
+"acos",
+"asin",
+"atan",
+"cos",
+"cosh",
+"deg",
+"exp",
+"log",
+"log10",
+"pow10",
+"rad",
+"round",
+"sign",
+"sin",
+"sinh",
+"sqrt",
+"step",
+"tan",
+"tanh",
+"atanh",
+"trunc",
+"floor",
+"ceil"]
+
+
+current_module = sys.modules[__name__]
+for fn in functions:
+    body = lambda x, f=fn: FieldExpr(f"{f}({{0}})", [x])
+    setattr(current_module, fn, body)
+
+variadic_functions = [
+    ('min', 'min'),
+    ('max', 'max'),
+    ('sum', 'sum'),
+    ('avg', 'med')
+]
+
+for pyfn, gmsh_fn in variadic_functions:
+    body = lambda *x, f=gmsh_fn: FieldExpr(f"{f}{{variadic}}", x)
+    setattr(current_module, pyfn, body)
+
+
+
 
 
 class FieldExpr(Field):
     def __init__(self, expr_fmt, inputs):
         self._expr = expr_fmt
-        self._inputs = inputs
+        self._inputs = [Field.wrap(f) for f in inputs]
+
+    def _expand(self):
+        return self._make_math_eval_expr()
 
     def _make_math_eval_expr(self):
-        pass
-        # arg_exprs, arg_inputs = zip(
+        input_exprs = [in_field._expand() for in_field in self._inputs]
+        variadic = "(" + ",".join(input_exprs) + ")"
+        return self._expr.format(*input_exprs, variadic=variadic)
         #     [in_field._make_math_eval_expr() for in_field in self._inputs]
         # )
         # self._expr.format()
 
+    def reset_id(self):
+        """Unset whole field DAG to (-2), assuming all _ids > 0."""
+        for f_in in self._inputs:
+            f_in.reset_id()
+
+
     def construct(self):
-        expr, inputs = self._make_math_eval_expr()
-        field = Field("MathEval", Par.Fields(inputs))
+        expr = self._make_math_eval_expr()
+        print("MathEval expr: ", expr)
+        field = Field("MathEval",
+                      F=Par.String(expr))
         return field.construct()
 
         # substitute all FieldExpr and form the expression
 
         # creata MathEval
 
+"""
+Predefined coordinate fields.
+Usage:
+    field = field.sin(field.x) * field.cos(field.y)
+"""
+x = FieldExpr("x",[])
+y = FieldExpr("y",[])
+z = FieldExpr("z",[])
 
 # @field_function
 # def AttractorAnisoCurve
@@ -307,72 +472,11 @@ def distance_nodes(nodes:List[int], coordinate_fields:Tuple[Field,Field,Field]=(
 # Laplacian
 # LonLat
 
-# @field_function
-# def math_eval(expr) -> Field:
-#     """
-#     Temporary solution.
-#
-#     Usage:
-#     dist = field.distance(nodes)
-#     box = field.box(...)
-#     formula = f'1/F{dist} + F{box}'
-#     f = field.math_eval(formula)
-#
-#     TODO: Use Field to catch native Python operations, provide basic functions: in the field namespace:
-#     GMSH use MathEx, which supports:
-#     operators:
-#     unary + -
-#     binary + - * / ^ % < >
-#
-#     functions:
-#            { "abs",     fabs },
-#          { "acos",    acos },
-#          { "asin",    asin },
-#          { "atan",    atan },
-#          { "cos",     cos },
-#          { "cosh",    cosh },
-#          { "deg",     deg },   // added
-#          { "exp",     exp },
-#          { "fac",     fac },   // added, round to int, factorial for 0..170,
-#          { "log",     log },
-#          { "log10",   log10 },
-#          // { "pow10",   pow10 } // in future, add it?
-#          { "rad",     rad },   // added
-#          { "round",   round }, // added
-#          { "sign",    sign },
-#          { "sin",     sin },
-#          { "sinh",    sinh },
-#          // { "sqr",     sqr }, // added
-#          { "sqrt",    sqrt },
-#          { "step",    step }, // (x>=0), not necessary
-#          { "tan",     tan },
-#          { "tanh",    tanh },
-# #if !defined(WIN32)
-#          { "atanh",   atanh },
-# #endif
-#          { "trunc",   trunc }, // added
-#          { "floor",   floor }, // largest integer not grather than x
-#          { "ceil",    ceil }, // smallest integer not less than x
-#
-#          addfunc("rand", p_rand, 0); // rand()
-#
-#          addfunc("sum", p_sum, UNDEFARGS);  // sum(1,2,...)
-#
-#          addfunc("max", p_max, UNDEFARGS);
-#
-#          addfunc("min", p_min, UNDEFARGS);
-#
-#          addfunc("med", p_med, UNDEFARGS);  // average !!
-#
-#     """
-#     id = gmsh_field.add('MathEval')
-#     gmsh_field.setString(id, 'F', expr)
-#     return id
 
 #MathEvalAniso
 
 
-def max(*fields: Field) -> Field:
+def maximum(*fields: Field) -> Field:
     """
     Field that is maximum of other fields.
     :param fields: variadic list of fields
@@ -381,7 +485,7 @@ def max(*fields: Field) -> Field:
     return Field('Max', FieldsList=Par.Fields(fields))
 
 
-def min(*fields: Field) -> Field:
+def minimum(*fields: Field) -> Field:
     """
     Field that is minimum of other fields.
     :param fields: variadic list of fields

@@ -5,6 +5,7 @@ import numpy as np
 
 
 
+
 def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh_name="field_mesh"):
     """
     Create a mesh of dimension dim on a unit cube and
@@ -55,18 +56,48 @@ def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh
     print(f"max rel error: {max_rel_error}")
 
 
-# def test_field_dag():
-#     f_const = field.constant(7)
-#
-#     f_min = field.min(f_const, 10)
-#     f_max = field.max(f_const, 1)
-#     f =
-#
-#     f_dag_box = field.threshold(field.distance_nodes([1, 3]),
-#                                  lower_bound=(10,5), upper_bound=(30, 10), sigmoid=True)
-#     def ref_size(x):
-#         return 11 if np.max(np.abs(x)) > 20 else 7
-#     apply_field(f_dag_box, ref_size, dim=2, tolerance=0.3, max_mismatch=15)
+
+def test_eval():
+    f_1 = field.constant(1)
+    f_3 = field.constant(3)
+    f = f_1*f_3 + f_3/f_1 + 1 - f_1
+    def ref_size(x):
+        return 6
+    apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
+
+
+def test_eval_sin_cos():
+    f_1 = field.constant(1)
+    f = 11 + 10 * field.sin(field.x/50*np.pi) * field.cos(field.y/25*np.pi) + field.log(f_1)
+    def ref_size(x):
+        return 11 + 10 * np.sin(x[0]/50*np.pi) * np.cos(x[1]/25*np.pi)
+    apply_field(f, ref_size, dim=2, tolerance=0.60, max_mismatch=50, mesh_name="sin_cos")
+
+
+def test_eval_max():
+    f = 0.2*field.max(field.y, -field.y, 20)
+
+    def ref_size(x):
+        z = 0.2*(max(x[1], -x[1], 20))
+        return z
+    apply_field(f, ref_size, dim=2, tolerance=0.30, max_mismatch=20, mesh_name="variadic_max")
+
+
+def test_eval_sum():
+    f = 0.2*field.sqrt(field.sum(field.y*field.y, field.x*field.x, 100))
+
+    def ref_size(x):
+        z = 0.2*np.sqrt((sum([x[0]*x[0], x[1]*x[1], 100])))
+        return z
+    apply_field(f, ref_size, dim=2, tolerance=0.30, max_mismatch=11, mesh_name="variadic_sum")
+
+
+def test_eval():
+    f_3 = field.constant(3)
+    f = f_3 + f_3
+    def ref_size(x):
+        return 6
+    apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
 
 
 #@pytest.mark.skip
