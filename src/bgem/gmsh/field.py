@@ -3,16 +3,10 @@ import numbers
 import sys
 from typing import *
 import numpy as np
-import gmsh
+from gmsh import model as gmsh_model
+gmsh_field = gmsh_model.mesh.field
 
-import inspect
-gmsh_field = gmsh.model.mesh.field
 
-"""
-TODO:
-1. make application of fields to gmsh mdel lazy in order to create fields independently of the model.
-2. Field objects with overloader operators and functions to make natural expressions passed to MAtHEvla field.
-"""
 
 
 
@@ -72,34 +66,29 @@ class Par:
 
 
     @staticmethod
-    def _set_string(field_id, parameter, x):
+    def _set_string(model, field_id, parameter, x):
         """ Auxiliary setter method used in the Par.Number. """
         gmsh_field.setString(field_id, parameter, x)
 
     @staticmethod
-    def _set_number(field_id, parameter, x):
+    def _set_number(model, field_id, parameter, x):
         """ Auxiliary setter method used in the Par.Number. """
         gmsh_field.setNumber(field_id, parameter, x)
 
     @staticmethod
-    def _set_numbers(field_id, parameter, x):
+    def _set_numbers(model, field_id, parameter, x):
         """ Auxiliary setter method used in the Par.Number. """
         gmsh_field.setNumbers(field_id, parameter, x)
 
     @staticmethod
-    def _set_field(field_id, parameter, field):
+    def _set_field(model, field_id, parameter, field):
         """ Auxiliary setter method used in the Par.Field. """
-        gmsh_field.setNumber(field_id, parameter, field.construct())
+        gmsh_field.setNumber(field_id, parameter, field.construct(model))
 
     @staticmethod
-    def _set_field(field_id, parameter, field):
-        """ Auxiliary setter method used in the Par.Field. """
-        gmsh_field.setNumber(field_id, parameter, field.construct())
-
-    @staticmethod
-    def _set_fields(id, parameter, fields):
+    def _set_fields(model, field_id, parameter, fields):
         """ Auxiliary setter method used in the Par.Fields. """
-        gmsh_field.setNumbers(id, parameter, [f.construct() for f in fields])
+        gmsh_field.setNumbers(field_id, parameter, [f.construct(model) for f in fields])
 
 
     def __init__(self, setter, value):
@@ -108,14 +97,14 @@ class Par:
         self._value = value
         """The argument value."""
 
-    def _set_field_argument(self, field_id, parameter):
+    def _set_field_argument(self, model, field_id, parameter):
         """
         Set the `parameter` of the GMSH field with the `field_id` to
         the stored argument `self._value`.
         Skip the None values.
         """
         if self._value is not None:
-            self._setter(field_id, parameter, self._value)
+            self._setter(model, field_id, parameter, self._value)
 
     def _reset_id(self):
         if self._setter == self._set_field and self._value is not None:
@@ -162,14 +151,19 @@ class Field:
         - values are instances of Par, with appropriate setter function and value to set
         - Par.Number is applied automatically
         """
+        self._id = Field.unset
+        self._gmsh_model_id = id(None)
         self._gmsh_field = gmsh_field
         self._args = kwargs
-        self._id = Field.unset
         """ 
         Field.unset : uninitialized field
         Field.unfinished : GMSH field created but arguments not set yet (for detection of cycles)
         >0   : GMSH field id 
         """
+
+
+    def is_constructed(self, model):
+        return self._gmsh_model_id == id(model) and self._id >= 0
 
     def reset_id(self):
         """Unset whole field DAG to (-2), assuming all _ids > 0."""
@@ -182,79 +176,85 @@ class Field:
             arg._reset_id()
         self._id = None
 
-    def construct(self):
-        """Create the GMSH field with all arguments, return its ID."""
-        if self._id > 0:
+    def construct(self, model):
+        """
+        Create the GMSH field with all arguments, return its ID.
+        :param model: bgem.gmsh.gmsh.GeometryOCC
+        """
+        if self.is_constructed(model):
             return self._id
+        self._gmsh_model_id = id(model)
+
 
         assert self._id != Field.unfinished, "Cyclic field dependency."
         self._id = Field.unfinished
         field_id = gmsh_field.add(self._gmsh_field)
         for parameter, arg in self._args.items():
-            arg._set_field_argument(field_id, parameter)
+            arg._set_field_argument(model, field_id, parameter)
         self._id = field_id
+        print("construct Field: ", self._gmsh_field, self._id)
         return self._id
 
-    def _expand(self):
-        return f"F{self.construct()}"
+    def _expand(self, model):
+        return f"F{self.construct(model)}"
 
 #     """
 #     Define operators.
 #     """
 #
     def __add__(self, other):
-        return FieldExpr("{0}+{1}", [self, other])
+        return FieldExpr("({0}+{1})", [self, other])
 
     def __radd__(self, other):
-        return FieldExpr("{0}+{1}", [other, self])
+        return FieldExpr("({0}+{1})", [other, self])
 
     def __sub__(self, other):
-        return FieldExpr("{0}-{1}", [self, other])
+        return FieldExpr("({0}-{1})", [self, other])
 
     def __rsub__(self, other):
-        return FieldExpr("{0}-{1}", [other, self])
+        return FieldExpr("({0}-{1})", [other, self])
 
     def __mul__(self, other):
-        return FieldExpr("{0}*{1}", [self, other])
+        return FieldExpr("({0}*{1})", [self, other])
 
     def __rmul__(self, other):
-        return FieldExpr("{0}*{1}", [other, self])
+        return FieldExpr("({0}*{1})", [other, self])
 
     def __truediv__(self, other):
-        return FieldExpr("{0}/{1}", [self, other])
+        return FieldExpr("({0}/{1})", [self, other])
 
     def __rtruediv__(self, other):
-        return FieldExpr("{0}/{1}", [other, self])
+        return FieldExpr("({0}/{1})", [other, self])
 
     def __mod__(self, other):
-        return FieldExpr("{0}%{1}", [self, other])
+        return FieldExpr("({0}%{1})", [self, other])
 
     def __rmod__(self, other):
-        return FieldExpr("{0}%{1}", [other, self])
+        return FieldExpr("({0}%{1})", [other, self])
 
     def __pow__(self, power):
-        return FieldExpr("{0}^{1}", [self, power])
+        return FieldExpr("({0}^{1})", [self, power])
 
     def __rpow__(self, base):
-        return FieldExpr("{0}^{1}", [base, self])
+        return FieldExpr("({0}^{1})", [base, self])
 
     def __neg__(self):
-        return FieldExpr("-{0}", [self])
+        return FieldExpr("(-{0})", [self])
 
     def __pos__(self):
-        return FieldExpr("+{0}", [self])
+        return FieldExpr("(+{0})", [self])
 
     def __lt__(self, other):
-        return FieldExpr("{0}<{1}", [self, other])
+        return FieldExpr("(1-step({0}-{1}))", [self, other])
 
     def __gt__(self, other):
-        return FieldExpr("{0}>{1}", [self, other])
+        return FieldExpr("(1-step({1}-{0}))", [self, other])
 
     def __le__(self, other):
-        return FieldExpr("{0}<={1}", [self, other])
+        return FieldExpr("step({1}-{0})", [self, other])
 
     def __ge__(self, other):
-        return FieldExpr("{0}=>{1}", [self, other])
+        return FieldExpr("step({0}-{1})", [self, other])
 
 # @field_function
 # def math_eval(expr) -> Field:
@@ -335,19 +335,20 @@ for pyfn, gmsh_fn in variadic_functions:
 
 class FieldExpr(Field):
     def __init__(self, expr_fmt, inputs):
+        self._id = Field.unset
+        self._gmsh_model_id = id(None)
         self._expr = expr_fmt
         self._inputs = [Field.wrap(f) for f in inputs]
 
-    def _expand(self):
-        return self._make_math_eval_expr()
+    def _expand(self, model):
+        return self._make_math_eval_expr(model)
 
-    def _make_math_eval_expr(self):
-        input_exprs = [in_field._expand() for in_field in self._inputs]
+    def _make_math_eval_expr(self, model):
+        input_exprs = [in_field._expand(model) for in_field in self._inputs]
         variadic = "(" + ",".join(input_exprs) + ")"
-        return self._expr.format(*input_exprs, variadic=variadic)
-        #     [in_field._make_math_eval_expr() for in_field in self._inputs]
-        # )
-        # self._expr.format()
+        eval_expr = self._expr.format(*input_exprs, variadic=variadic)
+        print("expr: ", eval_expr)
+        return eval_expr
 
     def reset_id(self):
         """Unset whole field DAG to (-2), assuming all _ids > 0."""
@@ -355,12 +356,16 @@ class FieldExpr(Field):
             f_in.reset_id()
 
 
-    def construct(self):
-        expr = self._make_math_eval_expr()
-        print("MathEval expr: ", expr)
+    def construct(self, model):
+        if self.is_constructed(model):
+            return self._id
+        self._gmsh_model_id = id(model)
+
+        expr = self._make_math_eval_expr(model)
+        print("construct MathEval expr: ", expr)
         field = Field("MathEval",
                       F=Par.String(expr))
-        return field.construct()
+        return field.construct(model)
 
         # substitute all FieldExpr and form the expression
 
@@ -430,6 +435,8 @@ def distance_nodes(nodes:List[int], coordinate_fields:Tuple[Field,Field,Field]=(
     Distance from a set of 'nodes' given by their tags.
     Optional coordinate_fields = ( field_x, field_y, field_z),
     gives fields used as X,Y,Z coordinates (not clear how exactly these curved coordinates are used).
+
+    TODO: specify nodes etc. as dim tags
     """
     fx, fy, fz = coordinate_fields
     return Field('Distance',

@@ -15,7 +15,7 @@ def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh
     rec = model.rectangle([100, 100])
     model.set_mesh_step_field(field)
     model.write_brep()
-    model.mesh_options.CharacteristicLengthMin = 0.1
+    model.mesh_options.CharacteristicLengthMin = 0.5
     model.mesh_options.CharacteristicLengthMax = 100
     model.make_mesh([rec], dim=dim)
     model.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
@@ -54,10 +54,9 @@ def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh
     assert n_mismatch <= max_mismatch
     print(f"n_mismatch: {n_mismatch}, max n mismatch: {max_mismatch}")
     print(f"max rel error: {max_rel_error}")
+    del model
 
-
-
-def test_eval():
+def test_eval_expr():
     f_1 = field.constant(1)
     f_3 = field.constant(3)
     f = f_1*f_3 + f_3/f_1 + 1 - f_1
@@ -65,7 +64,7 @@ def test_eval():
         return 6
     apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
 
-
+#@pytest.mark.skip
 def test_eval_sin_cos():
     f_1 = field.constant(1)
     f = 11 + 10 * field.sin(field.x/50*np.pi) * field.cos(field.y/25*np.pi) + field.log(f_1)
@@ -73,7 +72,7 @@ def test_eval_sin_cos():
         return 11 + 10 * np.sin(x[0]/50*np.pi) * np.cos(x[1]/25*np.pi)
     apply_field(f, ref_size, dim=2, tolerance=0.60, max_mismatch=50, mesh_name="sin_cos")
 
-
+#@pytest.mark.skip
 def test_eval_max():
     f = 0.2*field.max(field.y, -field.y, 20)
 
@@ -82,7 +81,7 @@ def test_eval_max():
         return z
     apply_field(f, ref_size, dim=2, tolerance=0.30, max_mismatch=20, mesh_name="variadic_max")
 
-
+#@pytest.mark.skip
 def test_eval_sum():
     f = 0.2*field.sqrt(field.sum(field.y*field.y, field.x*field.x, 100))
 
@@ -94,9 +93,17 @@ def test_eval_sum():
 
 def test_eval():
     f_3 = field.constant(3)
-    f = f_3 + f_3
     def ref_size(x):
         return 6
+    f = f_3 + f_3
+    apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
+    f = (f_3 > 2) * 6
+    apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
+    f = (2 < f_3) * 6
+    apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
+    f = (3 >= f_3) * 6
+    apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
+    f = (f_3 <= 3) * 6
     apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
 
 
@@ -124,8 +131,8 @@ def test_distance_nodes_2d():
     def ref_size(x):
         dist = min(np.linalg.norm(np.array(x) - np.array([-50,-50,0])),
                    np.linalg.norm(np.array(x) - np.array([50,50,0])))
-        return max(0.5 * dist, 0.1)
-    apply_field(f_distance, ref_size, dim=2, tolerance=0.7, max_mismatch=10)
+        return max(0.5 * dist, 0.5)
+    apply_field(f_distance, ref_size, dim=2, tolerance=0.7, max_mismatch=10, mesh_name="dist_2d")
 
 
 def test_minmax_nodes_2d():

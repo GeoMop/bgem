@@ -582,7 +582,7 @@ class GeometryOCC:
 
     def set_mesh_step_field(self, field: Field) -> None:
         field.reset_id()
-        id = field.construct()
+        id = field.construct(self)
         gmsh.model.mesh.field.setAsBackgroundMesh(id)
 
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:
