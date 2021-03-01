@@ -1,6 +1,7 @@
 import numpy as np
 from bgem.bspline import bspline as bs, bspline_plot as bs_plot, bspline_approx as bs_approx
 import math
+import os
 #import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
 import time
@@ -357,6 +358,8 @@ class SurfApprox:
         self.err, self.surfz = self.surf_app()
 
     def surf_app(self):
+        print("Test:")
+        print(os.listdir('./'))
         self.approx = bs_approx.SurfaceApprox.approx_from_file(self.file, file_delimiter=",")
         surfz = self.approx.compute_adaptive_approximation(
             nuv=np.array([self.x_n_control_points, self.y_n_control_points]), solver=self.solver,
