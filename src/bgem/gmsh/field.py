@@ -13,8 +13,8 @@ gmsh_field = gmsh_model.mesh.field
 
 class Par:
     """
-    Helper class to define new field factory functions.
-    The type specification static methods: Field, Field, Number, Numbers
+    Helper class to define a new field factory functions.
+    The type specification static methods: Field, Fields, Number, Numbers, String
     are used to wrap parameters provided by user. These methods create the Par instance
     which contain a particular GMSH field settr function: _
     Usage:
@@ -59,26 +59,10 @@ class Par:
     @staticmethod
     def String(x):
         """
-        Make an argument for a parameter of the type Number
+        Make an argument for a parameter of the type String.
         (i.e. any value convertible to double).
         """
         return Par(Par._set_string, x)
-
-
-    @staticmethod
-    def _set_string(model, field_id, parameter, x):
-        """ Auxiliary setter method used in the Par.Number. """
-        gmsh_field.setString(field_id, parameter, x)
-
-    @staticmethod
-    def _set_number(model, field_id, parameter, x):
-        """ Auxiliary setter method used in the Par.Number. """
-        gmsh_field.setNumber(field_id, parameter, x)
-
-    @staticmethod
-    def _set_numbers(model, field_id, parameter, x):
-        """ Auxiliary setter method used in the Par.Number. """
-        gmsh_field.setNumbers(field_id, parameter, x)
 
     @staticmethod
     def _set_field(model, field_id, parameter, field):
@@ -89,6 +73,21 @@ class Par:
     def _set_fields(model, field_id, parameter, fields):
         """ Auxiliary setter method used in the Par.Fields. """
         gmsh_field.setNumbers(field_id, parameter, [f.construct(model) for f in fields])
+
+    @staticmethod
+    def _set_number(model, field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.Number. """
+        gmsh_field.setNumber(field_id, parameter, x)
+
+    @staticmethod
+    def _set_numbers(model, field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.Numbers. """
+        gmsh_field.setNumbers(field_id, parameter, x)
+
+    @staticmethod
+    def _set_string(model, field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.String. """
+        gmsh_field.setString(field_id, parameter, x)
 
 
     def __init__(self, setter, value):
