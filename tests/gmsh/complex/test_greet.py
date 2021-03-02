@@ -111,6 +111,25 @@ def test_empty_mesh():
 
     # gen.write_brep()
     print("Generating mesh...")
+
+    # Occasionally ends with error:
+    # Exception: Invalid boundary mesh (overlapping facets) on surface 39 surface 40
+    #   ...
+    #   Info    : Tetrahedrizing 744 nodes...
+    #   Info    : Done tetrahedrizing 752 nodes (Wall 0.0108547s, CPU 0.010854s)
+    #   Info    : Reconstructing mesh...
+    #   Info    :  - Creating surface mesh
+    #   Info    : Found two overlapping facets.
+    #   Info    :   1st: [26, 25, 64] #39
+    #   Info    :   2nd: [26, 25, 64] #40
+    #   ----------------------------- Captured stderr call -----------------------------
+    #   Warning : 16 elements remain invalid in surface 11
+    #   Warning : 18 elements remain invalid in surface 25
+    #   Warning : 12 elements remain invalid in surface 41
+    #   Warning : 18 elements remain invalid in surface 45
+    #   Warning : 66 elements remain invalid in surface 25
+    #   Warning : 32 elements remain invalid in surface 45
+    #   Error   : Invalid boundary mesh (overlapping facets) on surface 39 surface 40
     gen.make_mesh(mesh_all)
     print("Generating mesh...[finished]")
     print("Writing mesh...")
