@@ -5,6 +5,8 @@
 import os
 import itertools
 import pytest
+
+from bgem.polygons import polygons as poly
 from bgem.stochastic import frac_plane as FP
 from bgem.stochastic import isec_plane_point as IPP
 
@@ -482,7 +484,9 @@ def test_brep_dfn():
     np.random.seed()
     fractures = generate_fractures(geometry_dict, fracture_stats)
     fr_points = make_brep(geometry_dict, fractures, "_test_fractures.brep")
-    compute_intersections(fr_points)
+    ipps = compute_intersections(fr_points)
+
+    print('brep_test_done')
 
     # TODO:
     # dfn = dfn.DFN(fractures)
@@ -533,7 +537,7 @@ def compute_intersections(fr_points):
     for fracture in fr_points:
         x_loc = fracture[:, 1] - fracture[:, 0]
         y_loc = fracture[:, 3] - fracture[:, 0]
-        area = -np.linalg.norm(np.cross(x_loc, y_loc))
+        area = np.linalg.norm(np.cross(x_loc, y_loc))
         surface.append(area)
         frac_plane = FP.FracPlane(fracture, x_loc, y_loc, area)
         fracs.append(frac_plane)
@@ -559,28 +563,33 @@ def compute_intersections(fr_points):
             rank = lan.matrix_rank(linsys1)
             rank2 = lan.matrix_rank(linsys2)
 
-            if (np.logical_and(rank == 3, rank2 == 3)):
-                id += 1
+            init = 0
 
             if rank == 3:
                 x1 = la.solve(linsys1, rhs1)
                 for k in range(0, 2):
                     if ((x1[:, k] >= 0).all() and (x1[:, k] <= 1).all()):
+                        id += 1
+                        fi._initialize_new_intersection()
+                        fj._initialize_new_intersection()
+                        init = 1
                         coor = vi_x * x1[0, k] + vj_x * x1[1, k]
                         ipp = IPP.IsecFracPlanePoint(i, j, x1[0:2, k], np.array([x1[2, k], np.double(k)]), coor, id)
                         ipps.append(ipp)
                         fi._add_intersection_point(id)
                         fj._add_intersection_point(id)
+
             if rank2 == 3:
                 x2 = la.solve(linsys2, rhs2)
                 for k in range(0, 2):
                     if ((x2[:, k] >= 0).all() and (x2[:, k] <= 1).all()):
+                        if init == 0:
+                            id += 1
+                            fi._initialize_new_intersection()
+                            fj._initialize_new_intersection()
                         coor = vi_x * x2[0, k] + vj_x * x2[1, k]
                         ipp = IPP.IsecFracPlanePoint(i, j, x2[0:2, k], np.array([np.double(k), x2[2, k]]), coor, id)
                         ipps.append(ipp)
                         fi._add_intersection_point(id)
                         fj._add_intersection_point(id)
     return ipps
-
-
-def compute_intersections(fr_points):

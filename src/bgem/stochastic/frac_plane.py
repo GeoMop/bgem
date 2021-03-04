@@ -1,4 +1,4 @@
-
+from bgem.polygons import polygons as poly
 
 
 class FracPlane:
@@ -20,9 +20,13 @@ class FracPlane:
         self.y_loc = y_loc
         self.area = area
         self.isecs = []
+        self.nisecs = -1
+
 
     #@staticmethod
     def _add_intersection_point(self, isp):
-        self.isecs.append(isp)
+        self.isecs[self.nisecs].append(isp)
 
-
+    def _initialize_new_intersection(self):
+        self.nisecs += 1
+        self.isecs.append([])
