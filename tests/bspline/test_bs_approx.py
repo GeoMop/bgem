@@ -279,7 +279,9 @@ class TestRealProblems:
 
     def test_cg(self):
         control_points = [50, 50]
-        file = "./grid_200_m.csv"
+        file = "/grid_200_m.csv"
+        this_source_dir = os.path.dirname(os.path.realpath(__file__))
+        absfile = this_source_dir + file
         solver="cg"
         adapt_type="absolute"
         max_iters= 5
@@ -287,7 +289,7 @@ class TestRealProblems:
         std_dev = None
         input_data_reduction = 1.0
 
-        sapp = SurfApprox(control_points,file,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
+        sapp = SurfApprox(control_points,absfile,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
         #app = sapp.approx
         myplot = bs_plot.Plotting((bs_plot.PlottingPlotly()))
         myplot.plot_surface_3d(sapp.surfz, poles=False)
@@ -296,7 +298,9 @@ class TestRealProblems:
 
     def test_adapt(self):
         control_points = [60, 60]
-        file = "./grid_200_m.csv"
+        file = "/grid_200_m.csv"
+        this_source_dir = os.path.dirname(os.path.realpath(__file__))
+        absfile = this_source_dir + file
         solver="spsolve"
         adapt_type="std_dev"
         max_iters=5
@@ -304,7 +308,7 @@ class TestRealProblems:
         std_dev = 1
         input_data_reduction = 1.0
 
-        sapp = SurfApprox(control_points,file,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
+        sapp = SurfApprox(control_points,absfile,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
         #app = sapp.approx
         myplot = bs_plot.Plotting((bs_plot.PlottingPlotly()))
         myplot.plot_surface_3d(sapp.surfz, poles=False)
@@ -314,7 +318,9 @@ class TestRealProblems:
 
     def test_adapt_regul(self):
         control_points = [50, 50]
-        file = "./grid_200_m.csv"
+        file = "/grid_200_m.csv"
+        this_source_dir = os.path.dirname(os.path.realpath(__file__))
+        absfile = this_source_dir + file
         solver="cg"
         adapt_type="std_dev"
         max_iters=10
@@ -322,7 +328,7 @@ class TestRealProblems:
         std_dev = 1
         input_data_reduction = 0.6
 
-        sapp = SurfApprox(control_points,file,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
+        sapp = SurfApprox(control_points,absfile,solver,adapt_type,max_iters,max_diff,std_dev,input_data_reduction)
         #app = sapp.approx
         myplot = bs_plot.Plotting((bs_plot.PlottingPlotly()))
         myplot.plot_surface_3d(sapp.surfz, poles=False)
@@ -358,8 +364,6 @@ class SurfApprox:
         self.err, self.surfz = self.surf_app()
 
     def surf_app(self):
-        print("Test:")
-        print(os.listdir('./'))
         self.approx = bs_approx.SurfaceApprox.approx_from_file(self.file, file_delimiter=",")
         surfz = self.approx.compute_adaptive_approximation(
             nuv=np.array([self.x_n_control_points, self.y_n_control_points]), solver=self.solver,
