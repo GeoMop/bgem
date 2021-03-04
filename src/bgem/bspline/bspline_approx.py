@@ -453,6 +453,7 @@ class SurfaceApprox:
         self.quad = kwargs.get("quad", self.quad)
         self.nuv = kwargs.get("nuv", self.nuv)
         self.regularization_weight = kwargs.get("regularization_weight", self.regularization_weight)
+        self.input_data_reduction = 1.0
 
         logging.info('Transforming points (n={}) ...'.format(self._n_points))
         start_time = time.time()
@@ -591,15 +592,20 @@ class SurfaceApprox:
         # TODO: better logic, since this has to be recomputed only if quad is changed.
         self._compute_uv_points()
 
-        ###
-        #self._w_quad_points = np.ones(len(self._w_quad_points))
         if self.input_data_reduction != 1.0:
             n = len(self._uv_quad_points)
             lsp = np.linspace(0, n - 1, n, dtype=int)
             red_lsp = np.random.choice(lsp, int(np.ceil(n * self.input_data_reduction)))
             compl_lsp = np.setxor1d(lsp, red_lsp)
-            self._w_quad_points = np.ones(n) # set all the weights equal to 1!!!
+            self._w_quad_points_compl = np.zeros(n)
+            self._w_quad_points_compl[compl_lsp] = self._w_quad_points[compl_lsp]
+            self._w_quad_points_compl_mask = np.ones(n)
+            self._w_quad_points_compl_mask[red_lsp] = np.zeros(len(red_lsp))
+            self._w_quad_points_mask = np.ones(n)
+            self._w_quad_points_mask[compl_lsp] = np.zeros(len(compl_lsp))
+
             self._w_quad_points[compl_lsp] = np.zeros(len(compl_lsp))
+
         ###
 
 
@@ -664,11 +670,12 @@ class SurfaceApprox:
             start_time = time.time()
 
             diff, diff_mat_max, err_mat_eucl2, std_dev = self._compute_errors(z_vec)
+            #, self.input_data_reduction, self._w_quad_points_compl
             end_time = time.time()
             logging.info('Computed in: {} s'.format(end_time - start_time))
 
             if self.input_data_reduction != 1.0:
-                diff_red = diff * self._w_quad_points # make sense only fow w_i in set(0,1)
+                diff_compl = diff * self._w_quad_points_compl_mask # make sense only fow w_i in set(0,1)
 
             ref_vec_u, ref_vec_v = self._refine_patches(diff_mat_max, err_mat_eucl2, std_dev, self.adapt_type)
 
@@ -684,7 +691,7 @@ class SurfaceApprox:
             print("area =", self._u_basis.n_intervals,'x',self._v_basis.n_intervals, "(n_patches =",self._u_basis.n_intervals*self._v_basis.n_intervals,")")
             if self.input_data_reduction != 1.0:
                 logging.info("Efficient points ratio: {}".format(self.input_data_reduction))
-                logging.info("Ratio of the errors (efficient/complete): {}".format(np.linalg.norm(diff_red) / np.linalg.norm(diff)))
+                logging.info("Ratio of the errors (efficient/complete): {}".format(np.linalg.norm(diff_compl) / np.linalg.norm(diff)))
             n_course = sum(ref_vec_u) + sum(ref_vec_v)
             if np.logical_or(n_course == 0, iters == self.max_iters):
                 break
@@ -801,7 +808,7 @@ class SurfaceApprox:
         if self._weights is not None:
             self._w_quad_points = self._weights[in_idx]
         else:
-            n = in_idx.shape[0]
+            n = np.sum(in_idx == True)
             self._w_quad_points = np.ones(n)
 
     def _init_coo_structure(self):
@@ -896,7 +903,7 @@ class SurfaceApprox:
         mat_BTB = scipy.sparse.csr_matrix((data, (row, col)), shape=(normal_matrix_size, normal_matrix_size))
         return mat_BTB, vec_BTb, avg_vec
 
-    def _compute_errors(self, z_vec):
+    def _compute_errors(self, z_vec):#,input_data_reduction,w_quad_points_compl):
         """
         Compute errors in approximation of the surface with respect
         differences in z-coordinate. Computation is performed individually
@@ -906,7 +913,13 @@ class SurfaceApprox:
         z_vec: z-coordinates corresponding to the computed surface as numpy array of the size equal to n_points
         """
         n_patches = (self._u_basis.size - 2) * (self._v_basis.size - 2)
-        n_points_glob = self._uv_quad_points.shape[0]
+        if self.input_data_reduction != 1.0:
+            n_points_glob = int(np.ceil(len(self._uv_quad_points) * self.input_data_reduction))
+            w_quad_points = self._w_quad_points + self._w_quad_points_compl
+        else:
+            n_points_glob = len(self._uv_quad_points)
+            w_quad_points = self._w_quad_points
+
         u_n_basf = self._u_basis.size
         v_n_basf = self._v_basis.size
         g_vec = self._z_quad_points[:]
@@ -924,6 +937,7 @@ class SurfaceApprox:
                 patch_point_loc = self.point_loc[patch_id]
                 u_vec = self._uv_quad_points[patch_point_loc, 0]
                 v_vec = self._uv_quad_points[patch_point_loc, 1]
+                w_quad_points_loc = w_quad_points[patch_point_loc]
                 iu = self._u_basis.find_knot_interval(u_vec[0])
                 iv = self._v_basis.find_knot_interval(v_vec[0])
                 col = (linsp31 + iv) * u_n_basf + iu + linsp13
@@ -933,10 +947,13 @@ class SurfaceApprox:
                 z_mat_loc = z_loc.reshape(self._v_basis.degree + 1, self._u_basis.degree + 1)
                 z_u_mat = z_mat_loc @ u_base_vec
                 patch_z_vec = np.sum(v_base_vec * z_u_mat, axis=0)
-                patch_err = (patch_z_vec - g_vec[patch_point_loc])
+                patch_err = (patch_z_vec - g_vec[patch_point_loc])*w_quad_points_loc
+                err[patch_point_loc] = patch_err
+                if self.input_data_reduction != 1.0:
+                    patch_err = patch_err * self._w_quad_points_mask[patch_point_loc]
                 err_mat_max[iu][iv] = np.max(np.abs(patch_err))
                 err_mat_eucl2[iu][iv] = np.linalg.norm(patch_err)*np.linalg.norm(patch_err)
-                err[patch_point_loc] = patch_err
+
 
         std_dev = math.sqrt(np.sum(np.sum(err_mat_eucl2, axis=0))/(n_points_glob - 1))
 
