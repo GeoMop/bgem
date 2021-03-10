@@ -1,7 +1,9 @@
 from bgem.gmsh import gmsh
 import numpy as np
 import pytest
+import os
 
+this_source_dir = os.path.dirname(os.path.realpath(__file__))
 
 def geometry():
     return dict(
@@ -33,7 +35,8 @@ def geometry():
 
 def create_cylinder(gmsh_occ, cyl_geom, stretch_factor=0.005):
     """
-    Auxiliary function, creates prolongated cylinder.
+    Auxiliary function, creates prolongated cylinder by given `stretch_factor`.
+    returns: cylinder, its bounding box
     """
     radius = float(cyl_geom["radius"])
     start = np.array((cyl_geom["start"]))
@@ -55,13 +58,19 @@ def create_cylinder(gmsh_occ, cyl_geom, stretch_factor=0.005):
     return cylinder, box
 
 
+@pytest.mark.skip
 def test_empty_mesh():
     """
     Problem: Even though gmsh reports errors, it creates mesh with no elements.
     See seg fault problem below...
 
     The fragmentation of the tunnels is a dead end, however, we do not understand the behaviour above.
+
+    JB: I can not reproduce seg faults but the meshing problem comes from trying to mesh a rounded tip
+    of the two tunnels intersection, that may leads to creating to overleaping surface elements on different
+    surfaces.
     """
+    os.chdir(this_source_dir)
     mesh_name = "greet_empty_mesh"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True)
     geom = geometry()
@@ -109,7 +118,7 @@ def test_empty_mesh():
 
     mesh_all = [tunnel_1, tunnel_2]
 
-    # gen.write_brep()
+    gen.write_brep()
     print("Generating mesh...")
 
     # Occasionally ends with error:
@@ -130,9 +139,52 @@ def test_empty_mesh():
     #   Warning : 66 elements remain invalid in surface 25
     #   Warning : 32 elements remain invalid in surface 45
     #   Error   : Invalid boundary mesh (overlapping facets) on surface 39 surface 40
+
+
+
+    # Sucessfull test run:
+    # Info    : Found volume 6
+    # Info    : It. 0 - 0 nodes created - worst tet radius 1.14137 (nodes removed 0 0)
+    # Info    : 3D refinement terminated (2567 nodes total):
+    # Info    :  - 0 Delaunay cavities modified for star shapeness
+    # Info    :  - 0 nodes could not be inserted
+    # Info    :  - 657 tetrahedra created in 0.000683932 sec. (960621 tets/s)
+    # Info    : Tetrahedrizing 585 nodes...
+    # Info    : Done tetrahedrizing 593 nodes (Wall 0.00824587s, CPU 0.008245s)
+    # Info    : Reconstructing mesh...
+    # Info    :  - Creating surface mesh
+    # Info    :  - Identifying boundary edges
+    # Info    :  - Recovering boundary
+    # Info    : Done reconstructing mesh (Wall 0.0159928s, CPU 0.015992s)
+
+    # local TOX run:
+    # ...
+    # Info    : Found volume 6
+    # Info    : It. 0 - 0 nodes created - worst tet radius 1.87415 (nodes removed 0 0)
+    # Info    : 3D refinement terminated (2553 nodes total):
+    # Info    :  - 0 Delaunay cavities modified for star shapeness
+    # Info    :  - 7 nodes could not be inserted
+    # Info    :  - 64 tetrahedra created in 4.7456e-05 sec. (1348617 tets/s)
+    # Info    : Tetrahedrizing 1297 nodes...
+    # Info    : Done tetrahedrizing 1305 nodes (Wall 0.020723s, CPU 0.020724s)
+    # Info    : Reconstructing mesh...
+    # Info    :  - Creating surface mesh
+    # Info    : Found two overlapping facets.
+    # Info    :   1st: [114, 113, 64] #39
+    # Info    :   2nd: [114, 113, 64] #40
+    # ---------------------------------------------------------------------------------------------- Captured stderr call -----------------------------------------------------------------------------------------------
+    # Warning : 16 elements remain invalid in surface 11
+    # Warning : 18 elements remain invalid in surface 25
+    # Warning : 4 elements remain invalid in surface 41
+    # Warning : 24 elements remain invalid in surface 45
+    # Warning : 34 elements remain invalid in surface 25
+    # Warning : 6 elements remain invalid in surface 41
+    # Warning : 20 elements remain invalid in surface 45
+    # Error   : Invalid boundary mesh (overlapping facets) on surface 39 surface 40
     gen.make_mesh(mesh_all)
     print("Generating mesh...[finished]")
     print("Writing mesh...")
+
     gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
     print("Writing mesh...[finished]")
     # gen.show()
@@ -193,6 +245,9 @@ def test_greet_no_volume():
 
     mesh_all = [*box_all]
 
+    print("Generating brep...")
+    gen.keep_only(*mesh_all)
+    gen.write_brep()
     print("Generating mesh...")
     gen.make_mesh(mesh_all)
     print("Generating mesh...[finished]")
@@ -208,6 +263,7 @@ def test_fuse_tunnel():
     It prolongates the cylinders, creates the common face in the middle, cuts the original cylinders
     and then fuses them into final object.
     """
+    os.chdir(this_source_dir)
     mesh_name = "fuse_tunnel"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True)
     geom = geometry()
@@ -267,7 +323,7 @@ def test_fuse_tunnel():
 
     print("Generating mesh...")
     gen.keep_only(*mesh_all)
-    # gen.write_brep()
+    gen.write_brep()
     gen.make_mesh(mesh_all)
     print("Generating mesh...[finished]")
     print("Writing mesh...")
@@ -285,6 +341,7 @@ def test_fuse_tunnel_2():
     -> RESULT: not a good approach - the point EP is found correctly, however the cylinders stick out
     which can be seen both in brep and even better in resulting mesh with finer mesh step.
     """
+    os.chdir(this_source_dir)
     mesh_name = "fuse_tunnel_2"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True)
     geom = geometry()
