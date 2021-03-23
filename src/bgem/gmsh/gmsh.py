@@ -574,8 +574,9 @@ class GeometryOCC:
         # sort from the largest to the smallest step
         step_to_dimtags_sorted = sorted(step_to_dimtags.items(), key=lambda item: item[0], reverse=True)
         for step, dimtags in step_to_dimtags_sorted:
-            #self._set_size_recursive(dimtags, step)
-            self.model.mesh.setSize(dimtags, step)
+            self._set_size_recursive(dimtags, step)
+            # this does not actually work to set mesh step size
+            # self.model.mesh.setSize(dimtags, step)
 
     def _set_size_recursive(self, dimtags, step):
         # Workaround for non-functional occ.setSize.
