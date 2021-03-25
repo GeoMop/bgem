@@ -79,6 +79,9 @@ class Decomposition:
         # Last polygon operation.
         # TODO: make full undo/redo history.
         #
+        self.split_shapes = []
+        # id_new holds id of new object which was created by splitting object with id_old
+        # [[dim, id_old, id_new],...]
         self.tolerance = 0.01
 
     def __repr__(self):
@@ -270,6 +273,7 @@ class Decomposition:
         self.pt_to_seg[(seg.vtxs[0].id, mid_pt.id)] = seg
 
         new_seg = self._make_segment((mid_pt, seg.vtxs[in_vtx]))
+        self.split_shapes.append([1, seg.id, new_seg.id])
         new_seg.attr = seg.attr
         seg.vtxs[in_vtx] = mid_pt
         seg._vector = seg.vtxs[in_vtx].xy - seg.vtxs[out_vtx].xy
@@ -582,6 +586,7 @@ class Decomposition:
         new_poly = Polygon(left_wire)
         new_poly.attr = orig_poly.attr
         self.polygons.append(new_poly)
+        self.split_shapes.append([2, orig_poly.id, new_poly.id])
         left_wire.polygon = new_poly
 
         if orig_wire.polygon.outer_wire == orig_wire:

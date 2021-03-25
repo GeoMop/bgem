@@ -66,6 +66,8 @@ def intersect_single(decomp, other, merge_tol = 1e-10):
     TODO: Implement clear interface to PolygonDecomposition with history of internal elementary operations
     in particular segment splitting and line splitting. Then we can remove several hacks here.
     """
+    decomp.clear_split_shapes_history()
+    # TODO: check if it is correct to reset history here (all public actions should reset history)
     save_tol = decomp.tolerance
     decomp.tolerance = merge_tol
 
