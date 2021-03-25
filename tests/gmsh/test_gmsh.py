@@ -2,7 +2,7 @@ from gmsh import model as gmsh_model
 from bgem.gmsh import gmsh
 import numpy as np
 import pytest
-
+from bgem.gmsh import gmsh_exceptions
 
 def test_revolve_square():
     """
@@ -315,7 +315,8 @@ def test_2D_tunnel_cut():
 
     mesh_groups = [*box_all]
     gen.keep_only(*mesh_groups)
-    # gen.remove_duplicate_entities()
+    with pytest.raises(gmsh_exceptions.FragmentationError, match=r".* duplicate .*"):
+        gen.remove_duplicate_entities()
     # gen.write_brep()
 
     min_el_size = tunnel_mesh_step / 2
