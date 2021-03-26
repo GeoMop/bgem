@@ -3,6 +3,17 @@ import os
 import yaml
 import numpy as np
 
+'''
+TODO: 
+Reports lot of unknown OpenCASCADE entities:
+(0,25) ... (0, 1511)
+(1, 35) ... (1,3182)
+(2,13) ... (2,4073)
+(3,3) ... (3,79)
+ 
+ .. but meshing continues.
+'''
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
 #sys.path.append(os.path.join(script_dir, '../src/bgem/gmsh'))
 
