@@ -1,10 +1,12 @@
+import scipy.linalg as la
+
 class IsecFracPlanePoint:
     """
     Point as the result of intersection with corresponding coordinates on both surfaces
 
     """
 
-    def __init__(self, frac_id1,frac_id2,loc_coor1,loc_coor2,coor,id):
+    def __init__(self, id,coor):
         """
         TODO: variable paramaterers - curve point / surface point
         :param surface_point_a: surface point
@@ -12,9 +14,29 @@ class IsecFracPlanePoint:
         :param xyz: array of global coordinates as numpy array 3x1
         """
 
-        self.frac_id1 = frac_id1
-        self.frac_id2 = frac_id2
-        self.loc_coor1 = loc_coor1
-        self.loc_coor2 = loc_coor2
-        self.coor = coor
+
         self.id = id
+        self.coor = coor
+        self.frac_id = []
+        self.loc_coor = []
+
+    def add_fracture_data(self,frac_id,loc_coor):
+
+        already_found = 0
+        for ids in self.frac_id:
+            if self.frac_id == frac_id:
+                already_found = 1
+
+        if already_found == 0:
+            self.frac_id.append(frac_id)
+            self.loc_coor.append(loc_coor)
+
+    def check_duplicity(self,coor,tol):
+        # test or do not test fracture vertices?
+        rel_tol = 2*la.norm(self.coor - coor)/la.norm(self.coor + coor)
+        if rel_tol >= tol:
+            duplicity = False
+        else:
+            duplicity = True
+
+        return duplicity

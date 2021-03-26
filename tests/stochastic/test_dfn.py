@@ -547,6 +547,9 @@ def compute_intersections(fr_points):
     ipps = []
     id = -1
     for i in p:
+        #for j in p: # may be reduced to relevant adepts
+        #    if i == j:
+        #        continue
         for j in p[i + 1:n_fr]:  # may be reduced to relevant adepts
             fi = fracs[i]
             fj = fracs[j]
@@ -560,6 +563,7 @@ def compute_intersections(fr_points):
             linsys1 = np.array([vi_x, vi_y, -vj_x])
             linsys2 = np.array([vi_x, vi_y, -vj_y])
 
+
             rank = lan.matrix_rank(linsys1)
             rank2 = lan.matrix_rank(linsys2)
 
@@ -569,27 +573,55 @@ def compute_intersections(fr_points):
                 x1 = la.solve(linsys1, rhs1)
                 for k in range(0, 2):
                     if ((x1[:, k] >= 0).all() and (x1[:, k] <= 1).all()):
-                        id += 1
-                        fi._initialize_new_intersection()
-                        fj._initialize_new_intersection()
-                        init = 1
-                        coor = vi_x * x1[0, k] + vj_x * x1[1, k]
-                        ipp = IPP.IsecFracPlanePoint(i, j, x1[0:2, k], np.array([x1[2, k], np.double(k)]), coor, id)
-                        ipps.append(ipp)
-                        fi._add_intersection_point(id)
-                        fj._add_intersection_point(id)
+                        coor = vi_x * x1[0, k] + vi_y * x1[1, k]
+
+                        duplicity_with = -1
+                        for fracs in fi.isecs:
+                            for ids in fracs:
+                                if ipps[ids].check_duplicity(coor) == True:
+                                   duplicity_with = ids
+                        # initialize better!!
+
+                        if duplicity_with == -1:
+                            id += 1
+                            if init == 0:
+                                fi._initialize_new_intersection()
+                                fj._initialize_new_intersection()
+                                init = 1
+
+                            ipp = IPP.IsecFracPlanePoint(id, coor)
+                            ipp.add_fracture_data(i, x1[0:2, k])
+                            ipp.add_fracture_data(j, np.array([x1[2, k], np.double(k)]))
+                            ipps.append(ipp)
+                            fi._add_intersection_point(id)
+                            fj._add_intersection_point(id)
+                        else:
+                           ipps[ids].add_fracture_data(i, x1[0:2, k])
+                           ipps[ids].add_fracture_data(j, np.array([x1[2, k], np.double(k)]))
 
             if rank2 == 3:
                 x2 = la.solve(linsys2, rhs2)
                 for k in range(0, 2):
                     if ((x2[:, k] >= 0).all() and (x2[:, k] <= 1).all()):
-                        if init == 0:
+                        coor = vi_x * x2[0, k] + vi_y * x2[1, k]
+                        duplicity_with = -1
+                        for fracs in fi.isecs:
+                            for ids in fracs:
+                                if ipps[ids].check_duplicity(coor) == True:
+                                    duplicity_with = ids
+                        if duplicity_with == -1:
                             id += 1
-                            fi._initialize_new_intersection()
-                            fj._initialize_new_intersection()
-                        coor = vi_x * x2[0, k] + vj_x * x2[1, k]
-                        ipp = IPP.IsecFracPlanePoint(i, j, x2[0:2, k], np.array([np.double(k), x2[2, k]]), coor, id)
-                        ipps.append(ipp)
-                        fi._add_intersection_point(id)
-                        fj._add_intersection_point(id)
+                            if init == 0:
+                                fi._initialize_new_intersection()
+                                fj._initialize_new_intersection()
+                                init = 1
+                            ipp = IPP.IsecFracPlanePoint(id, coor)
+                            ipp.add_fracture_data(i, x2[0:2, k])
+                            ipp.add_fracture_data(j, np.array([np.double(k),x2[2, k] ]))
+                            ipps.append(ipp)
+                            fi._add_intersection_point(id)
+                            fj._add_intersection_point(id)
+                        else:
+                            ipps[ids].add_fracture_data(i, x1[0:2, k])
+                            ipps[ids].add_fracture_data(j, np.array([np.double(k),x1[2, k]]))
     return ipps

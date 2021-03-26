@@ -21,6 +21,14 @@ class FracPlane:
         self.area = area
         self.isecs = []
         self.nisecs = -1
+        self.pd = poly.PolygonDecomposition()
+
+
+        sg_a, = self.pd.add_line(vertices[:,0], vertices[:,1])
+        sg_b, = self.pd.add_line(vertices[:, 1], vertices[:, 2])
+        sg_c, = self.pd.add_line(vertices[:, 2], vertices[:, 3])
+        sg_d, = self.pd.add_line(vertices[:, 3], vertices[:, 0])
+        in_wire = sg_a.wire[left_side]
 
 
     #@staticmethod
