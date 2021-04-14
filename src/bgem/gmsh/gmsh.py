@@ -236,12 +236,13 @@ class GeometryOCC:
     def get_logger():
         return gmsh.logger
 
-    def raise_gmsh_exception(self, gmsh_err, err: Exception):
+    def _raise_gmsh_exception(self, gmsh_err, msg):
         if self.gmsh_exceptions:
-            # raise GmshErrorType().with_traceback(err.__traceback__) from err
-            raise gmsh_err.with_traceback(err.__traceback__) from err
+            # raise gmsh_err.with_traceback(err.__traceback__) from err
+            raise gmsh_err(msg)
         else:
-            warnings.warn(message="Warning from GMSH: " + str(err), stacklevel=2)
+            warn_cls = gmsh_exceptions.make_warning(gmsh_err)
+            warnings.warn(message="[GMSH]: " + msg, category=warn_cls, stacklevel=3)
 
     def reinit(self):
         """
@@ -519,9 +520,8 @@ class GeometryOCC:
         try:
             new_tags, tags_map = self.model.fragment(all_dimtags, [], removeObject=True, removeTool=True)
         except ValueError as err:
-            message = "\nFragmentation failed!\nall dimtags: {}, ...".format(str(all_dimtags[:20]))
-            gerr = gmsh_exceptions.BoolOperationError(message)
-            self.raise_gmsh_exception(gerr, err)
+            message = "Fragmentation failed!\nall dimtags: {}, ...".format(str(all_dimtags[:20]))
+            self._raise_gmsh_exception(gmsh_exceptions.BoolOperationError, message)
 
         # assign regions
         new_sets = []
@@ -591,9 +591,8 @@ class GeometryOCC:
         try:
             b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
         except ValueError as err:
-            message = "\nSet size recursively failed!\nobj dimtags: {} ...".format(str(dimtags[:10]))
-            gerr = gmsh_exceptions.GetBoundaryError(message)
-            self.raise_gmsh_exception(gerr, err)
+            message = "Set size recursively failed!\nobj dimtags: {} ...".format(str(dimtags[:10]))
+            self._raise_gmsh_exception(gmsh_exceptions.GetBoundaryError, message)
 
         nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
         gmsh.model.mesh.setSize(nodes, step)
@@ -656,8 +655,8 @@ class GeometryOCC:
         try:
             self.model.removeAllDuplicates()
         except Exception as err:
-            gerr = gmsh_exceptions.FragmentationError("\nRemove duplicate entities failed!")
-            self.raise_gmsh_exception(gerr, err)
+            msg = "Remove duplicate entities failed!"
+            self._raise_gmsh_exception(gmsh_exceptions.FragmentationError, msg)
 
         self._need_synchronize = True
 
