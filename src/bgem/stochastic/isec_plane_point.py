@@ -8,10 +8,8 @@ class IsecFracPlanePoint:
 
     def __init__(self, id,coor):
         """
-        TODO: variable paramaterers - curve point / surface point
-        :param surface_point_a: surface point
-        :param surface_point_b: surface point
-        :param xyz: array of global coordinates as numpy array 3x1
+        :param id as position of the intersectiuon in the list
+        :param coor as absolute copordinate in R3 as numpy array 3x1
         """
 
 
