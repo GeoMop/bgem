@@ -8,7 +8,7 @@ class FracPlane:
 
     """
 
-    def __init__(self, vertices,vert_id,x_loc,y_loc,area):
+    def __init__(self, vertices,vert_id,fracture):
         """
         :param vertices: vertices of the fracture as numpy array 3x4
         :param x_loc: normalized vector of local x-axis as numpy array 3x1

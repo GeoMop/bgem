@@ -484,7 +484,7 @@ def test_brep_dfn():
     np.random.seed()
     fractures = generate_fractures(geometry_dict, fracture_stats)
     fr_points = make_brep(geometry_dict, fractures, "_test_fractures.brep")
-    ipps = compute_intersections(fr_points)
+    ipps = compute_intersections(fr_points, fractures)
     #resolve_fractures_intersection(ipss)
 
     print('brep_test_done')
@@ -511,7 +511,7 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
     faces = []
     fr_points = []
     for i, fr in enumerate(fractures):
-        ref_fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]])
+        ref_fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]]) % polovina
         # ref_frac = fracture.SquareShape()
         frac_points = fr.transform(ref_fr_points)
         fr_points.append(frac_points.transpose())  #
@@ -537,7 +537,7 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
 #ipps = make_vertex_list(fr_points)
 
 
-def compute_intersections(fr_points):
+def compute_intersections(fr_points,fractures: fracture.Fracture):
     surface = []
     fracs = []
     vertices = []
@@ -545,18 +545,15 @@ def compute_intersections(fr_points):
     vertex_id = -1
     tol = 1e-8
     n_fr = len(fr_points)
-    for fracture in fr_points:
+    for k in range(0,len(fractures)):
+        fr_vertices = fr_points[k]
+#    for fracture in fr_points:
         vert_id = []
         for i in range(0, fracture.shape[1]):
             vertex_id += 1
-            vertices.append(fracture[:, i])
+            vertices.append(fr_vertices[:, i])
             vert_id.append(vertex_id)
-
-        x_loc = fracture[:, 1] - fracture[:, 0]
-        y_loc = fracture[:, 3] - fracture[:, 0]
-        area = np.linalg.norm(np.cross(x_loc, y_loc))
-        surface.append(area)
-        frac_plane = FP.FracPlane(fracture,vert_id, x_loc, y_loc, area)
+        frac_plane = FP.FracPlane(vertices,vert_id,fractures[k])
         fracs.append(frac_plane)
 
     n_orig_vertices = vertex_id
