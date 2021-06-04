@@ -511,7 +511,7 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
     faces = []
     fr_points = []
     for i, fr in enumerate(fractures):
-        ref_fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]]) % polovina
+        ref_fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]]) # polovina
         # ref_frac = fracture.SquareShape()
         frac_points = fr.transform(ref_fr_points)
         fr_points.append(frac_points.transpose())  #

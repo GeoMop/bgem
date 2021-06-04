@@ -9,8 +9,6 @@ import attr
 import json
 
 
-
-
 class LineShape:
     """
     Class represents the line fracture shape.
@@ -57,16 +55,19 @@ class Fracture:
     # Fracture diameter, laying in XY plane
     centre: np.array
     # location of the barycentre of the fracture
-    rotation_axis: np.array
-    # axis of rotation
-    rotation_angle: float
-    # angle of rotation around the axis (?? counterclockwise with axis pointing up)
+    normal: np.array
+    # fracture normal
     shape_angle: float
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
     region: Union[str, int]
     # name or ID of the physical group
+    _rotation_axis: np.array = attr.ib(init=False, default=None)
+    # axis of rotation
+    _rotation_angle: np.array = attr.ib(init=False, default=None)
+    # angle of rotation around the axis (?? counterclockwise with axis pointing up)
+    _distance: float = attr.ib(init=False, default=None)
+    # absolute term in plane equation
     aspect: float = 1
-
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
 
     @property
@@ -77,6 +78,30 @@ class Fracture:
     def ry(self):
         return self.r * self.aspect
 
+    @property
+    def rotation_angle(self):
+        if _rotation_angle is None:
+            _rotation_axis, _rotation_angle = self.axis_angle()
+        return _rotation_angle
+
+    @property
+    def rotation_axis(self):
+        if _rotation_axis is None:
+            _rotation_axis, _rotation_angle = self.axis_angle()
+        return _rotation_axis
+
+    def axis_angle(self):
+        axis_angle = self.normal_to_axis_angle(self.normal)
+        _rotation_axis = axis_angle[:3]
+        _rotation_angle = axis_angle[3]
+        return _rotation_axis, _rotation_angle
+
+    @property
+    def distance(self):
+        if _distance is None:
+            _distance = -np.dot(self.centre,self.normal)
+        return _distance
+
     def transform(self, points):
         """
         Map local points on the fracture to the 3d scene.
@@ -85,10 +110,60 @@ class Fracture:
         """
         aspect = np.array([0.5 * self.r, 0.5 * self.aspect * self.r, 1], dtype=float)
         points[:, :] *= aspect[None, :]
-        points = FisherOrientation.rotate(points, np.array([0, 0, 1]), self.shape_angle)
-        points = FisherOrientation.rotate(points, self.rotation_axis, self.rotation_angle)
+        points = rotate(points, np.array([0, 0, 1]), self.shape_angle)
+        points = rotate(points, self.rotation_axis, self.rotation_angle)
         points += self.centre[None, :]
         return points
+
+    def back_transform(self, points): ## todo
+        """
+        Map points from 3d scene into local coordinate system.
+        :param points: array (n, 3)
+        :return: transformed points
+        """
+        aspect = np.array([0.5 * self.r, 0.5 * self.aspect * self.r, 1], dtype=float)
+
+        points -= self.centre[None, :]
+        points = rotate(points, self.rotation_axis, -self.rotation_angle)
+        points = rotate(points, np.array([0, 0, 1]), -self.shape_angle)
+        points[:, :] /= aspect[None, :]
+        return points
+
+def normal_to_axis_angle(normal): ## todo
+    z_axis = np.array([0, 0, 1], dtype=float)
+    norms = normal / np.linalg.norm(normal, axis=1)[:, None]
+    cos_angle = norms @ z_axis
+    angles = np.arccos(cos_angle)
+    # sin_angle = np.sqrt(1-cos_angle**2)
+
+    axes = np.cross(z_axis, norms, axisb=1)
+    ax_norm = np.maximum(np.linalg.norm(axes, axis=1), 1e-200)
+    axes = axes / ax_norm[:, None]
+
+    return np.concatenate([axes, angles[:, None]], axis=1)
+
+
+
+def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
+    """
+    Rotate given vector around given 'axis' by the 'angle'.
+    :param vectors: array of 3d vectors, shape (n, 3)
+    :param axis_angle: pass both as array (4,)
+    :return: shape (n, 3)
+    """
+    if axis_angle is not None:
+        axis, angle = axis_angle[:3], axis_angle[3]
+    if angle == 0:
+        return vectors
+    vectors = np.atleast_2d(vectors)
+    cos_angle, sin_angle = np.cos(angle), np.sin(angle)
+
+    rotated = vectors * cos_angle \
+              + np.cross(axis, vectors, axisb=1) * sin_angle \
+              + axis[None, :] * (vectors @ axis)[:, None] * (1 - cos_angle)
+    # Rodrigues formula for rotation of vectors around axis by an angle
+    return rotated
+
 
 
 class Quat:
@@ -238,7 +313,7 @@ class FisherOrientation:
             normals = np.stack((sin_psi * sin_theta, cos_psi * sin_theta, cos_theta), axis=1)
         return normals
 
-    def _sample_normal(self, size=1):
+    def sample_normal(self, size=1):
         """
         Draw samples for the fracture normals.
         :param size: number of samples
@@ -246,52 +321,19 @@ class FisherOrientation:
         """
         raw_normals = self._sample_standard_fisher(size)
         mean_norm = self._mean_normal()
-        axis_angle = self.normal_to_axis_angle(mean_norm[None, :])
-        return self.rotate(raw_normals, axis_angle=axis_angle[0])
+        axis_angle = normal_to_axis_angle(mean_norm[None, :])
+        return rotate(raw_normals, axis_angle=axis_angle[0])
 
-    def sample_axis_angle(self, size=1):
-        """
-        Sample fracture orientation angles.
-        :param size: Number of samples
-        :return: shape (n, 4), every row: unit axis vector and angle
-        """
-        normals = self._sample_normal(size)
-        return self.normal_to_axis_angle(normals[:])
 
-    @staticmethod
-    def normal_to_axis_angle(normals):
-        z_axis = np.array([0, 0, 1], dtype=float)
-        norms = normals / np.linalg.norm(normals, axis=1)[:, None]
-        cos_angle = norms @ z_axis
-        angles = np.arccos(cos_angle)
-        # sin_angle = np.sqrt(1-cos_angle**2)
+    #def sample_axis_angle(self, size=1):
+    #    """
+    #    Sample fracture orientation angles.
+    #    :param size: Number of samples
+    #    :return: shape (n, 4), every row: unit axis vector and angle
+    #    """
+    #    normals = self._sample_normal(size)
+    #    return self.normal_to_axis_angle(normals[:])
 
-        axes = np.cross(z_axis, norms, axisb=1)
-        ax_norm = np.maximum(np.linalg.norm(axes, axis=1), 1e-200)
-        axes = axes / ax_norm[:, None]
-
-        return np.concatenate([axes, angles[:, None]], axis=1)
-
-    @staticmethod
-    def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
-        """
-        Rotate given vector around given 'axis' by the 'angle'.
-        :param vectors: array of 3d vectors, shape (n, 3)
-        :param axis_angle: pass both as array (4,)
-        :return: shape (n, 3)
-        """
-        if axis_angle is not None:
-            axis, angle = axis_angle[:3], axis_angle[3]
-        if angle == 0:
-            return vectors
-        vectors = np.atleast_2d(vectors)
-        cos_angle, sin_angle = np.cos(angle), np.sin(angle)
-
-        rotated = vectors * cos_angle \
-                  + np.cross(axis, vectors, axisb=1) * sin_angle \
-                  + axis[None, :] * (vectors @ axis)[:, None] * (1 - cos_angle)
-        # Rodrigues formula for rotation of vectors around axis by an angle
-        return rotated
 
     def _mean_normal(self):
         trend = np.radians(self.trend)
@@ -497,7 +539,7 @@ class UniformBoxPosition:
     dimensions: List[float]
     center: List[float] = [0, 0, 0]
 
-    def sample(self, diameter, axis, angle, shape_angle):
+    def sample(self):
         # size = 1
         # pos = np.empty((size, 3), dtype=float)
         # for i in range(3):
@@ -780,13 +822,14 @@ class Population:
         for f in self.families:
             name = f.name
             diams = f.size.sample(self.volume, force_nonempty=keep_nonempty)
-            fr_axis_angle = f.orientation.sample_axis_angle(size=len(diams))
+            fr_normals = f.orientation.sample_normal(size=len(diams))
+            #fr_axis_angle = f.orientation.sample_axis_angle(size=len(diams))
             shape_angle = f.shape_angle.sample_angle(len(diams))
                 #np.random.uniform(0, 2 * np.pi, len(diams))
-            for r, aa, sa in zip(diams, fr_axis_angle, shape_angle):
-                axis, angle = aa[:3], aa[3]
-                center = pos_distr.sample(diameter=r, axis=axis, angle=angle, shape_angle=sa)
-                fractures.append(Fracture(self.shape_class, r, center, axis, angle, sa, name, 1))
+            for r, normals, sa in zip(diams, fr_normals, shape_angle):
+                #axis, angle = aa[:3], aa[3]
+                center = pos_distr.sample()
+                fractures.append(Fracture(self.shape_class, r, center, normals, sa, name, 1))
         return fractures
 
 
