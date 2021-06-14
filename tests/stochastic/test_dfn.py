@@ -484,7 +484,7 @@ def test_brep_dfn():
     np.random.seed()
     fractures = generate_fractures(geometry_dict, fracture_stats)
     fr_points = make_brep(geometry_dict, fractures, "_test_fractures.brep")
-    ipps = compute_intersections(fr_points, fractures)
+   # ipps = compute_intersections(fr_points, fractures)
     #resolve_fractures_intersection(ipss)
 
     print('brep_test_done')
@@ -515,11 +515,11 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
         # ref_frac = fracture.SquareShape()
         frac_points = fr.transform(ref_fr_points)
         fr_points.append(frac_points.transpose())  #
-
-        v1 = bw.Vertex(frac_points[0, :])
-        v2 = bw.Vertex(frac_points[1, :])
-        v3 = bw.Vertex(frac_points[2, :])
-        v4 = bw.Vertex(frac_points[3, :])
+        #print(frac_points.shape)
+        v1 = bw.Vertex(frac_points[0,:])
+        v2 = bw.Vertex(frac_points[1,:])
+        v3 = bw.Vertex(frac_points[2,:])
+        v4 = bw.Vertex(frac_points[3,:])
         e1 = bw.Edge([v1, v2])
         e2 = bw.Edge([v2, v3])
         e3 = bw.Edge([v3, v4])

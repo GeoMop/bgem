@@ -63,7 +63,7 @@ class Fracture:
     # name or ID of the physical group
     _rotation_axis: np.array = attr.ib(init=False, default=None)
     # axis of rotation
-    _rotation_angle: np.array = attr.ib(init=False, default=None)
+    _rotation_angle: float = attr.ib(init=False, default=None)
     # angle of rotation around the axis (?? counterclockwise with axis pointing up)
     _distance: float = attr.ib(init=False, default=None)
     # absolute term in plane equation
@@ -80,25 +80,25 @@ class Fracture:
 
     @property
     def rotation_angle(self):
-        if _rotation_angle is None:
+        if self._rotation_angle is None:
             _rotation_axis, _rotation_angle = self.axis_angle()
         return _rotation_angle
 
     @property
     def rotation_axis(self):
-        if _rotation_axis is None:
+        if self._rotation_axis is None:
             _rotation_axis, _rotation_angle = self.axis_angle()
         return _rotation_axis
 
     def axis_angle(self):
-        axis_angle = self.normal_to_axis_angle(self.normal)
+        axis_angle = normal_to_axis_angle(self.normal)[0,:]
         _rotation_axis = axis_angle[:3]
         _rotation_angle = axis_angle[3]
         return _rotation_axis, _rotation_angle
 
     @property
     def distance(self):
-        if _distance is None:
+        if self._distance is None:
             _distance = -np.dot(self.centre,self.normal)
         return _distance
 
@@ -110,12 +110,13 @@ class Fracture:
         """
         aspect = np.array([0.5 * self.r, 0.5 * self.aspect * self.r, 1], dtype=float)
         points[:, :] *= aspect[None, :]
+        #points[:, :] *= aspect[:,None]
         points = rotate(points, np.array([0, 0, 1]), self.shape_angle)
         points = rotate(points, self.rotation_axis, self.rotation_angle)
         points += self.centre[None, :]
         return points
 
-    def back_transform(self, points): ## todo
+    def back_transform(self, points):
         """
         Map points from 3d scene into local coordinate system.
         :param points: array (n, 3)
@@ -139,10 +140,8 @@ def normal_to_axis_angle(normal): ## todo
     axes = np.cross(z_axis, norms, axisb=1)
     ax_norm = np.maximum(np.linalg.norm(axes, axis=1), 1e-200)
     axes = axes / ax_norm[:, None]
-
+    #return axes, angles
     return np.concatenate([axes, angles[:, None]], axis=1)
-
-
 
 def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
     """
@@ -157,7 +156,6 @@ def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
         return vectors
     vectors = np.atleast_2d(vectors)
     cos_angle, sin_angle = np.cos(angle), np.sin(angle)
-
     rotated = vectors * cos_angle \
               + np.cross(axis, vectors, axisb=1) * sin_angle \
               + axis[None, :] * (vectors @ axis)[:, None] * (1 - cos_angle)
@@ -829,7 +827,7 @@ class Population:
             for r, normals, sa in zip(diams, fr_normals, shape_angle):
                 #axis, angle = aa[:3], aa[3]
                 center = pos_distr.sample()
-                fractures.append(Fracture(self.shape_class, r, center, normals, sa, name, 1))
+                fractures.append(Fracture(self.shape_class, r, center, normals[None,:], sa, name, 1))
         return fractures
 
 
