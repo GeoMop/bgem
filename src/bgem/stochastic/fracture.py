@@ -6,6 +6,7 @@ It provides appropriate statistical models as well as practical sampling methods
 from typing import Union, List, Tuple, Any
 import numpy as np
 import attr
+import math
 import json
 
 
@@ -67,6 +68,8 @@ class Fracture:
     # angle of rotation around the axis (?? counterclockwise with axis pointing up)
     _distance: float = attr.ib(init=False, default=None)
     # absolute term in plane equation
+    _plane_coor_system: np.array = attr.ib(init=False, default=None)
+    # local coordinate system
     aspect: float = 1
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
 
@@ -92,15 +95,68 @@ class Fracture:
 
     def axis_angle(self):
         axis_angle = normal_to_axis_angle(self.normal)[0,:]
-        _rotation_axis = axis_angle[:3]
+        _rotation_axis = axis_angle[0:3]
         _rotation_angle = axis_angle[3]
         return _rotation_axis, _rotation_angle
 
     @property
     def distance(self):
         if self._distance is None:
-            _distance = -np.dot(self.centre,self.normal)
+            _distance = -np.dot(self.centre,self.normal[0,:])
         return _distance
+
+    @property
+    def plane_coor_system(self):
+        if self._plane_coor_system is None:
+            _plane_coor_system = self.transform(np.array([[1, 0, 0], [0, 1 ,0]]))
+        return _plane_coor_system
+
+    def internal_point(self, points):
+
+        polygon_points = []
+        for point in points:
+            eps = abs(self.normal[0] * point[0] + self.normal[1] * point[1] + self.normal[2] * point[2] - self.distance)\
+                  / math.sqrt(np.linalg.norm(self.normal)**2 + self.distance**2 )
+            if eps < 1e-15:
+                continue
+
+            dot = np.zeros((self.vertices.shape()[1]))
+            for i in range(-1, self.vertices.shape()[1]):
+                bound_vec = self.vertices[i+1] - self.fracture.vertices[i]
+                sec_vec =  self.vertices[i+1] - point
+                dot[i+1] = bound_vec[0]*sec_vec[0] + bound_vec[1]*sec_vec[1] + bound_vec[2]*sec_vec[2]
+
+            if np.sum(abs(dot)) == self.vertices.shape()[1]:
+                polygon_points.append(point)
+
+        return polygon_points
+
+    def get_isec_with_line(self, x_0,loc_direct):
+
+        x_isec = []
+
+        bound_vec = np.array(self.vertices.shape)
+        x_0_b = np.array(self.vertices.shape)
+
+        for i in range(-1, self.vertices.shape()[1]):
+            bound_vec[:,i+1] = self.vertices[i+1] - self.fracture.vertices[i]
+            bound_vec[:,i+1] /= np.linalg.norm(bound_vec[:,i+1])
+            x_0_b[:,i+1] = self.fracture.vertices[i]
+
+
+        col2 = loc_direct
+        for i in range(0, self.vertices.shape()[1]+1):
+            col1 = bound_vec[:,i]
+            rhs = x_0 - x_0_b[:,i]
+            det = col1[0] * col2[1] - col1[1] * col2[0]
+            det_x1 = rhs[0] * col2[1] - rhs[1] * col2[0]
+            #colinear intersections (joins) should be solved in a different way
+            if abs(det) > 0:
+                t = det_x1/det
+            if (t > 0) and (t < 1):
+                x_isec.append(x_0_b[:,i] + col1 * t)
+
+        return x_isec
 
     def transform(self, points):
         """
