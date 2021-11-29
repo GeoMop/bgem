@@ -300,6 +300,16 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(0, point_tag)
 
+    def line(self, a, b):
+        """
+        Make line between points a,b.
+        return: Object set with a single dimtag.
+        """
+        point_ids = [self.model.addPoint(*p) for p in [a,b]]
+        res = self.model.addLine(*point_ids)
+        self._need_synchronize = True
+        return self.object(1, res)
+        
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
         """
         TODO: Better match GMSH API, possibly use origin as the default left corner.
@@ -601,7 +611,7 @@ class GeometryOCC:
 
     def set_mesh_step_field(self, field: Field) -> None:
         field.reset_id()
-        id = field.construct()
+        id = field.construct(self)
         gmsh.model.mesh.field.setAsBackgroundMesh(id)
 
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:

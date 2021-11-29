@@ -1,76 +1,131 @@
+
 import numbers
+import sys
 from typing import *
 import numpy as np
-import gmsh
+from gmsh import model as gmsh_model
+gmsh_field = gmsh_model.mesh.field
 
-import inspect
-gmsh_field = gmsh.model.mesh.field
 
-"""
-TODO:
-1. make application of fields to gmsh mdel lazy in order to create fields independently of the model.
-2. Field objects with overloader operators and functions to make natural expressions passed to MAtHEvla field.
-"""
 
 
 
 
 class Par:
+    """
+    Helper class to define a new field factory functions.
+    The type specification static methods: Field, Fields, Number, Numbers, String
+    are used to wrap parameters provided by user. These methods create the Par instance
+    which contain a particular GMSH field settr function: _
+    Usage:
+
+    """
 
     @staticmethod
     def Field(x):
+        """
+        Make an argument for a parameter of the type Field parameter.
+        Numerical values are wrapped as the 'constant' field.
+        """
         x = Field.wrap(x)
         return Par(Par._set_field, x)
 
     @staticmethod
     def Fields(fields):
+        """
+        Make an argument for a parameter of the type List[Field].
+        Numerical values are wrapped as the 'constant' field.
+        """
         fields = [Field.wrap(f) for f in fields]
         return Par(Par._set_fields, fields)
 
-    @staticmethod
-    def Numbers(x):
-        return Par(gmsh_field.setNumbers, x)
 
     @staticmethod
     def Number(x):
-        if isinstance(x, Par):
-            return x
-        elif isinstance(x, numbers.Number):
-            return Par(gmsh_field.setNumber, x)
-        else:
-            assert False, f"Wrong field argument: {x}"
+        """
+        Make an argument for a parameter of the type Number
+        (i.e. any value convertible to double).
+        """
+        return Par(Par._set_number, float(x))
 
     @staticmethod
-    def _set_field(id, parameter, field):
-        gmsh_field.setNumber(id, parameter, field.construct())
+    def Numbers(x):
+        """
+        Make an argument for a parameter of the type List[Number]
+        (Number is  any value convertible to double).
+        """
+        return Par(Par._set_numbers, [float(v) for v in x])
 
     @staticmethod
-    def _set_fields(id, parameter, fields):
-        gmsh_field.setNumbers(id, parameter, [f.construct() for f in fields])
+    def String(x):
+        """
+        Make an argument for a parameter of the type String.
+        (i.e. any value convertible to double).
+        """
+        return Par(Par._set_string, x)
+
+    @staticmethod
+    def _set_field(model, field_id, parameter, field):
+        """ Auxiliary setter method used in the Par.Field. """
+        gmsh_field.setNumber(field_id, parameter, field.construct(model))
+
+    @staticmethod
+    def _set_fields(model, field_id, parameter, fields):
+        """ Auxiliary setter method used in the Par.Fields. """
+        gmsh_field.setNumbers(field_id, parameter, [f.construct(model) for f in fields])
+
+    @staticmethod
+    def _set_number(model, field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.Number. """
+        gmsh_field.setNumber(field_id, parameter, x)
+
+    @staticmethod
+    def _set_numbers(model, field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.Numbers. """
+        gmsh_field.setNumbers(field_id, parameter, x)
+
+    @staticmethod
+    def _set_string(model, field_id, parameter, x):
+        """ Auxiliary setter method used in the Par.String. """
+        gmsh_field.setString(field_id, parameter, x)
 
 
     def __init__(self, setter, value):
         self._setter = setter
+        """A method used to set the field argument. One of `Par._set_*`"""
         self._value = value
+        """The argument value."""
 
-    def set(self, field_id, parameter):
+    def _set_field_argument(self, model, field_id, parameter):
+        """
+        Set the `parameter` of the GMSH field with the `field_id` to
+        the stored argument `self._value`.
+        Skip the None values.
+        """
         if self._value is not None:
-            self._setter(field_id, parameter, self._value)
+            self._setter(model, field_id, parameter, self._value)
 
-    def reset_id(self):
+    def _reset_id(self):
         if self._setter == self._set_field and self._value is not None:
-            self._value.reset_id()
+            self._value._reset_id()
         elif self._setter == self._set_fields:
             for f in self._value:
-                f.reset_id()
+                f._reset_id()
 
 
 class Field:
     """
     A scalar or tensor field used to specify mesh step distribution.
-    The Field object represents the field but particular apprication to the gmsh model is done
+    The Field object represents the field but particular application to the gmsh model is done
     through GmshOCC.set_mesh_step_field(field).
+
+    TODO: implement GmshOCC.set_boundary_layer_field(field)
     """
+
+    # Special IDs marking state of the field.
+    unset = -2
+    unfinished = -1
+
 
     @staticmethod
     def wrap(x):
@@ -95,38 +150,234 @@ class Field:
         - values are instances of Par, with appropriate setter function and value to set
         - Par.Number is applied automatically
         """
+        self._id = Field.unset
+        self._gmsh_model_id = id(None)
         self._gmsh_field = gmsh_field
-        self._args = [ (k, Par.Number(v)) for k, v in kwargs.items()]
-        self._id = None
+        self._args = kwargs
+        """ 
+        Field.unset : uninitialized field
+        Field.unfinished : GMSH field created but arguments not set yet (for detection of cycles)
+        >0   : GMSH field id 
+        """
+
+
+    def is_constructed(self, model):
+        return self._gmsh_model_id == id(model) and self._id >= 0
 
     def reset_id(self):
-        self._id = None
-        for param, arg in self._args:
-            arg.reset_id()
+        """Unset whole field DAG to (-2), assuming all _ids > 0."""
+        if self._id == Field.unset:
+            return
 
-    def construct(self):
-        assert self._id is None, "Cyclic field dependency."
-        self._id = gmsh_field.add(self._gmsh_field)
-        for parameter, arg in self._args:
-            arg.set(self._id, parameter)
+        assert self._id != Field.unfinished, "Cyclic field dependency."
+        self._id = Field.unfinished
+        for param, arg in self._args.items():
+            arg._reset_id()
+        self._id = None
+
+    def construct(self, model):
+        """
+        Create the GMSH field with all arguments, return its ID.
+        :param model: bgem.gmsh.gmsh.GeometryOCC
+        """
+        if self.is_constructed(model):
+            return self._id
+        self._gmsh_model_id = id(model)
+
+
+        assert self._id != Field.unfinished, "Cyclic field dependency."
+        self._id = Field.unfinished
+        field_id = gmsh_field.add(self._gmsh_field)
+        for parameter, arg in self._args.items():
+            arg._set_field_argument(model, field_id, parameter)
+        self._id = field_id
+        print("construct Field: ", self._gmsh_field, self._id)
         return self._id
 
+    def _expand(self, model):
+        return f"F{self.construct(model)}"
 
 #     """
 #     Define operators.
 #     """
 #
-#
-# class FieldExpr(Field):
-#     def __init__(self, expr_fmt, inputs):
-#         self._expr = expr_fmt
-#         self._inputs = inputs
-#
-#     def evaluate(self):
-#         # substitute all FieldExpr and form the expression
-#
-#         # creata MathEval
+    def __add__(self, other):
+        return FieldExpr("({0}+{1})", [self, other])
 
+    def __radd__(self, other):
+        return FieldExpr("({0}+{1})", [other, self])
+
+    def __sub__(self, other):
+        return FieldExpr("({0}-{1})", [self, other])
+
+    def __rsub__(self, other):
+        return FieldExpr("({0}-{1})", [other, self])
+
+    def __mul__(self, other):
+        return FieldExpr("({0}*{1})", [self, other])
+
+    def __rmul__(self, other):
+        return FieldExpr("({0}*{1})", [other, self])
+
+    def __truediv__(self, other):
+        return FieldExpr("({0}/{1})", [self, other])
+
+    def __rtruediv__(self, other):
+        return FieldExpr("({0}/{1})", [other, self])
+
+    def __mod__(self, other):
+        return FieldExpr("({0}%{1})", [self, other])
+
+    def __rmod__(self, other):
+        return FieldExpr("({0}%{1})", [other, self])
+
+    def __pow__(self, power):
+        return FieldExpr("({0}^{1})", [self, power])
+
+    def __rpow__(self, base):
+        return FieldExpr("({0}^{1})", [base, self])
+
+    def __neg__(self):
+        return FieldExpr("(-{0})", [self])
+
+    def __pos__(self):
+        return FieldExpr("(+{0})", [self])
+
+    def __lt__(self, other):
+        return FieldExpr("(1-step({0}-{1}))", [self, other])
+
+    def __gt__(self, other):
+        return FieldExpr("(1-step({1}-{0}))", [self, other])
+
+    def __le__(self, other):
+        return FieldExpr("step({1}-{0})", [self, other])
+
+    def __ge__(self, other):
+        return FieldExpr("step({0}-{1})", [self, other])
+
+# @field_function
+# def math_eval(expr) -> Field:
+#     """
+#     Temporary solution.
+#
+#     Usage:
+#     dist = field.distance(nodes)
+#     box = field.box(...)
+#     formula = f'1/F{dist} + F{box}'
+#     f = field.math_eval(formula)
+#
+#          addfunc("rand", p_rand, 0); // rand()
+#
+#          addfunc("sum", p_sum, UNDEFARGS);  // sum(1,2,...)
+#
+#          addfunc("max", p_max, UNDEFARGS);
+#
+#          addfunc("min", p_min, UNDEFARGS);
+#
+#          addfunc("med", p_med, UNDEFARGS);  // average !!
+#
+#     """
+#     id = gmsh_field.add('MathEval')
+#     gmsh_field.setString(id, 'F', expr)
+#     return id
+
+"""
+Field functions.
+"""
+
+functions = [
+"abs",
+"acos",
+"asin",
+"atan",
+"cos",
+"cosh",
+"deg",
+"exp",
+"log",
+"log10",
+"pow10",
+"rad",
+"round",
+"sign",
+"sin",
+"sinh",
+"sqrt",
+"step",
+"tan",
+"tanh",
+"atanh",
+"trunc",
+"floor",
+"ceil"]
+
+
+current_module = sys.modules[__name__]
+for fn in functions:
+    body = lambda x, f=fn: FieldExpr(f"{f}({{0}})", [x])
+    setattr(current_module, fn, body)
+
+variadic_functions = [
+    ('min', 'min'),
+    ('max', 'max'),
+    ('sum', 'sum'),
+    ('avg', 'med')
+]
+
+for pyfn, gmsh_fn in variadic_functions:
+    body = lambda *x, f=gmsh_fn: FieldExpr(f"{f}{{variadic}}", x)
+    setattr(current_module, pyfn, body)
+
+
+
+
+
+class FieldExpr(Field):
+    def __init__(self, expr_fmt, inputs):
+        self._id = Field.unset
+        self._gmsh_model_id = id(None)
+        self._expr = expr_fmt
+        self._inputs = [Field.wrap(f) for f in inputs]
+
+    def _expand(self, model):
+        return self._make_math_eval_expr(model)
+
+    def _make_math_eval_expr(self, model):
+        input_exprs = [in_field._expand(model) for in_field in self._inputs]
+        variadic = "(" + ",".join(input_exprs) + ")"
+        eval_expr = self._expr.format(*input_exprs, variadic=variadic)
+        print("expr: ", eval_expr)
+        return eval_expr
+
+    def reset_id(self):
+        """Unset whole field DAG to (-2), assuming all _ids > 0."""
+        for f_in in self._inputs:
+            f_in.reset_id()
+
+
+    def construct(self, model):
+        if self.is_constructed(model):
+            return self._id
+        self._gmsh_model_id = id(model)
+
+        expr = self._make_math_eval_expr(model)
+        print("construct MathEval expr: ", expr)
+        field = Field("MathEval",
+                      F=Par.String(expr))
+        return field.construct(model)
+
+        # substitute all FieldExpr and form the expression
+
+        # creata MathEval
+
+"""
+Predefined coordinate fields.
+Usage:
+    field = field.sin(field.x) * field.cos(field.y)
+"""
+x = FieldExpr("x",[])
+y = FieldExpr("y",[])
+z = FieldExpr("z",[])
 
 # @field_function
 # def AttractorAnisoCurve
@@ -152,23 +403,20 @@ def box(pt_min: Point, pt_max: Point, v_in:float, v_out:float=1e300) -> Field:
     Can be used instead of a constant field.
     """
     return Field('Box',
-                 VIn = v_in,
-                 VOut = v_out,
-                 XMax = pt_max[0],
-                 XMin = pt_min[0],
-                 YMax = pt_max[1],
-                 YMin = pt_min[1],
-                 ZMax = pt_max[2],
-                 ZMin = pt_min[2])
+                 VIn = Par.Number(v_in),
+                 VOut = Par.Number(v_out),
+                 XMax = Par.Number(pt_max[0]),
+                 XMin = Par.Number(pt_min[0]),
+                 YMax = Par.Number(pt_max[1]),
+                 YMin = Par.Number(pt_min[1]),
+                 ZMax = Par.Number(pt_max[2]),
+                 ZMin = Par.Number(pt_min[2]))
 
 
 
 def constant(value):
     """
     Make a field with constant value = value.
-    Emulated using a box field with box containing shpere in origin with given 'readius'.
-
-    TODO: automatic choice of radius.
     """
     return box((-1, -1, -1), (1, 1, 1), v_in=value, v_out=value)
 
@@ -186,6 +434,8 @@ def distance_nodes(nodes:List[int], coordinate_fields:Tuple[Field,Field,Field]=(
     Distance from a set of 'nodes' given by their tags.
     Optional coordinate_fields = ( field_x, field_y, field_z),
     gives fields used as X,Y,Z coordinates (not clear how exactly these curved coordinates are used).
+
+    TODO: specify nodes etc. as dim tags
     """
     fx, fy, fz = coordinate_fields
     return Field('Distance',
@@ -228,72 +478,11 @@ def distance_nodes(nodes:List[int], coordinate_fields:Tuple[Field,Field,Field]=(
 # Laplacian
 # LonLat
 
-# @field_function
-# def math_eval(expr) -> Field:
-#     """
-#     Temporary solution.
-#
-#     Usage:
-#     dist = field.distance(nodes)
-#     box = field.box(...)
-#     formula = f'1/F{dist} + F{box}'
-#     f = field.math_eval(formula)
-#
-#     TODO: Use Field to catch native Python operations, provide basic functions: in the field namespace:
-#     GMSH use MathEx, which supports:
-#     operators:
-#     unary + -
-#     binary + - * / ^ % < >
-#
-#     functions:
-#            { "abs",     fabs },
-#          { "acos",    acos },
-#          { "asin",    asin },
-#          { "atan",    atan },
-#          { "cos",     cos },
-#          { "cosh",    cosh },
-#          { "deg",     deg },   // added
-#          { "exp",     exp },
-#          { "fac",     fac },   // added, round to int, factorial for 0..170,
-#          { "log",     log },
-#          { "log10",   log10 },
-#          // { "pow10",   pow10 } // in future, add it?
-#          { "rad",     rad },   // added
-#          { "round",   round }, // added
-#          { "sign",    sign },
-#          { "sin",     sin },
-#          { "sinh",    sinh },
-#          // { "sqr",     sqr }, // added
-#          { "sqrt",    sqrt },
-#          { "step",    step }, // (x>=0), not necessary
-#          { "tan",     tan },
-#          { "tanh",    tanh },
-# #if !defined(WIN32)
-#          { "atanh",   atanh },
-# #endif
-#          { "trunc",   trunc }, // added
-#          { "floor",   floor }, // largest integer not grather than x
-#          { "ceil",    ceil }, // smallest integer not less than x
-#
-#          addfunc("rand", p_rand, 0); // rand()
-#
-#          addfunc("sum", p_sum, UNDEFARGS);  // sum(1,2,...)
-#
-#          addfunc("max", p_max, UNDEFARGS);
-#
-#          addfunc("min", p_min, UNDEFARGS);
-#
-#          addfunc("med", p_med, UNDEFARGS);  // average !!
-#
-#     """
-#     id = gmsh_field.add('MathEval')
-#     gmsh_field.setString(id, 'F', expr)
-#     return id
 
 #MathEvalAniso
 
 
-def max(*fields: Field) -> Field:
+def maximum(*fields: Field) -> Field:
     """
     Field that is maximum of other fields.
     :param fields: variadic list of fields
@@ -302,7 +491,7 @@ def max(*fields: Field) -> Field:
     return Field('Max', FieldsList=Par.Fields(fields))
 
 
-def min(*fields: Field) -> Field:
+def minimum(*fields: Field) -> Field:
     """
     Field that is minimum of other fields.
     :param fields: variadic list of fields
@@ -379,12 +568,12 @@ def threshold(field:Field, lower_bound:Tuple[float, float],
 
     return Field('Threshold',
                  IField=Par.Field(field),
-                 DistMin=field_min,
-                 LcMin=threshold_min,
-                 DistMax=field_max,
-                 LcMax=threshold_max,
-                 StopAtDistMax=stop_at_dist_max,
-                 Sigmoid=sigmoid)
+                 DistMin=Par.Number(field_min),
+                 LcMin=Par.Number(threshold_min),
+                 DistMax=Par.Number(field_max),
+                 LcMax=Par.Number(threshold_max),
+                 StopAtDistMax=Par.Number(stop_at_dist_max),
+                 Sigmoid=Par.Number(sigmoid))
 
 
 
