@@ -363,7 +363,7 @@ class FieldExpr(Field):
         expr = self._make_math_eval_expr(model)
         print("construct MathEval expr: ", expr)
         field = Field("MathEval",
-                      F=Par.String(expr))
+                      F = Par.String(expr))
         return field.construct(model)
 
         # substitute all FieldExpr and form the expression
@@ -445,26 +445,50 @@ def distance_nodes(nodes:List[int], coordinate_fields:Tuple[Field,Field,Field]=(
                  FieldZ=Par.Field(fz))
 
 
+def distance_edges(curves, nodes_per_edge=20, coordinate_fields:Tuple[Field,Field,Field]=(None, None, None)) -> Field:
+     """
+     Distance from a set of curves given by their tags. Curves are replaced by 'node_per_edge' nodes
+     and DistanceNodes is applied.
+     Optional coordinate_fields = ( field_x, field_y, field_z),
+     gives fields used as X,Y,Z coordinates (not clear how exactly these curved coordinates are used).
+     """
 
-# def distance_edges(curves, nodes_per_edge=8, coordinate_fields=None) -> Field:
-#     """
-#     Distance from a set of curves given by their tags. Curves are replaced by 'node_per_edge' nodes
-#     and DistanceNodes is applied.
-#     Optional coordinate_fields = ( field_x, field_y, field_z),
-#     gives fields used as X,Y,Z coordinates (not clear how exactly these curved coordinates are used).
-#     """
-#     id = gmsh_field.add('Distance')
-#     gmsh_field.setNumbers(id, "EdgesList", curves)
-#     gmsh_field.setNumber(id, "NNodesByEdge", nodes_per_edge)
-#     if coordinate_fields:
-#         fx, fy, fz = coordinate_fields
-#         gmsh_field.setNumber(id, "FieldX", fx)
-#         gmsh_field.setNumber(id, "FieldY", fy)
-#         gmsh_field.setNumber(id, "FieldZ", fz)
-#     return id
+     """
+     id = gmsh_field.add('Distance')
+     gmsh_field.setNumbers(id, "EdgesList", curves)
+     gmsh_field.setNumber(id, "NNodesByEdge", nodes_per_edge)
+     """
+     """
+     if coordinate_fields:
+         fx, fy, fz = coordinate_fields
+         gmsh_field.setNumber(id, "FieldX", fx)
+         gmsh_field.setNumber(id, "FieldY", fy)
+         gmsh_field.setNumber(id, "FieldZ", fz)
+     """
+     fx, fy, fz = coordinate_fields
+     return Field('Distance',
+                  EdgesList=Par.Numbers(curves),
+                  FieldX=Par.Field(fx),
+                  FieldY=Par.Field(fy),
+                  FieldZ=Par.Field(fz),
+                  NNodesByEdge=Par.Number(nodes_per_edge))
 
 # @field_function
-# def distance_surfaces(curves, nodes_per_edge=8, coordinate_fields=None) -> Field:
+def distance_surfaces(surfaces, nodes_per_edge=8, coordinate_fields:Tuple[Field,Field,Field]=(None, None, None)) -> Field:
+
+    """id = gmsh_field.add('Distance')
+    gmsh_field.setNumbers(id, "EdgesList", surfaces)
+    gmsh_field.setNumber(id, "NNodesByEdge", nodes_per_edge)"""
+
+    fx, fy, fz = coordinate_fields
+    return Field('Distance',
+                 SurfacesList=Par.Numbers(surfaces),
+                 FieldX=Par.Field(fx),
+                 FieldY=Par.Field(fy),
+                 FieldZ=Par.Field(fz),
+                 NNodesByEdge=Par.Number(nodes_per_edge))
+
+
 
 # @field_function
 # def Frustum
@@ -498,7 +522,6 @@ def minimum(*fields: Field) -> Field:
     Automatically wrap constants as a constant field.
     """
     return Field('Min', FieldsList=Par.Fields(fields))
-
 
 # MaxEigenHessian
 

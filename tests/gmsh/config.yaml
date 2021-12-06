@@ -1,0 +1,331 @@
+# The flow executable and arguments to use.
+# JB: ABSOLUTE PATH
+#flow_executable:
+#  - /home/jb/workspace/flow123d_JB/bin/fterm
+#  - --no-term
+#  - rel
+#  - run
+#finish_sleep: 0
+#metacentrum: false
+
+# reuse existing sample directories and existing results
+# None - clean dir
+# False - keep dir, rerun process.py
+# True - reuse existing results
+#reuse_samples: true
+
+# Charon:
+flow_executable:
+  # release
+#   - /storage/liberec3-tul/home/jan_brezina/workspace/flow123d/bin/flow123d
+#    - cmd
+    - c:/Users/peta/AppData/Local/Flow123d/v3.0.3/bin/flow123d.bat
+#    - --no-term
+#    - rel
+#    - run
+  # debug
+  #- /storage/liberec3-tul/home/jan_brezina/workspace/flow-dbg/flow123d/bin/flow123d
+metacentrum: true
+
+mc_samples: 10
+
+copy_files: [01_hm_tmpl.yaml, 02_th_tmpl.yaml, 03_th_tmpl.yaml]
+
+# Set to None to generate new meshes. ABSOLUTE PATH
+mesh_repository:
+#mesh_repository: /storage/liberec3-tul/home/jan_brezina/workspace/wgc/mlmc_random_frac/fr200_unif_s100/mesh_repository/
+#mesh_repository: /home/pavel_exner/WGC2020-THM-MC/mlmc_random_frac/mesh_repository
+
+mesh_files:
+  input: random_fractures_healed.msh
+  output: random_fractures_healed_2.msh
+
+geometry:
+  # depth of the center of the box and of the coordinate system
+  center_depth: 5000
+  # x,y,z dimension
+  box_dimensions: [400, 100, 100]
+  # mesh step on fractures
+  fracture_mesh_step: 5
+  # upper limit on the number of fractures
+  n_frac_limit: 5
+  # mesh step on outer boundary
+  boundary_mesh_step: 20
+  # mesh step on inner boreholes
+  boreholes_mesh_step: 0.8
+  main_tunnel_mesh_step: 1.5
+
+  main_tunnel_radius: 3.5
+  main_tunnel_width: 5.5
+  main_tunnel_length: 100
+
+  lateral_tunnel_radius: 3
+  lateral_tunnel_width: 5
+  lateral_tunnel_length: 23
+
+  borehole_radius: 1.1
+  borehole_length: 300
+  # horizontal gaps between boreholes
+  borehole_distance: 25
+
+  edz_thickness: 2
+
+  # shifting the mesh to real in-situ coordinates
+  shift_x: -682421.2022
+  shift_y: -1129264.115
+  shift_z: 0
+
+  # edz_phys_group: 77
+
+      # Uniform distribution of the fracture centers near the existing surfaces
+  # in order to enhance connectivity.
+  #connected_position_distr: true
+
+  #fracture_stats:
+      ## SKB data
+      #-   name: NS
+          #trend: 292
+          #plunge: 1
+          #concentration: 17.8
+          #power: 2.5
+          #r_min: 0.038
+          #r_max: 564
+          #p_32: 0.073
+      #-   name: NE
+          #trend: 326
+          #plunge: 2
+          #concentration: 14.3
+          #power: 2.7
+          #r_min: 0.038
+          #r_max: 564
+          #p_32: 0.319
+      #-   name: NW
+          #trend: 60
+          #plunge: 6
+          #concentration: 12.9
+          #power: 3.1
+          #r_min: 0.038
+          #r_max: 564
+          #p_32: 0.107
+      #-   name: EW
+          #trend: 15
+          #plunge: 2
+          #concentration: 14.0
+          #power: 3.1
+          #r_min: 0.038
+          #r_max: 564
+          #p_32: 0.088
+      #-   name: HZ
+          #trend: 5
+          #plunge: 86
+          #concentration: 15.2
+          #power: 2.38
+          #r_min: 0.038
+          #r_max: 564
+          #p_32: 0.543
+
+          
+            # deep data <400m
+  fracture_stats:
+      # SKB data
+      -   name: NS
+          trend: 292
+          plunge: 1
+          concentration: 17.8
+          power: 2.5
+#          r_min: 0.038
+          r_min: 1
+          r_max: 564
+          p_32: 0.094
+      -   name: NE
+          trend: 326
+          plunge: 2
+          concentration: 14.3
+          power: 2.7
+          r_min: 1
+          r_max: 564
+          p_32: 0.163
+      -   name: NW
+          trend: 60
+          plunge: 6
+          concentration: 12.9
+          power: 3.1
+          r_min: 1
+          r_max: 564
+          p_32: 0.098
+      -   name: EW
+          trend: 15
+          plunge: 2
+          concentration: 14.0
+          power: 3.1
+          r_min: 1
+          r_max: 564
+          p_32: 0.039
+      -   name: HZ
+          trend: 5
+          plunge: 86
+          concentration: 15.2
+          power: 2.38
+          r_min: 1
+          r_max: 564
+          p_32: 0.141
+
+# base of the mesh file name
+mesh_name: random_fractures
+
+
+# parameters substituted into the HM model template
+hm_params:
+    # The mesh to use in both simulations.
+    #mesh: three_frac_symmetric.msh
+    mesh: random_fractures.msh
+    in_file: 01_hm
+
+    well_piezohead: 5e3 # h*rho*g = 1e4*1e3*10 = 100 MPa
+    
+    fr_cross_section: &fr_cs_init 5e-5
+    fr_conductivity: &fr_cond_init 2.5e-3     # k = 1/12 * cs^2 * rho*g/visc = 1/12 1e-8 * 1000*10*1e3 =approx. 1e-2
+    bulk_conductivity: &bulk_cond_init 1e-9
+
+    mechanics_solver__a_tol: 1e-14
+    mechanics_solver__r_tol: 1e-7
+        # -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg
+    mechanics_solver__options: -ksp_type cg -pc_type icc -pc_factor_levels 2 -ksp_diagonal_scale -ksp_diagonal_scale_fix -pc_factor_fill 3.0 -ksp_monitor
+
+
+    flow_solver__a_tol: &fatol   1e-14
+    flow_solver__r_tol: &frtol   1e-7
+        # Boomeramg options:
+        # -ksp_type richardson              - recomended usage when solving just by multigrid
+        #  -pc_hypre_boomeramg_cycle_type <V> Cycle type (choose one of) V W (None)
+        #                                 cans try: V, W
+        #  -pc_hypre_boomeramg_max_levels <25>: Number of levels (of grids) allowed (None)
+        #  -pc_hypre_boomeramg_max_iter <1>: Maximum iterations used PER hypre call (None)
+        #                                  PETSC recomend more then 1 when just richardson KSP is used
+        #  -pc_hypre_boomeramg_tol <0.>: Convergence tolerance PER hypre call (0.0 = use a fixed number of iterations) (None)
+        #                                  PETSC says 1e-7 is default, when previous is not set
+        #  -pc_hypre_boomeramg_strong_threshold <0.25>: Threshold for being strongly connected (None)
+        #                                  HYPRE recommends 0.5 for 3d problems
+        #
+        #  -pc_hypre_boomeramg_P_max <0>: Max elements per row for interpolation operator (0=unlimited) (None)
+        #  -pc_hypre_boomeramg_agg_nl <0>: Number of levels of aggressive coarsening (None)
+        #  -pc_hypre_boomeramg_agg_num_paths <1>: Number of paths for aggressive coarsening (None)
+        #  -pc_hypre_boomeramg_strong_threshold <0.25>: Threshold for being strongly connected (None)
+        #  -pc_hypre_boomeramg_coarsen_type <Falgout> Coarsen type (choose one of) CLJP Ruge-Stueben  modifiedRuge-Stueben   Falgout  PMIS  HMIS (None)
+        #  -pc_hypre_boomeramg_interp_type <classical> Interpolation type (choose one of) classical   direct multipass multipass-wts ext+i ext+i-cc standard standard-wts block block-wtd FF FF1 (None)
+
+        #  -pc_hypre_boomeramg_relax_type_all <symmetric-SOR/Jacobi> Relax type for the up and down cycles (choose one of) Jacobi sequential-Gauss-Seidel seqboundary-Gauss-Seidel SOR/Jacobi backward-SOR/Jacobi  symmetric-SOR/Jacobi  l1scaled-SOR/Jacobi Gaussian-elimination      CG Chebyshev FCF-Jacobi l1scaled-Jacobi (None)
+        #  -pc_hypre_boomeramg_relax_type_down <symmetric-SOR/Jacobi> Relax type for the down cycles (choose one of) Jacobi sequential-Gauss-Seidel seqboundary-Gauss-Seidel SOR/Jacobi backward-SOR/Jacobi  symmetric-SOR/Jacobi  l1scaled-SOR/Jacobi Gaussian-elimination      CG Chebyshev FCF-Jacobi l1scaled-Jacobi (None)
+        #  -pc_hypre_boomeramg_relax_type_up <symmetric-SOR/Jacobi> Relax type for the up cycles (choose one of) Jacobi sequential-Gauss-Seidel seqboundary-Gauss-Seidel SOR/Jacobi backward-SOR/Jacobi  symmetric-SOR/Jacobi  l1scaled-SOR/Jacobi Gaussian-elimination      CG Chebyshev FCF-Jacobi l1scaled-Jacobi (None)
+        #  -pc_hypre_boomeramg_relax_type_coarse <Gaussian-elimination> Relax type on coarse grid (choose one of) Jacobi sequential-Gauss-Seidel seqboundary-Gauss-Seidel SOR/Jacobi backward-SOR/Jacobi  symmetric-SOR/Jacobi  l1scaled-SOR/Jacobi Gaussian-elimination      CG Chebyshev FCF-Jacobi l1scaled-Jacobi (None)
+        #  -pc_hypre_boomeramg_relax_weight_all <1.>: Relaxation weight for all levels (0 = hypre estimates, -k = determined with k CG steps) (None)
+        #  -pc_hypre_boomeramg_relax_weight_level <1.>: Set the relaxation weight for a particular level (weight,level) (None)
+        #  -pc_hypre_boomeramg_outer_relax_weight_all <1.>: Outer relaxation weight for all levels (-k = determined with k CG steps) (None)
+        #  -pc_hypre_boomeramg_outer_relax_weight_level <1.>: Set the outer relaxation weight for a particular level (weight,level) (None)
+        #  -pc_hypre_boomeramg_no_CF: <FALSE> Do not use CF-relaxation (None)
+
+
+        # -pc_hypre_boomeramg_max_iter <1>  - number of V/W cycles
+        # -pc_hypre_boomeramg_tol <1e-7>    - tolerance of MG solver
+        # -pc_hypre_boomeramg_coarsen_type  [PMIS  HMIS]  - recomenden for 3d problems
+        # -pc_hypre_boomeramg_interp_type [ext+i ext+i-cc] - probably recomended for 3d problems
+        # -pc_hypre_boomeramg_strong_threshold <0.5> - recomended for 3d problems
+        # for cg one must use symmetric smoother (default is hybrid Gauss-Siedel)
+        # options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg
+
+        # Experiements:
+        # options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg
+        # it: 421 r_tol 1e-7
+        #options: -ksp_type gmres -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5 -ksp_monitor
+        # it: 696 r_tol 1e-7
+        #options: -ksp_type gmres -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type HMIS -pc_hypre_boomeramg_strong_threshold 0.5 -ksp_monitor
+        # it: 705 r_tol 1e-7
+        #options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor
+        # it: 414 r_tol 1e-7
+        #options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor -pc_hypre_boomeramg_relax_type_all FCF-Jacobi
+        # failed: indefinite PC
+        #options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor -pc_hypre_boomeramg_relax_type_all Jacobi
+        # failed: indefinite PC
+        #options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor -pc_hypre_boomeramg_relax_type_all Chebyshev
+
+    flow_solver__options: &fopt -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type HMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor
+        # it: 414 r_tol 1e-7
+
+        #options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor -pc_hypre_boomeramg_relax_type_all symmetric-SOR/Jacobi
+        #options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor -pc_hypre_boomeramg_relax_type_all Jacobi
+
+        # options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_interp_type ext+i -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor
+        # options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_interp_type ext+i -pc_hypre_boomeramg_strong_threshold 0.4  -ksp_monitor
+        # options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_interp_type ext+i -pc_hypre_boomeramg_strong_threshold 0.6  -ksp_monitor
+
+
+
+# parameters substituted into the TH model template
+th_params:
+    # The mesh to use in both simulations.
+    #mesh: three_frac_symmetric.msh
+    mesh: random_fractures.msh
+    in_file: 02_th
+
+    well_piezohead_inject: &w_p_inject 50 # # h * rho*g = 50 * 1e3*10 = 0.5 MPa
+    well_piezohead_pump: &w_p_pump -5e3 # # h * rho*g = 5e3 * 1e3*10 = 50 MPa
+    
+    fr_conductivity: *fr_cond_init
+    bulk_conductivity: 1e-8
+    sigma_bulk_conductivity: 1e-7
+    min_fr_cross_section: 5e-5
+    max_fr_cross_section: 5e-3
+
+    flow_solver__a_tol: *fatol
+    flow_solver__r_tol: *frtol
+    flow_solver__options: *fopt
+
+    # residual is the energy balance which is in order of MW
+    # we prescribe a tol about # orders of mag. lower
+    heat_solver__a_tol: 1e+3
+    heat_solver__r_tol: 1e-5
+        # -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg
+
+    #heat_solver__options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor
+    # faild fo indef PC
+    #heat_solver__options: -ksp_type gmres -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor
+    # failed do to 1000 iterations
+    # heat_solver__options: -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps
+    # out of memory 12GB
+    heat_solver__options: -ksp_type gmres -pc_type ilu -pc_factor_levels 3 -ksp_diagonal_scale -ksp_diagonal_scale_fix -pc_factor_fill 5.0 -ksp_monitor
+
+    
+# parameters substituted into the TH model template
+th_params_ref: 
+    # The mesh to use in both simulations.
+    #mesh: three_frac_symmetric.msh
+    mesh: random_fractures.msh
+    in_file: 03_th
+
+    well_piezohead_inject: *w_p_inject
+    well_piezohead_pump: *w_p_pump
+    
+    fr_cross_section: *fr_cs_init
+    fr_conductivity: *fr_cond_init
+    bulk_conductivity: 1e-8
+    sigma_bulk_conductivity: 1e-7
+    min_fr_cross_section: 1e-4
+
+    flow_solver__a_tol: *fatol
+    flow_solver__r_tol: *frtol
+    flow_solver__options: *fopt
+
+    # residual is the energy balance which is in order of MW
+    # we prescribe a tol about # orders of mag. lower
+    heat_solver__a_tol: 1e+3
+    heat_solver__r_tol: 1e-5
+        # -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg
+
+    #heat_solver__options: -ksp_type cg -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor
+    # faild fo indef PC
+    #heat_solver__options: -ksp_type gmres -pc_type hypre -pc_hypre_type boomeramg  -pc_hypre_boomeramg_coarsen_type PMIS -pc_hypre_boomeramg_strong_threshold 0.5  -ksp_monitor
+    # failed do to 1000 iterations
+    # heat_solver__options: -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps
+    # out of memory 12GB
+    heat_solver__options: -ksp_type gmres -pc_type ilu -pc_factor_levels 3 -ksp_diagonal_scale -ksp_diagonal_scale_fix -pc_factor_fill 5.0 -ksp_monitor
+
