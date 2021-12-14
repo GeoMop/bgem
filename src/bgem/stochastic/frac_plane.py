@@ -16,8 +16,6 @@ class FracPlane:
         :param area: as area of the surface
         """
 
-
-
         self.fracture = fracture
         self.surface = fracture.rx * fracture.ry
         self.pd = poly.PolygonDecomposition()

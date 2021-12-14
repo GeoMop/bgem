@@ -1,6 +1,7 @@
 from bgem.polygons import polygons as poly
 import numpy as np
 import scipy.linalg as la
+from bgem.stochastic import isec_conflict as IC
 
 class FracIsec:
     """
@@ -27,15 +28,31 @@ class FracIsec:
 
     def _get_points(self):
 
-        points_A = self._get_frac_isecs(self.fracture_A, self.fracture_B,self.loc_direct_C_A)
-        points_B = self._get_frac_isecs(self.fracture_B, self.fracture_A,self.loc_direct_C_B)
-
-    def _get_frac_isecs(self,fracture_A,fracture_B,loc_direct):
-
         self._get_isec_eqn()
-        points = fracture_A.get_isec_with_line(self.x_0,loc_direct)
-        points = fracture_B.internal_point(self, points)
-        return points
+        points_A,points_false_A, points_init_ind_A = self._get_frac_isecs(self.fracture_A, self.fracture_B,self.loc_x0_A,self.loc_direct_C_A)
+        points_B,points_false_B, points_init_ind_B = self._get_frac_isecs(self.fracture_B, self.fracture_A,self.loc_x0_B,self.loc_direct_C_B)
+        conflict = IC.IsecConflict(self.fracture_A,self.fracture_B, points_false_A ,points_false_B,points_init_ind_A, points_init_ind_B)
+
+        return points_A, points_B, conflict
+
+    def _get_frac_isecs(self,fracture_A,fracture_B,loc_x0,loc_direct):
+
+        ind_points = []
+        points, points_false, points_init_ind = fracture_A.get_isec_with_line(loc_x0,loc_direct)
+        if len(points) > 0:
+            A_points = fracture_A.transform(points)
+            loc_B_points = fracture_B.back_transform(A_points)
+            ind_points = fracture_B.internal_point_2d(loc_B_points)
+
+        if len(ind_points) > 0:
+            points = A_points[ind_points, :]  # _clear
+        else:
+            points = []
+
+        #points_false, points_init
+
+
+        return points, points_false, points_init_ind
 
     def _get_isec_eqn(self):
 
@@ -50,37 +67,52 @@ class FracIsec:
         b_2 = normal_B[0,1]
         b_3 = normal_B[0,2]
 
-        self.direct_C = np.array([a_1 * b_2 - a_2 * b_1, a_3 * b_1 - a_1 * b_3, a_2 * b_3 - a_3 * b_2])
-            #np.cross(normal_A, normal_B)
-
+        self.direct_C = np.array([[a_2 * b_3 - a_3 * b_2, a_3 * b_1 - a_1 * b_3, a_1 * b_2 - a_2 * b_1 ]])
+        self.direct_C = self.direct_C/np.linalg.norm(self.direct_C)
+       # np.cross(normal_A,normal_B)#
         a_4 = self.fracture_A.distance
         b_4 = self.fracture_B.distance
 
-        c_1 = self.direct_C[0]
-        c_2 = self.direct_C[1]
-        c_3 = self.direct_C[2]
+        rhs = np.array([[-a_4, -b_4, 0]])
 
-        detA = np.linalg.norm(self.direct_C)
-        detAx = a_4 * b_3 * c_2 + a_2 * b_4 * c_3 - a_4 * b_2 * c_3 - a_3 * b_4 * c_2
-        detAy = a_3 * b_4 * c_1 + a_4 * b_1 * c_3 - a_1 * b_4 * c_3 - a_4 * b_3 * c_1
-        detAz = a_4 * b_2 * c_1 + a_1 * b_4 * c_2 - a_2 * b_4 * c_1 - a_4 * b_1 * c_2
+        c_1 = self.direct_C[0,0]
+        c_2 = self.direct_C[0,1]
+        c_3 = self.direct_C[0,2]
+
+        x0 = a_4 * b_3 * c_2 + a_2 * b_4 * c_3 - a_4 * b_2 * c_3 - a_3 * b_4 * c_2
+        y0 = a_3 * b_4 * c_1 + a_4 * b_1 * c_3 - a_1 * b_4 * c_3 - a_4 * b_3 * c_1
+        z0 = a_4 * b_2 * c_1 + a_1 * b_4 * c_2 - a_2 * b_4 * c_1 - a_4 * b_1 * c_2
+
+        mat = np.array([normal_A[0,:].T,normal_B[0,:].T,self.direct_C[0,:].T])
+        dt = np.linalg.det(mat)
+
+        self.x_0 = np.array([[x0, y0, z0]])/dt
 
 
-        self.x_0 = 1/detA * np.array( [detAx, detAy, detAz])
+        #testao = self.fracture_A.normal @ self.fracture_A.centre.T + self.fracture_A.distance
+        #testbo = self.fracture_B.normal @  self.fracture_B.centre.T + self.fracture_B.distance
+        #testa = self.fracture_A.normal @ self.x_0.T + self.fracture_A.distance
+        #testb = self.fracture_B.normal @  self.x_0.T + self.fracture_B.distance
 
 
         # az kdyz bude potvrzena existence
-        self.loc_x0_A, self.loc_direct_C_A = self._transform_to_local(self.x_0,self.direct_C, self.fracture_A)
-        self.loc_x0_B, self.loc_direct_C_B = self._transform_to_local(self.x_0,self.direct_C, self.fracture_B)
+        #self.loc_x0_A, self.loc_direct_C_A = self._transform_to_local(self.x_0,self.direct_C, self.fracture_A)
+        #self.loc_x0_B, self.loc_direct_C_B = self._transform_to_local(self.x_0,self.direct_C, self.fracture_B)
+
+        self.loc_x0_A = self.fracture_A.back_transform(self.x_0)
+        self.loc_direct_C_A = self.fracture_A.back_transform_clear(self.direct_C)
+
+        self.loc_x0_B = self.fracture_B.back_transform(self.x_0)
+        self.loc_direct_C_B = self.fracture_B.back_transform_clear(self.direct_C)
 
     def _transform_to_local(self,x0,direct,fracture):
         x0 -= fracture.centre
-        a = fracture.plane_coor_system
+        #a = fracture.plane_coor_system
         loc_x0 = fracture.plane_coor_system @ x0
         loc_direct = fracture.plane_coor_system @ direct
-        aspect = np.array([0.5 * fracture.r, 0.5 * fracture.aspect * fracture.r, 1], dtype=float)
-        loc_x0[:, :] /= aspect[None, :]
-        loc_direct[:, :] /= aspect[None, :]
+        #aspect = np.array([0.5 * fracture.r, 0.5 * fracture.aspect * fracture.r, 1], dtype=float)
+        #loc_x0 /= aspect[0:2] # [:, :]
+        #loc_direct /= aspect[0:2]
         return loc_x0, loc_direct
 
  #   def _transform_to_local(self,x_0,direct_C,fracture):
