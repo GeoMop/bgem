@@ -121,6 +121,13 @@ class PolygonDecomposition:
     #     point = self.decomp.points[point_id]
     #     self._rm_point(point)
 
+    @property
+    def last_split_shapes(self):
+        return self.decomp.split_shapes
+
+    def clear_split_shapes_history(self):
+        self.decomp.split_shapes.clear()
+
     def new_segment(self, a_pt, b_pt, deformability=1):
         """
         LAYERS
@@ -130,6 +137,7 @@ class PolygonDecomposition:
         :param b_pt: End point.
         :return: new segment
         """
+        self.clear_split_shapes_history()
         new_seg = self._add_segment(a_pt, b_pt, deformability)
         return new_seg
 
@@ -318,6 +326,7 @@ class PolygonDecomposition:
 
 
     def add_point(self, point):
+        self.clear_split_shapes_history()
         obj = self._add_point_impl(point)
         return obj
 
@@ -455,10 +464,11 @@ class PolygonDecomposition:
         :param b: numpy array X, Y
         :return: List of subdivided segments. Split segments are not reported.
         """
+        self.clear_split_shapes_history()
         a = np.array(a, dtype=float)
         b = np.array(b, dtype=float)
-        a_point = self.add_point(a)
-        b_point = self.add_point(b)
+        a_point = self._add_point_impl(a)
+        b_point = self._add_point_impl(b)
 
 
         if a_point == b_point:
@@ -466,8 +476,11 @@ class PolygonDecomposition:
         result = self.add_line_for_points(a_point, b_point, omit={a_point, b_point}, deformability = deformability)
         return result
 
-
     def add_line_for_points(self, a_pt, b_pt, omit=set(), deformability=1):
+        self.clear_split_shapes_history()
+        return self._add_line_for_points(a_pt, b_pt, omit)
+
+    def _add_line_for_points(self, a_pt, b_pt, omit=set()):
         """
         Same as add_line, but for known end points.
         :param a_pt:
@@ -500,8 +513,8 @@ class PolygonDecomposition:
                 #     assert False
                 # subdivide segment, snap to existing mid point
                 omit_pt = omit | {pt}
-                return self.add_line_for_points(a_pt, pt, omit=omit_pt) + \
-                       self.add_line_for_points(pt, b_pt, omit=omit_pt)
+                return self._add_line_for_points(a_pt, pt, omit=omit_pt) + \
+                       self._add_line_for_points(pt, b_pt, omit=omit_pt)
 
         # no snapping, subdivide by intersections
         line_div = self._add_line_seg_intersections(a_pt, b_pt)

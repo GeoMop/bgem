@@ -5,6 +5,10 @@ import enum
 import attr
 import numpy as np
 import gmsh
+import re
+
+from bgem.gmsh.field import Field
+from bgem.gmsh import options as gmsh_options
 
 
 
@@ -225,8 +229,13 @@ class GeometryOCC:
 
         self._region_names = {}
         self._need_synchronize = False
-
+        self.mesh_options = gmsh_options.Mesh()
+        self.geom_options = gmsh_options.Geometry()
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
+
+    @staticmethod
+    def get_logger():
+        return gmsh.logger
 
     def reinit(self):
         """
@@ -283,6 +292,16 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(dim, res)
 
+    def line(self, a, b):
+        """
+        Make line between points a,b.
+        return: Object set with a single dimtag.
+        """
+        point_ids = [self.model.addPoint(*p) for p in [a,b]]
+        res = self.model.addLine(*point_ids)
+        self._need_synchronize = True
+        return self.object(1, res)
+
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
         """
         TODO: Better match GMSH API, possibly use origin as the default left corner.
@@ -295,9 +314,8 @@ class GeometryOCC:
 
         Return an integer value.
         """
-        xy_sides.append(0)
-        corner = np.array(center) - np.array(xy_sides) / 2
-        rec_tag = self.model.addRectangle(*corner.tolist(), *xy_sides[0:2])
+        corner = np.array(center) - np.array([*xy_sides, 0]) / 2
+        rec_tag = self.model.addRectangle(*corner.tolist(), *xy_sides)
         self._need_synchronize = True
         return self.object(2, rec_tag)
 
@@ -504,9 +522,12 @@ class GeometryOCC:
         assert cumulsizes[-1] == len(tags_map), str(tags_map[cumulsizes[-1]:])
         for o, end in zip(object_sets, cumulsizes):
             dim_tag_map = tags_map[begin:end]
-            newset = [ObjectSet(self, new_subtags, [reg])
-                        for reg, new_subtags in zip(o.regions, dim_tag_map)]
-            newset = self.group(*newset)
+            object_list = []
+            for reg, step, new_subtags in zip(o.regions, o.mesh_step_size, dim_tag_map):
+                newobj = ObjectSet(self, new_subtags, [reg])
+                newobj.mesh_step(step)
+                object_list.append(newobj)
+            newset = self.group(*object_list)
             new_sets.append(newset)
             begin = end
             o.invalidate()
@@ -538,6 +559,7 @@ class GeometryOCC:
             reg._gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
             gmsh.model.setPhysicalName(reg.dim, reg._gmsh_id, reg.name)
 
+
     def _set_mesh_step(self, obj: 'ObjectSet'):
         self.synchronize()
         step_to_dimtags = {}
@@ -551,17 +573,27 @@ class GeometryOCC:
 
         # sort from the largest to the smallest step
         step_to_dimtags_sorted = sorted(step_to_dimtags.items(), key=lambda item: item[0], reverse=True)
-
-        # set recursively the mesh step
         for step, dimtags in step_to_dimtags_sorted:
-            # Get boundary resursive to obtain nodes
-            try:
-                b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
-            except ValueError as err:
-                message = "\nobj dimtags: {} ...".format(str(dimtags[:10]))
-                raise GetBoundaryError(message) from err
-            nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
-            gmsh.model.mesh.setSize(nodes, step)
+            #self._set_size_recursive(dimtags, step)
+            self.model.mesh.setSize(dimtags, step)
+
+    def _set_size_recursive(self, dimtags, step):
+        # Workaround for non-functional occ.setSize.
+        # Get boundary resursive to obtain nodes
+        try:
+            b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
+        except ValueError as err:
+            message = "\nobj dimtags: {} ...".format(str(dimtags[:10]))
+            raise GetBoundaryError(message) from err
+        nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
+        gmsh.model.mesh.setSize(nodes, step)
+
+
+
+    def set_mesh_step_field(self, field: Field) -> None:
+        field.reset_id()
+        id = field.construct(self)
+        gmsh.model.mesh.field.setAsBackgroundMesh(id)
 
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:
         """
@@ -601,6 +633,7 @@ class GeometryOCC:
         Format is given by extension (see MeshFormat for supported formats)
         If 'filename' is not provided it is determined by the model name given in constructor.
         In such case the format is given by the 'format' parameter.
+        TODO: check that mesh is created.
         """
         if filename is None:
             gmsh.option.setNumber('Mesh.Format', format)
@@ -621,10 +654,24 @@ class GeometryOCC:
             group_dimtags = []
         all_dimtags = set(gmsh.model.getEntities())
         remove_dimtags = all_dimtags.difference(set(group_dimtags))
-        try:
-            self.model.remove(list(remove_dimtags), recursive=True)
-        except ValueError:
-            pass
+        remove_dimtags = list(remove_dimtags)
+        # Recursive removal may lead to duplicate removal of dimtags.
+        # We sort the list by dimension avoid this.
+        remove_dimtags.sort()
+        while remove_dimtags:
+            try:
+                self.model.remove(remove_dimtags, recursive=True)
+            except Exception as e:
+                msg = str(e)
+                res = re.match('Unknown OpenCASCADE entity of dimension (\\d*) with tag (\\d*)', msg)
+                if res:
+                    dim, tag = int(res[1]), int(res[2])
+                    idx = remove_dimtags.index((dim, tag))
+                    remove_dimtags = remove_dimtags[idx+1:]
+                else:
+                    raise e
+            else:
+                remove_dimtags = []
 
     def all_entities(self):
         self.synchronize()
@@ -673,7 +720,7 @@ class ObjectSet:
         self.regions = [region.complete(dim) for dim, tag in self.dim_tags]
         return self
 
-    def modify_regions(self, format: str) -> None:
+    def modify_regions(self, format: str):
         """
         For every of object's regions create a new region with a name given by the 'format'
         and original region name.
@@ -953,8 +1000,11 @@ class ObjectSet:
 
         # assign regions
         assert len(self.regions) == len(self.dim_tags), (len(self.regions), len(self.dim_tags))
-        old_tags_objects = [ObjectSet(self.factory, new_subtags, [reg])
-                            for reg, new_subtags in zip(self.regions, old_tags_map[:len(self.dim_tags)])]
+        old_tags_objects = []
+        for reg, step, new_subtags in zip(self.regions, self.mesh_step_size, old_tags_map[:len(self.dim_tags)]):
+            newobj = ObjectSet(self.factory, new_subtags, [reg])
+            newobj.mesh_step(step)
+            old_tags_objects.append(newobj)
         new_obj = self.factory.group(*old_tags_objects)
 
         # store auxiliary information

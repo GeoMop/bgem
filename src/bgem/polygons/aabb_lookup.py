@@ -71,25 +71,27 @@ class AABB_Lookup:
         :param point: np array [x,y]
         :return: List of IDs.
         """
+
         boxes = self.boxes[:self.n_boxes, :]
-        if boxes.shape[0] == 0 :
+        if boxes.shape[0] == 0:
             return []
-        inf_dists = np.max(np.maximum(self.boxes[:, 0:2] - point, point - self.boxes[:, 2:4]), axis=1)
-        if np.amin(inf_dists) > 0.0:
+        boxes_linf = np.max(np.maximum(boxes[:, 0:2] - point, point - boxes[:, 2:4]), axis=1)
+
+        if np.amin(boxes_linf) > 0.0:
             # closest box not containing the point
-            i_closest = np.argmin(inf_dists)
+            i_closest = np.argmin(boxes_linf)
             c_boxes = boxes[i_closest:i_closest+1, :]
         else:
-            # point is inside all boxes
-            c_boxes = boxes[np.where(inf_dists<=0.0)]
+            # all boxes containing the point
+            c_boxes = boxes[np.where(boxes_linf<=0.0)]
         assert c_boxes.shape[0] != 0
         # Max distance of closest boxes
         #try:
         l_inf_max = np.max(np.maximum(point - c_boxes[:, 0:2], c_boxes[:, 2:4] - point))
         #except:
         #    pass
-        l2_max = np.sqrt(2) * l_inf_max
-        return np.where(inf_dists < l2_max)[0]
+        l2_max = min(np.sqrt(2) * l_inf_max, self.inf)
+        return np.where(boxes_linf < l2_max)[0]
 
 
     def intersect_candidates(self, box):
