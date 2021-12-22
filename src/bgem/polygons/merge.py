@@ -108,7 +108,7 @@ def intersect_single(decomp, other, merge_tol = 1e-10):
             assert seg_a.id not in maps_other[1]
             #maps_other[1][seg_b.id] = maps_other[1].get(seg_a.id, None)  # Should still be None, unless there is common edge
 
-        for new_seg, change, side in decomp._add_line_new_segments(new_a_pt, new_b_pt, line_div):
+        for new_seg, change, side in decomp._add_line_new_segments(new_a_pt, new_b_pt, line_div, 1):
             maps_other[1][new_seg.id] = seg.id
             #maps_self[1].setdefault(new_seg.id, None)
 

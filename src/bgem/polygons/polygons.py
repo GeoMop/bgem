@@ -5,7 +5,7 @@ from . import aabb_lookup
 from . import decomp
 
 # TODO: rename point - > node
-# TODO: careful unification of tolerance usage.
+# TODO: carefull unification of tolerance usage.
 # TODO: Performance tests:
 # - snap_point have potentialy very bad complexity O(Nlog(N)) with number of segments
 # - add_line linear with number of segments
@@ -478,9 +478,9 @@ class PolygonDecomposition:
 
     def add_line_for_points(self, a_pt, b_pt, omit=set(), deformability=1):
         self.clear_split_shapes_history()
-        return self._add_line_for_points(a_pt, b_pt, omit)
+        return self._add_line_for_points(a_pt, b_pt, omit, deformability)
 
-    def _add_line_for_points(self, a_pt, b_pt, omit=set()):
+    def _add_line_for_points(self, a_pt, b_pt, omit=set(), deformability=1):
         """
         Same as add_line, but for known end points.
         :param a_pt:
@@ -658,7 +658,7 @@ class PolygonDecomposition:
         self._rm_point(pt)
 
     @undo.undoable
-    def _add_segment(self, a_pt, b_pt, deformability):
+    def _add_segment(self, a_pt, b_pt, deformability=1):
         a_pt = self.points[a_pt.id]
         b_pt = self.points[b_pt.id]
         if a_pt != b_pt:
