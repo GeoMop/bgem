@@ -34,6 +34,7 @@ class SplineBasis:
         :param degree: degree of the spline basis
         :param n_intervals: Number of subintervals.
         :param knot_range: support of the spline, min and max valid 't'
+        :param n_boundary: multiplicity of the knots on the left and right side, None == degree
         :return: SplineBasis object.
         """
         multiplicity_begin, multiplicity_end = [degree if n is None else n for n in n_boundary]
@@ -76,10 +77,10 @@ class SplineBasis:
         assert degree >=0
         self.degree = degree
 
-        # check free ends
-        for i in range(self.degree):
-            assert knots[i] == knots[i+1]
-            assert knots[-i-1] == knots[-i-2]
+        # check free ends (need not to be the case)
+        #for i in range(self.degree):
+        #    assert knots[i] == knots[i+1]
+        #    assert knots[-i-1] == knots[-i-2]
         self.knots = np.array(knots)
 
         self.size = len(self.knots) - self.degree -1
