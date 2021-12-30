@@ -5,7 +5,7 @@ import os
 import glob
 import setuptools
 
-__version__ = '1.0.0'
+__version__ = '0.2.0'
 
 
         
@@ -23,7 +23,7 @@ setuptools.setup(
     author='Jan Brezina',
     author_email='jan.brezina@tul.cz',    
     url='https://github.com/geomop/bgem',
-    download_url='https://github.com/geomop/bgem/archive/v0.1.0.tar.gz',
+    download_url='https://github.com/geomop/bgem/archive/v{__version__}.tar.gz',
     classifiers=[
         # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers        
         'Development Status :: 2 - Pre-Alpha',
@@ -55,7 +55,9 @@ setuptools.setup(
     # include automatically all files in the template MANIFEST.in
     include_package_data=True,
     zip_safe=False,
-    install_requires=['numpy', 'scipy', 'bih', 'gmsh-sdk<=4.5.1'],
+    #install_requires=['numpy', 'scipy', 'bih', 'gmsh-sdk<=4.5.1'],
+    install_requires=['numpy', 'pandas', 'scipy', 'bih', 'gmsh>=4.6.0'],
+    # incompatible changes in SDK in release 4.6.0 to be changed in the new release of bgem
     python_requires='>=3',
     # extras_require={
     #     # eg:

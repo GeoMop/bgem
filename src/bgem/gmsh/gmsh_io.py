@@ -80,11 +80,40 @@ class GmshIO:
             if line.startswith('$'):
                 raise Exception("Insufficient number of entries in the $ElementData block: {} time={}".format(field, time))
             columns = line.split()
-            iel = columns[0]
+            iel = int(columns[0])
             values = [float(v) for v in columns[1:]]
             assert len(values) == n_comp
             elem_data[iel] = values
 
+    def read_physical_names(self, mshfile=None):
+        """Read physical names from a Gmsh .msh file.
+
+        Reads Gmsh format 1.0 and 2.0 mesh files,
+        reads only '$PhysicalNames' section.
+        """
+
+        if not mshfile:
+            mshfile = open(self.filename, 'r')
+
+        readmode = 0
+        print('Reading %s' % mshfile.name)
+        line = 'a'
+        while line:
+            line = mshfile.readline()
+            line = line.strip()
+
+            if line.startswith('$'):
+                if line == '$PhysicalNames':
+                    readmode = 5
+                else:
+                    readmode = 0
+            elif readmode == 5:
+                columns = line.split()
+                if len(columns) == 3:
+                    self.physical[str(columns[2]).strip('\"')] = (int(columns[1]), int(columns[0]))
+        mshfile.close()
+
+        return self.physical
 
     def read(self, mshfile=None):
         """Read a Gmsh .msh file.
@@ -122,7 +151,7 @@ class GmshIO:
                 columns = line.split()
                 if readmode == 5:
                     if len(columns) == 3:
-                        self.physical[str(columns[2])] = (int(columns[1]), int(columns[0]))
+                        self.physical[str(columns[2]).strip('\"')] = (int(columns[1]), int(columns[0]))
 
                 if readmode == 4:
                     if len(columns) == 3:
@@ -192,6 +221,36 @@ class GmshIO:
 
         mshfile.close()
 
+    def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
+        """
+        Returns ids of regions given by names.
+        :param reg_names: names of the regions
+        :param check_dim: possibly check, that the regions have the chosen dimension
+        :return: list of regions ids
+        """
+        assert len(self.physical) > 0
+        reg_ids = []
+        for fr in reg_names:
+            rid, dim = self.physical[fr]
+            if check_dim >= 0:
+                assert dim == check_dim
+            reg_ids.append(rid)
+        return reg_ids
+
+    def get_elements_of_regions(self, reg_ids):
+        """
+        Supposes one region per element, on the first position in element tags.
+        :param reg_ids: region indices
+        :return: indices of elements of the specified region indices
+        """
+        ele_ids_list = []
+        for eid, elem in self.elements.items():
+            type, tags, node_ids = elem
+            # suppose only one region per element
+            if tags[0] in reg_ids:
+                ele_ids_list.append(eid)
+        return np.array(ele_ids_list)
+
     def write_ascii(self, mshfile=None):
         """Dump the mesh out to a Gmsh 2.0 msh file."""
 
@@ -203,7 +262,7 @@ class GmshIO:
         for name in sorted(self.physical.keys()):
             value = self.physical[name]
             region_id, dim = value
-            print('%d %d %s' % (dim, region_id, name), file=mshfile)
+            print('%d %d "%s"' % (dim, region_id, name), file=mshfile)
         print('$EndPhysicalNames', file=mshfile)
         print('$Nodes\n%d' % len(self.nodes), file=mshfile)
         for node_id in sorted(self.nodes.keys()):

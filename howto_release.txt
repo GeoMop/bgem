@@ -1,0 +1,30 @@
+# How to make a release?
+
+TODO:
+
+
+0. Repository preparation:
+   - check that master tests are green
+   - update documentation, at least README.md files for subpackages
+     (detailed doc should be mantained continuously before merge to master)
+   - update CHANGES.md
+   
+
+1. Determine the release version number: major.minor.patch
+   - Major for backward incompatible changes, changes in API.
+   - Minor for backward compatible changes, substantial API extension, possible slight changes in numerical results.
+   - Patch for fixes, minor improvements, no substantial new features.
+
+2. Set the version in the setup.py.
+
+3. Push changes, wait for passed tests.
+
+4. Create new release at github, using the same version code.
+
+5. Wheels are automaticaly created and published to PYPI, see that this action has passed including the test installation. 
+
+
+Alternative, manual tagging:
+
+git tag -a v1.2.3 -m "v1.2.3"
+git push origin v1.2.3
