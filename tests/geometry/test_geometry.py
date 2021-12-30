@@ -1,5 +1,6 @@
 from bgem.geometry.geometry import *
 from bgem.polygons.polygons import PolygonDecomposition
+from fixtures import sandbox_fname
 
 
 def test_simple():
@@ -33,7 +34,7 @@ def test_simple():
 
 
     # generate mesh file
-    lg.filename_base = "mesh_simple"
+    lg.filename_base = sandbox_fname("mesh_simple", "")
     lg.init()
 
     lg.construct_brep_geometry()
@@ -94,7 +95,7 @@ def test_fracture():
 
 
     # generate mesh file
-    lg.filename_base = "mesh_fracture"
+    lg.filename_base = sandbox_fname("mesh_fracture", "")
     lg.init()
 
     lg.construct_brep_geometry()

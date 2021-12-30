@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b05e335d-2121-4ce5-ba1a-132268bd48fb" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/fixtures.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/bspline/bspline.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/bspline/bspline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/gmsh/gmsh_io.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/gmsh/gmsh_io.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/decomp.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/decomp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/merge.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/merge.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/point.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/point.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/polygons.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/polygons.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/bspline/test_bspline.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/bspline/test_bspline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/conftest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/geometry/test_geometry.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/geometry/test_geometry.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_field.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_field.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_gmsh_sdk.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_gmsh_sdk.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tox.ini" beforeDir="false" afterPath="$PROJECT_DIR$/tox.ini" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectId" id="1yoosORdqzu79rw45yvIaoy5GBE" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/tests/bspline/test_bspline.py" />
+  </component>
+  <component name="RunManager" selected="tox.tox in gmsh">
+    <configuration name="tox all" type="Tox" factoryName="Tox">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <arguments>
+        <array />
+      </arguments>
+      <runOnlyEnvs>
+        <array />
+      </runOnlyEnvs>
+      <method v="2" />
+    </configuration>
+    <configuration name="tox in gmsh" type="Tox" factoryName="Tox">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <arguments>
+        <array>
+          <option value="--" />
+          <option value="-k" />
+          <option value="gmsh" />
+        </array>
+      </arguments>
+      <runOnlyEnvs>
+        <array />
+      </runOnlyEnvs>
+      <method v="2" />
+    </configuration>
+    <configuration name="tox in polygons" type="Tox" factoryName="Tox">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <arguments>
+        <array>
+          <option value="--" />
+          <option value="-k" />
+          <option value="polygons" />
+        </array>
+      </arguments>
+      <runOnlyEnvs>
+        <array />
+      </runOnlyEnvs>
+      <method v="2" />
+    </configuration>
+    <configuration name="tox in stochastic" type="Tox" factoryName="Tox">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <arguments>
+        <array>
+          <option value="--" />
+          <option value="-k" />
+          <option value="stochastic" />
+        </array>
+      </arguments>
+      <runOnlyEnvs>
+        <array />
+      </runOnlyEnvs>
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest in gmsh" type="tests" factoryName="py.test">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/gmsh&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest in polygons" type="tests" factoryName="py.test">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/polygons&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest in stochastic" type="tests" factoryName="py.test">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/stochastic&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest test_bspline" type="tests" factoryName="py.test">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/bspline/test_bspline.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest test_field" type="tests" factoryName="py.test">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/gmsh/test_field.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest test_gmsh" type="tests" factoryName="py.test">
+      <module name="bgem" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="/usr/bin/python3.8" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/gmsh/test_gmsh.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Python tests.pytest in polygons" />
+      <item itemvalue="Python tests.pytest in gmsh" />
+      <item itemvalue="Python tests.pytest test_gmsh" />
+      <item itemvalue="Python tests.pytest test_field" />
+      <item itemvalue="Python tests.pytest test_bspline" />
+      <item itemvalue="Python tests.pytest in stochastic" />
+      <item itemvalue="tox.tox in stochastic" />
+      <item itemvalue="tox.tox in gmsh" />
+      <item itemvalue="tox.tox all" />
+      <item itemvalue="tox.tox in polygons" />
+    </list>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b05e335d-2121-4ce5-ba1a-132268bd48fb" name="Changes" comment="" />
+      <created>1632927507954</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1632927507954</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>
