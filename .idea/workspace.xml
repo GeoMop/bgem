@@ -5,6 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b05e335d-2121-4ce5-ba1a-132268bd48fb" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/conftest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/geometry/test_geometry.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/geometry/test_geometry.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tox.ini" beforeDir="false" afterPath="$PROJECT_DIR$/tox.ini" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
