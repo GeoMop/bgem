@@ -52,7 +52,7 @@ coverage.xml
 *.cover
 .hypothesis/
 tests/*/*.html
-tests/gmsh/sandbox/*
+**/sandbox/**
 
 # Sphinx documentation
 docs/_build/

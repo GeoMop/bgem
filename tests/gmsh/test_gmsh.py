@@ -2,8 +2,6 @@ import pytest
 import sys
 import numpy as np
 from bgem.gmsh import gmsh
-
-print(sys.path)
 from fixtures import sandbox_fname
 
 def test_revolve_square():
