@@ -3,8 +3,8 @@ import os
 from gmsh import model as gmsh_model
 from bgem.gmsh import gmsh, field, options
 import numpy as np
+from fixtures import sandbox_fname
 
-work_dir = "sandbox"
 
 
 
@@ -21,11 +21,13 @@ def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh
     model = gmsh.GeometryOCC(mesh_name)
     rec = model.rectangle([100, 100])
     model.set_mesh_step_field(field)
-    model.write_brep(filename=os.path.join(work_dir, f"{mesh_name}.brep"))
+    brep_fname = sandbox_fname(mesh_name, "brep")
+    model.write_brep(brep_fname)
     model.mesh_options.CharacteristicLengthMin = 0.5
     model.mesh_options.CharacteristicLengthMax = 100
     model.make_mesh([rec], dim=dim)
-    model.write_mesh(os.path.join(work_dir, f"{mesh_name}.msh2"), gmsh.MeshFormat.msh2)
+    mesh_fname = sandbox_fname(mesh_name, "msh2")
+    model.write_mesh(mesh_fname, gmsh.MeshFormat.msh2)
 
     # check
     ref_shape_edges = {

@@ -1,11 +1,7 @@
 import pytest
-import os
 import numpy as np
 from bgem.gmsh import gmsh
-
-work_dir = "sandbox"
-def out_fname(base_name, ext):
-    return os.path.join(work_dir, f"{base_name}.{ext}")
+from fixtures import sandbox_fname
 
 def test_revolve_square():
     """
@@ -25,7 +21,7 @@ def test_revolve_square():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_cylinder_discrete():
@@ -47,7 +43,7 @@ def test_cylinder_discrete():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_extrude_circle():
@@ -67,7 +63,7 @@ def test_extrude_circle():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_extrude_rect():
@@ -87,7 +83,7 @@ def test_extrude_rect():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_extrude_polygon():
@@ -130,7 +126,7 @@ def test_extrude_polygon():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_fuse_boxes():
@@ -152,7 +148,7 @@ def test_fuse_boxes():
     mesh_all = [*all_obj]
 
     gen.make_mesh(mesh_all)
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_fuse_boxes2():
@@ -183,7 +179,7 @@ def test_fuse_boxes2():
     mesh_all = [*all_obj]
 
     gen.make_mesh(mesh_all)
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_splitting():
@@ -263,4 +259,4 @@ def test_splitting():
         i = i+1
 
     gen.make_mesh([*tunnel_parts, *splits])
-    gen.write_mesh(out_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
