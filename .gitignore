@@ -51,7 +51,14 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+# Test result files
 tests/*/*.html
+tests/*/*.msh2
+tests/*/*/*.msh2
+tutorials/*/*.msh2
+tests/*/*.brep
+tests/*/*/*.brep
+tutorials/*/*.brep
 **/sandbox/**
 
 # Sphinx documentation

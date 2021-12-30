@@ -5,11 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b05e335d-2121-4ce5-ba1a-132268bd48fb" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/fixtures.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/bspline/bspline.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/bspline/bspline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/gmsh/gmsh_io.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/gmsh/gmsh_io.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/decomp.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/decomp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/merge.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/merge.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/point.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/point.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/polygons.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/polygons.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/bspline/test_bspline.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/bspline/test_bspline.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/conftest.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/geometry/test_geometry.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/geometry/test_geometry.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_field.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_field.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_gmsh_sdk.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_gmsh_sdk.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tox.ini" beforeDir="false" afterPath="$PROJECT_DIR$/tox.ini" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -31,7 +41,7 @@
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/tests/bspline/test_bspline.py" />
   </component>
-  <component name="RunManager" selected="tox.tox all">
+  <component name="RunManager" selected="tox.tox in gmsh">
     <configuration name="tox all" type="Tox" factoryName="Tox">
       <module name="bgem" />
       <option name="INTERPRETER_OPTIONS" value="" />
