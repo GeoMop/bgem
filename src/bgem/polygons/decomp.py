@@ -79,6 +79,9 @@ class Decomposition:
         # Last polygon operation.
         # TODO: make full undo/redo history.
         #
+        self.split_shapes = []
+        # id_new holds id of new object which was created by splitting object with id_old
+        # [[dim, id_old, id_new],...]
         self.tolerance = 0.01
 
     def __repr__(self):
@@ -270,7 +273,9 @@ class Decomposition:
         self.pt_to_seg[(seg.vtxs[0].id, mid_pt.id)] = seg
 
         new_seg = self._make_segment((mid_pt, seg.vtxs[in_vtx]))
+        self.split_shapes.append([1, seg.id, new_seg.id])
         new_seg.attr = seg.attr
+        new_seg.deformability = seg.deformability
         seg.vtxs[in_vtx] = mid_pt
         seg._vector = seg.vtxs[in_vtx].xy - seg.vtxs[out_vtx].xy
         new_seg.connect_vtx(out_vtx, seg_tip_insert)
@@ -520,8 +525,9 @@ class Decomposition:
             # possible wires in the new inner_wire bubble
             for seg, side in inner_wire.segments():
                 side_wire = seg.wire[1-side]
-                assert side_wire == inner_wire or inner_wire.contains_wire(side_wire)
-                side_wire.set_parent(inner_wire)
+                if side_wire != inner_wire:
+                    assert inner_wire.contains_wire(side_wire)
+                    side_wire.set_parent(inner_wire)
 
             #self._update_wire_parents(orig_parent, outer_wire, inner_wire)
 
@@ -582,6 +588,7 @@ class Decomposition:
         new_poly = Polygon(left_wire)
         new_poly.attr = orig_poly.attr
         self.polygons.append(new_poly)
+        self.split_shapes.append([2, orig_poly.id, new_poly.id])
         left_wire.polygon = new_poly
 
         if orig_wire.polygon.outer_wire == orig_wire:

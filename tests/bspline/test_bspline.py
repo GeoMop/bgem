@@ -93,6 +93,16 @@ class TestSplineBasis:
                 s = sum([ basis.eval(i, x) for i in range(basis.size) ])
                 assert np.isclose(s, 1.0)
 
+        # explicit multiplicity
+        eq_basis = bs.SplineBasis.make_equidistant(2, 2, n_boundary=(1, 1))
+        assert eq_basis.size == 2
+        assert eq_basis.eval(0, 0.0) == 0.0
+        assert eq_basis.eval(0, 1.0) == 0.0
+        assert eq_basis.eval(0, 1 - 1e-10) < 1e-19
+        assert eq_basis.eval(1, 0.0) == 0.0
+        assert eq_basis.eval(1, 1.0) == 0.0
+        assert eq_basis.eval(1, 1e-10) < 1e-19
+
     def fn_supp(self):
         basis = bs.SplineBasis.make_equidistant(2, 4)
         for i in range(basis.size):

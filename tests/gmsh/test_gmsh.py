@@ -1,7 +1,9 @@
 from gmsh import model as gmsh_model
-from bgem.gmsh import gmsh
-import numpy as np
 import pytest
+import sys
+import numpy as np
+from bgem.gmsh import gmsh
+from fixtures import sandbox_fname
 from bgem.gmsh import gmsh_exceptions
 
 def test_exceptions():
@@ -21,7 +23,6 @@ def test_exceptions():
     with pytest.warns(Warning, match=r".* duplicate .*"):
         gen.remove_duplicate_entities()
 
-
 def test_revolve_square():
     """
     Test revolving a square.
@@ -40,7 +41,7 @@ def test_revolve_square():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_cylinder_discrete():
@@ -62,7 +63,7 @@ def test_cylinder_discrete():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_extrude_circle():
@@ -82,7 +83,7 @@ def test_extrude_circle():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_extrude_rect():
@@ -102,7 +103,7 @@ def test_extrude_rect():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_extrude_polygon():
@@ -145,7 +146,7 @@ def test_extrude_polygon():
 
     # gen.write_brep(mesh_name)
     gen.make_mesh(mesh_all)
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_fuse_boxes():
@@ -167,7 +168,7 @@ def test_fuse_boxes():
     mesh_all = [*all_obj]
 
     gen.make_mesh(mesh_all)
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_fuse_boxes2():
@@ -198,7 +199,7 @@ def test_fuse_boxes2():
     mesh_all = [*all_obj]
 
     gen.make_mesh(mesh_all)
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 
 def test_splitting():
@@ -278,7 +279,7 @@ def test_splitting():
         i = i+1
 
     gen.make_mesh([*tunnel_parts, *splits])
-    gen.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    gen.write_mesh(sandbox_fname(mesh_name, "msh2"), gmsh.MeshFormat.msh2)
 
 def test_2D_tunnel_cut():
     """
