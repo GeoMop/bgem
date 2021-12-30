@@ -1,8 +1,10 @@
 import pytest
+import os
 from gmsh import model as gmsh_model
 from bgem.gmsh import gmsh, field, options
 import numpy as np
 
+work_dir = "sandbox"
 
 
 
@@ -10,15 +12,20 @@ def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh
     """
     Create a mesh of dimension dim on a unit cube and
     compare element sizes to given reference funcion of coordinates.
+
+    dim: Create mesh of that dimension.
+    tolerance: maximum relative error of element sizes, actual size is max of edges, reference size is the field
+          evaluated in the barycenter
+    max_mismatch: maximum number of elements that could be over the tolerance
     """
     model = gmsh.GeometryOCC(mesh_name)
     rec = model.rectangle([100, 100])
     model.set_mesh_step_field(field)
-    model.write_brep()
+    model.write_brep(filename=os.path.join(work_dir, f"{mesh_name}.brep"))
     model.mesh_options.CharacteristicLengthMin = 0.5
     model.mesh_options.CharacteristicLengthMax = 100
     model.make_mesh([rec], dim=dim)
-    model.write_mesh(mesh_name + ".msh2", gmsh.MeshFormat.msh2)
+    model.write_mesh(os.path.join(work_dir, f"{mesh_name}.msh2"), gmsh.MeshFormat.msh2)
 
     # check
     ref_shape_edges = {
