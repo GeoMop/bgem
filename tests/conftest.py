@@ -11,6 +11,7 @@ import sys
 this_source_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(this_source_dir)
 
+print(sys.path)
 
 #https://stackoverflow.com/questions/37563396/deleting-py-test-tmpdir-directory-after-successful-test-case
 # @pytest.fixture(scope='session')
