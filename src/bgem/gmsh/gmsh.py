@@ -299,6 +299,14 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(dim, res)
 
+    def point(self, coord=[0, 0, 0]):
+        """
+        Add a geometrical point.
+        """
+        point_tag = self.model.addPoint(*coord)
+        self._need_synchronize = True
+        return self.object(0, point_tag)
+
     def line(self, a, b):
         """
         Make line between points a,b.
@@ -308,7 +316,7 @@ class GeometryOCC:
         res = self.model.addLine(*point_ids)
         self._need_synchronize = True
         return self.object(1, res)
-
+        
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
         """
         TODO: Better match GMSH API, possibly use origin as the default left corner.
@@ -445,6 +453,17 @@ class GeometryOCC:
         loop = self.model.addCurveLoop(lines, tag=-1)
         surface = self.model.addPlaneSurface([loop], tag=-1)
         return self.object(2, surface)
+
+    def import_shapes(self, fileName, highestDimOnly=True):
+        """
+        Import BREP, STEP or IGES shapes from the file fileName in the OpenCASCADE CAD representation.
+        :param fileName:
+        :param highestDimOnly:
+
+        """
+        shapes = self.model.importShapes(fileName, highestDimOnly=highestDimOnly)
+        self._need_synchronize = True
+        return ObjectSet(self, shapes, [Region.default_region[dim] for dim, _ in shapes])
 
 
 
