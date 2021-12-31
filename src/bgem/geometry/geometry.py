@@ -1158,10 +1158,10 @@ class LayerGeometry():
         :return:
         """
         # ignore shapes without ID - not part of the output
-        output_shapes = [si for si in self.all_shapes if hasattr(si.shape, 'id')]
+        output_shapes = [si for si in self.all_shapes if si.shape._brep_id is not None]
 
         # prepare dict: (dim, shape_id) : shape info
-        output_shapes.sort(key=lambda si: si.shape.id, reverse=True)
+        output_shapes.sort(key=lambda si: si.shape.brep_id, reverse=True)
         shape_by_dim = [[] for i in range(4)]
         for shp_info in output_shapes:
             dim = shp_info.dim()
@@ -1401,7 +1401,7 @@ class LayerGeometry():
                 raise Exception("Less then 2 tags.")
             dim = self.el_type_to_dim[el_type]
             shape_id = tags[1]
-            shape_info = self.gmsh_shape_dist[ (dim, shape_id)]
+            shape_info = self.gmsh_shape_dist[(dim, shape_id)]
 
             if not shape_info.free:
                 continue

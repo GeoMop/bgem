@@ -13,6 +13,11 @@ class Point(idmap.IdObject):
         self.segment = (None, None)
         # (seg, vtx_side) One of segments joined to the Point and local idx of the segment (out_vtx, in_vtx).
 
+    @property
+    def deformability(self):
+        deform_segments = (seg.deformability for seg, side in self.segments())
+        return min(deform_segments)
+
     def __repr__(self):
         return "Pt({}) {}".format(self.id, self.xy)
 
