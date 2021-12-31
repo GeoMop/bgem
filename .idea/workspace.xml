@@ -5,21 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b05e335d-2121-4ce5-ba1a-132268bd48fb" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/fixtures.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bgem/bspline/bspline.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/bspline/bspline.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bgem/gmsh/gmsh_io.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/gmsh/gmsh_io.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/decomp.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/decomp.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/merge.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/merge.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/point.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/point.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bgem/polygons/polygons.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/bgem/polygons/polygons.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/bspline/test_bspline.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/bspline/test_bspline.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/conftest.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/geometry/test_geometry.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/geometry/test_geometry.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/gmsh/test_field.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_field.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_gmsh.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/gmsh/test_gmsh_sdk.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/gmsh/test_gmsh_sdk.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tox.ini" beforeDir="false" afterPath="$PROJECT_DIR$/tox.ini" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -219,16 +205,16 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python tests.pytest in polygons" />
-      <item itemvalue="Python tests.pytest in gmsh" />
-      <item itemvalue="Python tests.pytest test_gmsh" />
-      <item itemvalue="Python tests.pytest test_field" />
-      <item itemvalue="Python tests.pytest test_bspline" />
-      <item itemvalue="Python tests.pytest in stochastic" />
-      <item itemvalue="tox.tox in stochastic" />
-      <item itemvalue="tox.tox in gmsh" />
       <item itemvalue="tox.tox all" />
+      <item itemvalue="tox.tox in gmsh" />
       <item itemvalue="tox.tox in polygons" />
+      <item itemvalue="tox.tox in stochastic" />
+      <item itemvalue="Python tests.pytest in gmsh" />
+      <item itemvalue="Python tests.pytest in polygons" />
+      <item itemvalue="Python tests.pytest in stochastic" />
+      <item itemvalue="Python tests.pytest test_bspline" />
+      <item itemvalue="Python tests.pytest test_field" />
+      <item itemvalue="Python tests.pytest test_gmsh" />
     </list>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />

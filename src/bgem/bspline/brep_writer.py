@@ -85,7 +85,9 @@ class BREPObject:
 
     @property
     def brep_id(self):
-        assert self._brep_id is not None
+        assert self._brep_id is not None, str(self)
+        #if self._brep_id is  None:
+        #    print("    None ID:", str(self))
         return self._brep_id
 
 
@@ -93,6 +95,7 @@ class BREPObject:
         # Generator of the child BREPObjets for the DFS.
         # Default no childs.
         return []
+
 
     @staticmethod
     def gather_groups(objs):
@@ -110,6 +113,8 @@ class BREPObject:
         # DFS recursive function.
         if id(self) in visited:
             return
+        #print(f"visited: {self}")
+        visited.add(id(self))
 
         self._dfs_previsit(groups)
         for ch in self._childs():
@@ -117,10 +122,24 @@ class BREPObject:
         self._dfs_postvisit(groups)
 
 
+    def _dfs_finish(self, visited:Set[int] = None):
+        # DFS recursive function.
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
+        for ch in self._childs():
+            ch._dfs_finish(visited)
+
+
+
     def _group_append(self, groups):
+        #print(f"append: {id(self):x} {self} ")
         group = groups[self._brep_group]
         group.append(self)
         self._brep_id = len(group)
+
 
 
     def _group_pass(self, groups):
@@ -804,19 +823,21 @@ class Shape(BREPObject):
     def _subrecordoutput(self, stream):
         stream.write("\n")
 
+    def _head(self):
+        return f"{id(self):x} {self.shpname} {str(self._brep_id)} "
+
+
     def __repr__(self):
         #if not hasattr(self, 'id'):
         #    self.index_all()
-        if len(self.childs)==0:
-            return ""
-        repr = ""
-        repr += self.shpname + " " + str(self._brep_id) + " : "
+        repr = self._head()
+        #if len(self.childs)==0:
+        #    return ""
+        repr += " : ["
         for child in self.childs:
-            repr+=child.__repr__()
-        repr+="\n"
-        for child in self.childs:
-            repr+=child.shape.__repr__()
-        repr+="\n"
+            repr += child.shape._head()
+        repr += "]"
+        repr += "\n"
         return repr
 
 
@@ -940,8 +961,6 @@ class Face(Shape):
 
     def _childs(self):
         # Finalize the shape.
-        if not self.repr:
-            self.implicit_surface()
         assert len(self.repr) == 1
 
         for repr, loc in self.repr:
@@ -950,6 +969,10 @@ class Face(Shape):
 
         yield from super()._childs()
 
+    def _dfs_finish(self, visited):
+        if not self.repr:
+            self.implicit_surface()
+        super(Face, self)._dfs_finish(visited)
 
     def implicit_surface(self):
         """
@@ -1001,7 +1024,7 @@ class Face(Shape):
     def _subrecordoutput(self, stream):
         assert len(self.repr) == 1
         surf,loc = self.repr[0]
-        stream.write("{} {} {} {}\n\n".format(self.restriction_flag, self.tol, surf._brep_id, loc._brep_id))
+        stream.write("{} {} {} {}\n\n".format(self.restriction_flag, self.tol, surf.brep_id, loc.brep_id))
 
 
 class Edge(Shape):
@@ -1073,6 +1096,7 @@ class Edge(Shape):
         :param location: Location object. Default is None = identity location.
         :return: None
         """
+        #print(f"attach: {self} {curve}")
         assert type(surface) == Surface
         assert type(curve) == Curve2D
         curve._eval_check(t_range[0], surface, self.points()[0])
@@ -1113,6 +1137,9 @@ class Edge(Shape):
 
     #def attach_continuity(self):
 
+    def _dfs_finish(self, visited):
+        if not self.repr:
+            self.implicit_curve()
 
     def _childs(self):
         # finalize
@@ -1121,28 +1148,29 @@ class Edge(Shape):
         assert len(self.repr) > 0
 
         for repr in self.repr:
-            if repr[0]==self.Repr.Curve2d:
+            if repr[0] == self.Repr.Curve2d:
                 yield repr[2]
                 yield repr[3]
                 yield repr[4]
-            elif repr[0]==self.Repr.Curve3d:
+            elif repr[0] == self.Repr.Curve3d:
                 yield repr[2]
                 yield repr[3]
         yield from super()._childs()
 
 
     def _subrecordoutput(self, stream):
+        #print(f"subrecord: {self} {id(self):x}")
         assert len(self.repr) > 0
         stream.write(" {} {} {} {}\n".format(self.tol,self.edge_flags[0],self.edge_flags[1],self.edge_flags[2]))
         for i,repr in enumerate(self.repr):
             if repr[0] == self.Repr.Curve2d:
                 curve_type, t_range, curve, surface, location = repr
                 stream.write("2 {} {} {} {} {}\n".format(
-                    curve._brep_id, surface._brep_id, location._brep_id,t_range[0],t_range[1] ))
+                    curve.brep_id, surface.brep_id, location.brep_id, t_range[0],t_range[1] ))
 
             elif repr[0] == self.Repr.Curve3d:
                 curve_type, t_range, curve, location = repr
-                stream.write("1 {} {} {} {}\n".format(curve._brep_id, location._brep_id, t_range[0], t_range[1]))
+                stream.write("1 {} {} {} {}\n".format(curve.brep_id, location.brep_id, t_range[0], t_range[1]))
         stream.write("0\n")
 
 
@@ -1235,6 +1263,9 @@ class Vertex(Shape):
 
     def _childs(self):
         for repr in self.repr:
+            if repr[0]==self.Repr.Surface:
+                yield repr[3] #surface
+                yield repr[4] #location
             if repr[0]==self.Repr.Curve2d:
                 yield repr[2] #curve
                 yield repr[3] #surface
@@ -1249,7 +1280,25 @@ class Vertex(Shape):
         stream.write("{}\n".format(self.tolerance))
         for i in self.point:
             stream.write("{} ".format(i))
-        stream.write("\n0 0\n\n") #no added <vertex data representation>
+        stream.write("\n")
+
+        # <vertex data representation>
+        for i,repr in enumerate(self.repr):
+            if repr[0] == self.Repr.Surface:
+                _, u, v, surface, location = repr
+                stream.write("3 {} {} {} {}\n".format(
+                    u, v, surface.brep_id, location.brep_id))
+            if repr[0] == self.Repr.Curve2d:
+                _, t, curve, surface, location = repr
+                stream.write("2 {} {} {} {}\n".format(
+                    t, curve.brep_id, surface.brep_id, location.brep_id))
+
+            elif repr[0] == self.Repr.Curve3d:
+                _, t, curve, location = repr
+                stream.write("1 {} {} {}\n".format(
+                    t, curve.brep_id, location.brep_id))
+
+        stream.write("\n0 0\n\n")
 
     def _surface_uv(self, surface):
         for r in self.repr:
@@ -1270,6 +1319,7 @@ def write_model(stream, compound, location=Identity):
     to the 'stream'.
     """
     assert isinstance(compound, Compound)
+    compound._dfs_finish()
     groups = BREPObject.gather_groups([Identity, compound, location])
     locations = groups[BREPGroup.locations]
     curves_3d = groups[BREPGroup.curves_3d]
@@ -1277,14 +1327,16 @@ def write_model(stream, compound, location=Identity):
     surfaces = groups[BREPGroup.surfaces]
     shapes = groups[BREPGroup.shapes]
 
-    # fix shape IDs
+    # modify IDs according to the BREP format
+    for loc in locations:
+        loc._brep_id -= 1
     n_shapes = len(shapes) + 1
     for shape in shapes:
         shape._brep_id = n_shapes - shape._brep_id
 
     stream.write("DBRep_DrawableShape\n\n")
     stream.write("CASCADE Topology V1, (c) Matra-Datavision\n")
-    stream.write("Locations {}\n".format(len(locations)))
+    stream.write("Locations {}\n".format(len(locations) - 1))
     for loc in locations:
         loc._brep_output(stream, groups)
 
@@ -1309,6 +1361,6 @@ def write_model(stream, compound, location=Identity):
     stream.write("\nTShapes {}\n".format(len(shapes)))
     for shape in shapes:
         shape._brep_output(stream, groups)
-    stream.write("\n+1 0")
+    stream.write(f"\n+1 {location.brep_id}")
 
 
