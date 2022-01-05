@@ -758,6 +758,12 @@ class Shape(BREPObject):
         # self.shpname: Shape name, defined in childs
         assert hasattr(self, 'shpname'),  self
 
+        # Valid types of the shape childs.
+        self.sub_types = []
+
+        # Name of particular shape
+        self.shpname = None
+
     def _childs(self):
         for sub_ref in self.childs:
             yield sub_ref.location
@@ -847,7 +853,9 @@ Writer can be generic implemented in bas class Shape.
 """
 
 class Compound(Shape):
-    def __init__(self, shapes=[]):
+    def __init__(self, shapes=None):
+        if shapes is None:
+            shapes = []
         self.sub_types =  [CompoundSolid, Solid, Shell, Wire, Face, Edge, Vertex]
         self.shpname = 'Co'
         super().__init__(shapes)
@@ -864,21 +872,21 @@ class Compound(Shape):
 
 
 class CompoundSolid(Shape):
-    def __init__(self, solids=[]):
+    def __init__(self, solids=None):
         self.sub_types = [Solid]
         self.shpname = 'Cs'
         super().__init__(solids)
 
 
 class Solid(Shape):
-    def __init__(self, shells=[]):
+    def __init__(self, shells=None):
         self.sub_types = [Shell]
         self.shpname='So'
         super().__init__(shells)
         self.set_flags((0, 1, 0, 0, 0, 0, 0))  # modified
 
 class Shell(Shape):
-    def __init__(self, faces=[]):
+    def __init__(self, faces=None):
         self.sub_types = [Face]
         self.shpname='Sh'
         super().__init__(faces)
@@ -886,7 +894,7 @@ class Shell(Shape):
 
 
 class Wire(Shape):
-    def __init__(self, edges=[]):
+    def __init__(self, edges=None):
         self.sub_types = [Edge]
         self.shpname='Wi'
         super().__init__(edges)
@@ -1138,13 +1146,11 @@ class Edge(Shape):
     #def attach_continuity(self):
 
     def _dfs_finish(self, visited):
-        if not self.repr:
+        if self.Repr.Curve3d not in [r[0] for r in self.repr]:
             self.implicit_curve()
 
     def _childs(self):
         # finalize
-        if not self.repr:
-            self.implicit_curve()
         assert len(self.repr) > 0
 
         for repr in self.repr:
