@@ -1,17 +1,6 @@
-"""
-Common code for tests.
-"""
-import os
-from pathlib import Path
+import logging
 from time import perf_counter
 from contextlib import contextmanager
-
-def sandbox_fname(base_name, ext):
-    work_dir = "sandbox"
-    Path(work_dir).mkdir(parents=True, exist_ok=True)
-    return os.path.join(work_dir, f"{base_name}.{ext}")
-
-# Timing context manager
 
 
 @contextmanager
@@ -35,5 +24,6 @@ class catch_time(object):
     def __repr__(self):
         return str(self)
 
-
+    def log_info(self, msg):
+        logging.info(f"{msg} : T={str(self)}")
 
