@@ -1148,6 +1148,12 @@ class Edge(Shape):
         assert len(self.repr) > 0
 
         for repr in self.repr:
+            if repr[0] == self.Repr.Curve3d:
+                break
+        else:
+            self.implicit_curve()
+
+        for repr in self.repr:
             if repr[0] == self.Repr.Curve2d:
                 yield repr[2]
                 yield repr[3]
