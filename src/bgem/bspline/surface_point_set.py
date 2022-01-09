@@ -21,11 +21,11 @@ def convex_hull_2d(sample):
         # print("sample: ", len(sample))
         # End points of line.
         h, t = base
-        normal = np.dot( ((0, -1), (1, 0)), (t - h))
+        normal = np.dot(((0, -1), (1, 0)), (t - h))
         # Distances from the line.
         dists = np.dot(sample - h, normal)
 
-        outer = sample[dists > 0, :] # extract points on the positive half-plane
+        outer = sample[dists > np.finfo(float).eps, :]  # extract points on the positive half-plane
         n_outer = len(outer)
         if n_outer == 0:
             return base
@@ -42,6 +42,7 @@ def convex_hull_2d(sample):
         x_coords = sample[:, 0]
         # Get left most and right most points.
         base = [sample[np.argmin(x_coords)], sample[np.argmax(x_coords)]] # extreme points in X coord
+
         return link(dome(sample, base), dome(sample, base[::-1]))
     else:
         return sample
@@ -193,6 +194,8 @@ class SurfacePointSet:
 
         if points.shape[1] > 3:
             self.set_weights(points[:, 3])
+        else:
+            self._weights = self._weights = np.ones_like(self._z_points)
 
     def __len__(self):
         return len(self._xy_points)
@@ -211,8 +214,7 @@ class SurfacePointSet:
 
     @property
     def weights(self):
-        if self._weights is None:
-            self._weights = np.ones_like(self._z_points)
+        assert self._weights is not None
         return self._weights[self.valid_points]
 
     @property
@@ -263,6 +265,8 @@ class SurfacePointSet:
         Explicitly set the weights of the given points.
         """
         self._invalidate()
+        if weights is None:
+            weights = np.ones_like(self._z_points)
         self._weights = np.atleast_1d(weights)
         mask = self._weights > 0
         self.update_valid_points(mask)
@@ -272,8 +276,8 @@ class SurfacePointSet:
         assert quad.shape == (4, 2)
         if np.any(quad != self._quad):
             self._quad = quad
-            self._invalidate()
-            self.set_weights(self._weights) # reset valid_points
+            # reset valid_points from weights
+            self.set_weights(self._weights)
 
     def compute_default_quad(self):
         """
@@ -313,3 +317,28 @@ class SurfacePointSet:
         points_uv = np.maximum(points_uv, np.array([0.0, 0.0]))
         points_uv = np.minimum(points_uv, np.array([1.0, 1.0]))
         self._uv_points = points_uv[self.valid_points]
+
+    def xyz(self):
+        new_data = np.empty((self.n_active, 3))
+        new_data[:, :2] = self.xy_points
+        new_data[:, 2] = self._z_points
+        return new_data
+
+    def remove_random(self, n):
+        """
+        Remove n random points from the set and return them as a new set.
+        """
+        subset = np.random.choice(np.arange(len(self)), n, replace=False)
+        mask = np.ones_like(self._z_points, dtype=bool)
+        mask[subset] = False
+        new_data = np.empty((n, 4))
+        new_data[:, :2] = self._xy_points[subset]
+        new_data[:, 2] = self._z_points[subset]
+        new_data[:, 3] = self._weights[subset]
+
+        self._invalidate()
+        self._xy_points = self._xy_points[mask]
+        self._z_points = self._z_points[mask]
+        self._valid_points = np.full_like(self._z_points, True)
+        self.set_weights(self._weights[mask])
+        return SurfacePointSet(new_data)

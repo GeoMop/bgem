@@ -69,3 +69,7 @@ def test_surface_set():
     assert np.allclose(sps.quad, [[-1,0], [0,-1], [1,0], [0,1]])
     # U = quad[2] - quad[1] = [1, 1]; V = quad[0] - quad[1] = [-1, 1]
     assert np.allclose(sps.uv_points, [[1, 0], [1,1], [0,1], [0,0], [0.75,0.25], [0.75,0.75]])
+
+    subset = sps.remove_random(2)
+    assert len(subset) == 2
+    assert len(sps) == 6
