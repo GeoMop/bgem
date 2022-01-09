@@ -35,6 +35,19 @@ class TestSplineBasis:
                 i_found = basis.find_knot_interval(x)
                 assert i_found == interval - 2, "i_found: {} i: {} j: {} x: {} ".format(i_found, interval-2, j, x)
 
+    def test_interval_functions(self):
+
+        knots = [0, 0, 0, 0.25, 0.6, 0.7, 1, 1, 1]
+        basis = bs.SplineBasis.make_from_knots(2, knots)
+        #
+        assert basis.knot_interval_bounds(0) == (0, 0.25)
+        assert basis.knot_interval_bounds(3) == (0.7, 1.0)
+        assert np.isclose(0.25, basis.interval_diff(0))
+        assert np.isclose(0.3, basis.interval_diff(3))
+        diffs = basis.interval_diff_vector()
+        assert len(diffs) == 4
+        assert np.isclose(0.25, diffs[0])
+        assert np.isclose(0.3, diffs[3])
 
     def test_packed_knots(self):
         """

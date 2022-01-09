@@ -168,6 +168,20 @@ class SplineBasis:
         """
         return (self.knots[i_interval + self.degree], self.knots[i_interval + self.degree + 1])
 
+    def interval_diff(self, i_interval):
+        return self.knots[i_interval + self.degree + 1] - self.knots[i_interval + self.degree]
+
+    def interval_diff_vector(self):
+        return self.knots[self.degree + 1: -self.degree] - self.knots[self.degree: -(self.degree + 1)]
+
+    def insert_knot(self, interval, knot):
+        pass
+
+    def update_eval(self, orig_interval, t_vec, basis_mat):
+        """
+        (t - t_i)/(t_(i+k) - t_i) * B_i_1 + (t_(i+k+1) - t)/(t_(i+k+1) - t_(i+1) * B_(i+1)_1
+
+        """
 
     def _basis(self, deg, idx, t):
         """
