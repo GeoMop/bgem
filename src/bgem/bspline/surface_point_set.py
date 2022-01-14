@@ -1,3 +1,9 @@
+"""
+TODO:
+- implement 3D convex hull and 3D identificaion of UVZ coordinate system
+  first plane fit, then current approach, full 3D transform of points into UVW,
+  advantage of having W as Z scaled to unit cube as well
+"""
 import numpy as np
 import pandas as pd
 import logging
@@ -116,6 +122,13 @@ def min_bounding_rect(hull):
 
     return corner_points
 
+def scale_relative(points, factor):
+    """
+    Scale D dim points relative to their barycenter.
+    :param points: N x D,
+    """
+    barycenter = np.mean(points, axis=0)
+    return barycenter + factor * (points[:, :] - barycenter[None, :])
 
 class SurfacePointSet:
     @classmethod
@@ -126,6 +139,7 @@ class SurfacePointSet:
         :param filename: Path to the input text file.
         :return: The approximation object.
         TODO: checkout datatable, should be fastest and without unnecessary dependencies
+
         """
         # with open(filename, 'r') as f:
         #     point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
@@ -271,11 +285,18 @@ class SurfacePointSet:
         mask = self._weights > 0
         self.update_valid_points(mask)
 
-    def set_quad(self, quad):
+    def set_quad(self, quad, overhang=0.0):
+        """
+        Set quadrilateral to specify parametric domain (UV square).
+        In fact only linear transform is used so the last point can be ommited.
+        :param quad: V direction, origin, U direction, UV corner (not used)
+        :param overhang: quad enlarged by given factor along all its sides.
+        """
         quad = np.atleast_2d(quad)
-        assert quad.shape == (4, 2)
-        if np.any(quad != self._quad):
-            self._quad = quad
+        assert 3 <= quad.shape[0] <= 4 and quad.shape[1] == 2
+        enlarged_quad = scale_relative(quad, 1 + overhang)
+        if np.any(enlarged_quad != self._quad):
+            self._quad = enlarged_quad
             # reset valid_points from weights
             self.set_weights(self._weights)
 
