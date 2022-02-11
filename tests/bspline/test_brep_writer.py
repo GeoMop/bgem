@@ -128,6 +128,7 @@ def prism():
 
 
 def prism_perturbed():
+    # prism with different numbering of edges and faces
     # 0, 0; top, bottom
     v1=bw.Vertex((0.0, 0.0, 1.0))
     v2=bw.Vertex((0.0, 0.0, 0.0))

@@ -213,12 +213,13 @@ class Location(BREPObject):
 
 
 
-    def __init__(self, matrix=None):
+    def __init__(self, matrix):
         """
         Constructor for elementary afine transformation.
         :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
         Last column is the translation vector.
-        matrix==None means identity location (ID=0).
+
+        Location() is deprecated use 'Identity' object instead.
 
         TODO: Make matrix parameter obligatory.
         """
@@ -755,14 +756,10 @@ class Shape(BREPObject):
         self.flags=ShapeFlag(0,1,0,1,0,0,0)
 
         super().__init__(group=BREPGroup.shapes)
-        # self.shpname: Shape name, defined in childs
-        assert hasattr(self, 'shpname'),  self
-
+        assert hasattr(self, 'brep_shpname'),  self
+        # Name of particular shape in BREP format, defined in childs.
+        assert hasattr(self, 'sub_types')
         # Valid types of the shape childs.
-        self.sub_types = []
-
-        # Name of particular shape
-        self.shpname = None
 
     def _childs(self):
         for sub_ref in self.childs:
@@ -816,7 +813,7 @@ class Shape(BREPObject):
 
 
     def _brep_output(self, stream, groups):
-        stream.write("{}\n".format(self.shpname))
+        stream.write("{}\n".format(self.brep_shpname))
         self._subrecordoutput(stream)
         self.flags._brep_output(stream)
         stream.write("\n")
@@ -830,7 +827,7 @@ class Shape(BREPObject):
         stream.write("\n")
 
     def _head(self):
-        return f"{id(self):x} {self.shpname} {str(self._brep_id)} "
+        return f"{id(self):x} {self.brep_shpname} {str(self._brep_id)} "
 
 
     def __repr__(self):
@@ -857,7 +854,7 @@ class Compound(Shape):
         if shapes is None:
             shapes = []
         self.sub_types =  [CompoundSolid, Solid, Shell, Wire, Face, Edge, Vertex]
-        self.shpname = 'Co'
+        self.brep_shpname = 'Co'
         super().__init__(shapes)
         #flags: free, modified, IGNORED, orientable, closed, infinite, convex
         self.set_flags( (1, 1, 0, 0, 0, 0, 0) ) # free, modified
@@ -874,21 +871,21 @@ class Compound(Shape):
 class CompoundSolid(Shape):
     def __init__(self, solids=None):
         self.sub_types = [Solid]
-        self.shpname = 'Cs'
+        self.brep_shpname = 'Cs'
         super().__init__(solids)
 
 
 class Solid(Shape):
     def __init__(self, shells=None):
         self.sub_types = [Shell]
-        self.shpname='So'
+        self.brep_shpname='So'
         super().__init__(shells)
         self.set_flags((0, 1, 0, 0, 0, 0, 0))  # modified
 
 class Shell(Shape):
     def __init__(self, faces=None):
         self.sub_types = [Face]
-        self.shpname='Sh'
+        self.brep_shpname='Sh'
         super().__init__(faces)
         self.set_flags((0, 1, 0, 1, 0, 0, 0))  # modified, orientable
 
@@ -896,7 +893,7 @@ class Shell(Shape):
 class Wire(Shape):
     def __init__(self, edges=None):
         self.sub_types = [Edge]
-        self.shpname='Wi'
+        self.brep_shpname='Wi'
         super().__init__(edges)
         self.set_flags((0, 1, 0, 1, 0, 0, 0))  # modified, orientable
         self._set_closed()
@@ -940,7 +937,7 @@ class Face(Shape):
         self.sub_types = [Wire, Edge]
         self.tol=tolerance
         self.restriction_flag =0
-        self.shpname = 'Fa'
+        self.brep_shpname = 'Fa'
 
         if type(wires) != list:
             wires = [ wires ]
@@ -1053,7 +1050,7 @@ class Edge(Shape):
         :param tolerance: Tolerance of the representation.
         """
         self.sub_types = [Vertex]
-        self.shpname = 'Ed'
+        self.brep_shpname = 'Ed'
         self.tol = tolerance
         self.repr = []
         self.edge_flags=(1,1,0)         # this is usual value
@@ -1225,7 +1222,7 @@ class Vertex(Shape):
         self.repr=[]
         # Number of edges in which vertex is used. Used internally to check closed wires.
         self.n_edges = 0
-        self.shpname = 'Ve'
+        self.brep_shpname = 'Ve'
         self.sub_types=[]
 
         super().__init__(childs=[])
@@ -1343,7 +1340,7 @@ def write_model(stream, compound, location=Identity):
     stream.write("DBRep_DrawableShape\n\n")
     stream.write("CASCADE Topology V1, (c) Matra-Datavision\n")
     stream.write("Locations {}\n".format(len(locations) - 1))
-    for loc in locations:
+    for loc in locations[1:]:
         loc._brep_output(stream, groups)
 
     stream.write("Curve2ds {}\n".format(len(curves_2d)))
