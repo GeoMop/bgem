@@ -1140,21 +1140,14 @@ class Edge(Shape):
         self.attach_to_3d_curve((0.0,1.0), Approx.line_3d( vtx_points ))
         return self
 
-    #def attach_continuity(self):
-
     def _dfs_finish(self, visited):
-        if self.Repr.Curve3d not in [r[0] for r in self.repr]:
+        if all( (r[0] != self.Repr.Curve3d for r in self.repr) ):
             self.implicit_curve()
+        # No need to finish Vertex
 
     def _childs(self):
         # finalize
         assert len(self.repr) > 0
-
-        for repr in self.repr:
-            if repr[0] == self.Repr.Curve3d:
-                break
-        else:
-            self.implicit_curve()
 
         for repr in self.repr:
             if repr[0] == self.Repr.Curve2d:
