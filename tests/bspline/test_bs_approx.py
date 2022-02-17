@@ -1,6 +1,8 @@
 import pytest
 import logging
-logging.basicConfig(filename='test_bs_approx.log', level=logging.INFO, force=True, filemode='w')
+logging.basicConfig(filename='test_bs_approx.log', level=logging.INFO, filemode='w')
+# Forcing the new setting works only since Python 3.8
+#logging.basicConfig(filename='test_bs_approx.log', level=logging.INFO, force=True, filemode='w')
 
 import os
 import numpy as np
