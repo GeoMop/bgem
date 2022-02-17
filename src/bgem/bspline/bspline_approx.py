@@ -284,7 +284,6 @@ class SurfaceApprox:
            and the regularization |grad surf(b)|_L2. Alternatively the cross-validation method can be applied.
 
         Approximation parameters can be passed in through kwargs or set in the object before the call.
-        :param quad: [(x1,y1), .. , (x4,y4)] Set vertices of different quad for the point set.
         :param nuv: (nu, nv) Set number of intervals of the resulting B-spline, in U and V direction
         :param max_iters: determines number refinement steps of the knot vectors , default (20)
         :param solver:
