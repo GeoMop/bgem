@@ -168,6 +168,26 @@ class SplineBasis:
         """
         return (self.knots[i_interval + self.degree], self.knots[i_interval + self.degree + 1])
 
+    def interval_centers(self):
+        return (self.knots[self.degree + 1: -self.degree] + self.knots[self.degree: -(self.degree+1)]) / 2
+
+    def interval_vector(self):
+        return self.knots[self.degree : -self.degree]
+
+    def interval_diff(self, i_interval):
+        return self.knots[i_interval + self.degree + 1] - self.knots[i_interval + self.degree]
+
+    def interval_diff_vector(self):
+        return self.knots[self.degree + 1: -self.degree] - self.knots[self.degree: -(self.degree + 1)]
+
+    def insert_knot(self, interval, knot):
+        pass
+
+    def update_eval(self, orig_interval, t_vec, basis_mat):
+        """
+        (t - t_i)/(t_(i+k) - t_i) * B_i_1 + (t_(i+k+1) - t)/(t_(i+k+1) - t_(i+1) * B_(i+1)_1
+
+        """
 
     def _basis(self, deg, idx, t):
         """
@@ -257,10 +277,10 @@ class SplineBasis:
 
     def eval_vector(self, i_int, t):
         """
-        This function compute base function of B-Spline curve on given subinterval.
+        Compute basis functions that are nonzero on the interval `i_int`, i.e. basis functions i_int up to i_int + degree.
         :param i_int: Interval in which 't' belongs. Three nonzero basis functions on this interval are evaluated.
-        :param t: Where to evaluate.
-        :return: Numpy array of three values.
+        :param t: Where to evaluate. float or vector
+        :return: Numpy array  (degree + 1) x N
         """
         if isinstance(t, float):
             values = []
@@ -273,15 +293,15 @@ class SplineBasis:
             t = np.atleast_1d(t)
             for ib in range(i_int, i_int + self.degree + 1):
                 values.append([self.eval(ib, t_item) for t_item in t])
-            return np.stack(values)
+            return np.array(values)
 
 
     def eval_diff_vector(self, i_int, t):
         """
-        This function compute derivative of base function of B-Spline curve on given subinterval.
-        :param i_int: Interval in which 't' belongs. Derivatives of the 3 nonzero basis functions on this interval are evaluated.
+        Compute derivative of the basis function nonzero on interval `i_int`.
+        :param i_int: Interval in which 't' belongs.
         :param t: Where to evaluate.
-        :return: Numpy array of three values.
+        :return: Numpy array of (degree + 1) x N
         """
         if isinstance(t, float):
             values = []
@@ -294,7 +314,7 @@ class SplineBasis:
             t = np.atleast_1d(t)
             for ib in range(i_int, i_int + self.degree + 1):
                 values.append([self.eval_diff(ib, t_item) for t_item in t])
-            return np.stack(values)
+            return np.array(values)
 
 
     """

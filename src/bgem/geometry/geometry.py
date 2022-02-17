@@ -510,12 +510,12 @@ class Interface:
         """
         axyz, bxyz = edge.points()
 
-        n_points = 16
+        n_points = 1000
         x_points = np.linspace(axyz[0], bxyz[0], n_points)
         y_points = np.linspace(axyz[1], bxyz[1], n_points)
         xy_points = np.stack( (x_points, y_points), axis =1)
         xyz_points = self.surface_approx.eval_xy_array(xy_points)
-        curve_xyz = bs_approx.curve_from_grid(xyz_points)
+        curve_xyz = bs_approx.curve_from_grid(xyz_points, tol=1e-5)
         start, end = curve_xyz.eval_array(np.array([0.0, 1.0]))
         check_point_tol( start, axyz, 1e-3)
         check_point_tol( end, bxyz, 1e-3)
