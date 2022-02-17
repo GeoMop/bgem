@@ -141,7 +141,7 @@ def curve_from_grid(points, **kwargs):
 
     """
     deg = kwargs.get('degree', 3)
-    tol = kwargs.get('tol', 0.01)
+    tol = kwargs.get('tol', 0.00001)
     weights = np.ones(points.shape[0])
     weights[0] = weights[-1] = 1000.0
     tck = scipy.interpolate.splprep(points.T, k=deg, s=tol, w = weights)[0]
@@ -398,12 +398,18 @@ class SurfaceApprox:
             with tools.catch_time("Computing error") as time:
                 #diff, diff_mat_max, err_mat_eucl2, std_dev =
                 err_vec = self._compute_errors(z_vec)
+                z_l2_error = z_vec @ (btb_mat @ z_vec - btwb_vec)
+                z_regul = np.sqrt(0.5 * reg_coef * z_vec @ (a_mat @ z_vec))
+
+                logging.info(f"btb err: {z_l2_error}, regul: {z_regul}")
                 #self.error = max_diff = np.max(diff)
                 #logging.info("Approximation error (max norm): {}".format(max_diff))
                 #logging.info("Standard deviation: {}".format(std_dev))
 
             # if self.validation_fr != 1.0:
             #     diff_compl = diff * self._w_quad_points_compl_mask # make sense only fow w_i in set(0,1)
+
+
 
             ref_vec_u, ref_vec_v, err_mat = self._mark_refinement(err_vec)
             #self.plot_error(err_mat, ref_vec_u, ref_vec_v)
@@ -433,10 +439,17 @@ class SurfaceApprox:
             patch_sizes = np.array([len(l) for l in self.point_loc]).reshape((self._u_basis.n_intervals, self._v_basis.n_intervals))
             u_patch_min = np.min(patch_sizes, axis=1)
             v_patch_min = np.min(patch_sizes, axis=0)
-            ref_vec_u = np.logical_and(ref_vec_u > 0, u_patch_min > 1)
-            ref_vec_v = np.logical_and(ref_vec_v > 0, v_patch_min > 1)
+            #logging.info(f"U refinement {ref_vec_u}, min patch size: {u_patch_min}")
+            #logging.info(f"V refinement {ref_vec_v}, min patch size: {u_patch_min}")
+            ref_vec_u = np.logical_and(ref_vec_u, u_patch_min > 1)
+            ref_vec_v = np.logical_and(ref_vec_v, v_patch_min > 1)
+            #logging.info(f"U refinement {ref_vec_u}")
+            #logging.info(f"V refinement {ref_vec_v}")
 
+    
             n_marked = sum(ref_vec_u) + sum(ref_vec_v)
+            #logging.info(f"N: {n_marked}, iters: {iters}")
+
             if n_marked == 0 or iters >= self.max_iters:
                 break
 
@@ -524,7 +537,7 @@ class SurfaceApprox:
         if error > self.tolerance :
             ref_vec_u = np.sum(err_mat, axis=1) / self._u_basis.interval_diff_vector()
             ref_vec_v = np.sum(err_mat, axis=0) / self._v_basis.interval_diff_vector()
-            logging.info(f"L2 refinement, error: {error} ")
+            logging.info(f"L2 refinement, error: {error} > {self.tolerance}")
             u_bound = np.quantile(ref_vec_u, 1 - self.refine_part)
             ref_vec_u = ref_vec_u > min(tol_density_sq_error, u_bound)
             v_bound = np.quantile(ref_vec_v, 1 - self.refine_part)

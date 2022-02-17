@@ -27,13 +27,20 @@ class PlottingPlotly:
         self.data_2d = []
 
     def add_curve_2d(self, X, Y, **kwargs):
-        self.data_2d.append(  go.Scatter(x=X, y=Y, mode = 'lines') )
+        marker = dict(
+            size=10,
+            color='blue',
+        )
+        marker.update(kwargs)
+        self.data_2d.append( go.Scatter(x=X, y=Y, mode = 'lines', marker=marker) )
+
 
     def add_points_2d(self, X, Y, **kwargs):
         marker = dict(
             size=10,
             color='red',
         )
+        marker.update(kwargs)
         self.data_2d.append(  go.Scatter(x=X, y=Y,
                          mode = 'markers',
                          marker=marker) )
@@ -115,21 +122,21 @@ class Plotting:
     def __init__(self, backend = PlottingPlotly()):
         self.backend = backend
 
-    def plot_2d(self, X, Y):
+    def plot_2d(self, X, Y, **marker_dict):
         """
         Add line scatter plot. Every plot use automatically different color.
         :param X: x-coords of points
         :param Y: y-coords of points
         """
-        self.backend.add_curve_2d(X,Y)
+        self.backend.add_curve_2d(X, Y, **marker_dict)
 
-    def scatter_2d(self, X, Y):
+    def scatter_2d(self, X, Y, **marker_dict):
         """
         Add point scatter plot. Every plot use automatically different color.
         :param X: x-coords of points
         :param Y: y-coords of points
         """
-        self.backend.add_points_2d(X,Y)
+        self.backend.add_points_2d(X, Y, **marker_dict)
 
     def plot_surface(self, X, Y, Z):
         """
