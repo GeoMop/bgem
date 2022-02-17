@@ -14,7 +14,7 @@ def sandbox_fname(base_name, ext):
 # Timing context manager
 
 
-@contextmanager
+#@contextmanager
 class catch_time(object):
     """
     Usage:

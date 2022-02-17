@@ -16,7 +16,7 @@ import numpy as np
 from bgem.bspline import bspline as bs, \
                          bspline_plot as bs_plot, \
                          bspline_approx as bs_approx
-from bgem.bspline.surface_point_set import SurfacePointSet
+from bgem.bspline import surface_point_set
 from fixtures import catch_time
 
 class TestQuad:
@@ -24,10 +24,10 @@ class TestQuad:
     Test detection of minimal bounding rectangle.
     Test detection of nuv.
     """
-    def __init__(self):
-        self.points = None
-        self. hull = None
-        self. quad = None
+    # def __init__(self):
+    #     self.points = None
+    #     self.hull = None
+    #     self.quad = None
 
     def show(self):
         plt = bs_plot.Plotting()
@@ -46,20 +46,20 @@ class TestQuad:
         self.points = np.random.randn(1000000, 2)
         with catch_time() as t:
             for i in range(1):
-                self.hull = bs_approx.convex_hull_2d(self.points)
+                self.hull = surface_point_set.convex_hull_2d(self.points)
         print(f"\nConvex hull of 1M points: {t}")
 
         with catch_time() as t:
             for i in range(10):
-                self.quad = bs_approx.min_bounding_rect(self.hull)
+                self.quad = surface_point_set.min_bounding_rect(self.hull)
         print(f"\nMin area bounding box: {t} s")
 
-        self.show()
+        #self.show()
         return
 
 
 def test_surface_set():
-    sps = SurfacePointSet.from_file("points_simple.csv", delimiter='\s+')
+    sps = surface_point_set.SurfacePointSet.from_file("points_simple.csv", delimiter='\\s+')
     assert(len(sps) == 8)
     assert sps.n_active == 6
     assert bool(sps.valid_points[5]) is False
