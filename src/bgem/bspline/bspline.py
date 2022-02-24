@@ -27,23 +27,25 @@ class SplineBasis:
     """
 
     @classmethod
-    def make_equidistant(cls, degree, n_intervals, knot_range=[0.0, 1.0]):
+    def make_equidistant(cls, degree, n_intervals, knot_range=[0.0, 1.0], n_boundary=(None, None)):
         """
         Returns spline basis for an eqidistant knot vector
         having 'n_intervals' subintervals.
         :param degree: degree of the spline basis
         :param n_intervals: Number of subintervals.
         :param knot_range: support of the spline, min and max valid 't'
+        :param n_boundary: multiplicity of the knots on the left and right side, None == degree
         :return: SplineBasis object.
         """
-        n = n_intervals + 2 * degree + 1
+        multiplicity_begin, multiplicity_end = [degree if n is None else n for n in n_boundary]
+        n = n_intervals + multiplicity_begin + multiplicity_end + 1
         knots = np.array((knot_range[0],) * n)
         diff = (knot_range[1] - knot_range[0]) / n_intervals
-        for i in range(degree + 1, n - degree):
-            knots[i] = (i - degree) * diff + knot_range[0]
-        knots[-degree - 1:] = knot_range[1]
+        for i in range(multiplicity_begin + 1, n - multiplicity_end):
+            knots[i] = (i - multiplicity_begin) * diff + knot_range[0]
+        knots[-multiplicity_end - 1:] = knot_range[1]
         return cls(degree, knots)
-
+        # TODO: test and push
 
     @classmethod
     def make_from_packed_knots(cls, degree, knots):
@@ -56,6 +58,15 @@ class SplineBasis:
         full_knots = [ q for q, mult in knots for i in range(mult)  ]
         return cls(degree, full_knots)
 
+    @classmethod
+    def make_from_knots(cls, degree, knots):
+        """
+        Construct basis from the vector of packed knots.
+        :param degree: Degree of the basis.
+        :param knots: List of knots with their multiplicities, [ (knot, mult), ..]
+        :return: SplineBasis object.
+        """
+        return cls(degree, knots)
 
     def __init__(self, degree, knots):
         """
@@ -66,10 +77,10 @@ class SplineBasis:
         assert degree >=0
         self.degree = degree
 
-        # check free ends
-        for i in range(self.degree):
-            assert knots[i] == knots[i+1]
-            assert knots[-i-1] == knots[-i-2]
+        # check free ends (need not to be the case)
+        #for i in range(self.degree):
+        #    assert knots[i] == knots[i+1]
+        #    assert knots[-i-1] == knots[-i-2]
         self.knots = np.array(knots)
 
         self.size = len(self.knots) - self.degree -1
@@ -90,12 +101,14 @@ class SplineBasis:
 
         # Set optimized functions for specific degrees.
         if self.degree == 2:
-            self.eval_base_vector = self._eval_vector_deg_2
-            self.eval_diff_base_vector = self._eval_diff_vector_deg_2
+            self.eval_vector = self._eval_vector_deg_2
+            self.eval_diff_vector = self._eval_diff_vector_deg_2
 
     def in_domain(self, t):
         """ True if  't' is in the domain of the basis. """
         return self.domain[0] <= t <= self.domain[1]
+
+
 
     def pack_knots(self):
         """
@@ -155,6 +168,26 @@ class SplineBasis:
         """
         return (self.knots[i_interval + self.degree], self.knots[i_interval + self.degree + 1])
 
+    def interval_centers(self):
+        return (self.knots[self.degree + 1: -self.degree] + self.knots[self.degree: -(self.degree+1)]) / 2
+
+    def interval_vector(self):
+        return self.knots[self.degree : -self.degree]
+
+    def interval_diff(self, i_interval):
+        return self.knots[i_interval + self.degree + 1] - self.knots[i_interval + self.degree]
+
+    def interval_diff_vector(self):
+        return self.knots[self.degree + 1: -self.degree] - self.knots[self.degree: -(self.degree + 1)]
+
+    def insert_knot(self, interval, knot):
+        pass
+
+    def update_eval(self, orig_interval, t_vec, basis_mat):
+        """
+        (t - t_i)/(t_(i+k) - t_i) * B_i_1 + (t_(i+k+1) - t)/(t_(i+k+1) - t_(i+1) * B_(i+1)_1
+
+        """
 
     def _basis(self, deg, idx, t):
         """
@@ -242,30 +275,46 @@ class SplineBasis:
         return poles
 
 
-    def eval_vector(self, i_base, t):
+    def eval_vector(self, i_int, t):
         """
-        This function compute base function of B-Spline curve on given subinterval.
+        Compute basis functions that are nonzero on the interval `i_int`, i.e. basis functions i_int up to i_int + degree.
         :param i_int: Interval in which 't' belongs. Three nonzero basis functions on this interval are evaluated.
-        :param t: Where to evaluate.
-        :return: Numpy array of three values.
+        :param t: Where to evaluate. float or vector
+        :return: Numpy array  (degree + 1) x N
         """
-        values = []
-        for ib in range(i_base, i_base + self.degree + 1):
-            values.append( self.eval(ib, t))
-        return values
+        if isinstance(t, float):
+            values = []
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append(self.eval(ib, t))
+            return np.array(values)
+        else:
+            assert isinstance(t, np.ndarray)
+            values = []
+            t = np.atleast_1d(t)
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append([self.eval(ib, t_item) for t_item in t])
+            return np.array(values)
 
 
-    def eval_diff_vector(self, i_base, t):
+    def eval_diff_vector(self, i_int, t):
         """
-        This function compute derivative of base function of B-Spline curve on given subinterval.
-        :param i_int: Interval in which 't' belongs. Derivatives of the 3 nonzero basis functions on this interval are evaluated.
+        Compute derivative of the basis function nonzero on interval `i_int`.
+        :param i_int: Interval in which 't' belongs.
         :param t: Where to evaluate.
-        :return: Numpy array of three values.
+        :return: Numpy array of (degree + 1) x N
         """
-        values = []
-        for ib in range(i_base, i_base + self.degree + 1):
-            values.append( self.eval_diff(ib, t))
-        return values
+        if isinstance(t, float):
+            values = []
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append(self.eval_diff(ib, t))
+            return np.array(values)
+        else:
+            assert isinstance(t, np.ndarray)
+            values = []
+            t = np.atleast_1d(t)
+            for ib in range(i_int, i_int + self.degree + 1):
+                values.append([self.eval_diff(ib, t_item) for t_item in t])
+            return np.array(values)
 
 
     """
@@ -283,10 +332,8 @@ class SplineBasis:
         :return: Numpy array of three values.
         Note: Keep code redundancy with 'diff' as optimization.
         """
-
-        basis_values = np.zeros(3)
-
-        tk1, tk2, tk3, tk4 = self.knots[i_int + 1 : i_int + 5]
+        deg = 2
+        tk1, tk2, tk3, tk4 = self.knots[i_int + 1 : i_int + deg + 3]
 
         d31 = tk3 - tk1
         d32 = tk3 - tk2
@@ -300,11 +347,13 @@ class SplineBasis:
         d31_d32 = d31 * d32
         d42_d32 = d42 * d32
 
-        basis_values[0] = (d3t * d3t) / d31_d32
-        basis_values[1] = ((dt1 * d3t) / d31_d32) + ((dt2 * d4t) / d42_d32)
-        basis_values[2] = (dt2 * dt2) / d42_d32
+        basis_values = (
+            (d3t * d3t) / d31_d32,
+            ((dt1 * d3t) / d31_d32) + ((dt2 * d4t) / d42_d32),
+            (dt2 * dt2) / d42_d32
+        )
+        return np.stack(basis_values)
 
-        return basis_values
 
 
     def _eval_diff_vector_deg_2(self, i_int, t):
@@ -315,10 +364,8 @@ class SplineBasis:
         :return: Numpy array of three values.
         Note: Keep code redundancy with 'diff' as optimization.
         """
-
-        basis_values = np.zeros(3)
-
-        tk1, tk2, tk3, tk4 = self.knots[i_int + 1: i_int + 5]
+        deg = 2
+        tk1, tk2, tk3, tk4 = self.knots[i_int + 1: i_int + deg + 3]
 
         d31 = tk3 - tk1
         d32 = tk3 - tk2
@@ -332,11 +379,13 @@ class SplineBasis:
         d31_d32 = d31 * d32
         d42_d32 = d42 * d32
 
-        basis_values[0] = -2 * d3t / d31_d32
-        basis_values[1] = (d3t - dt1) / d31_d32 + (d4t - dt2) / d42_d32
-        basis_values[2] = 2 * dt2 / d42_d32
+        basis_values = (
+            -2 * d3t / d31_d32,
+            (d3t - dt1) / d31_d32 + (d4t - dt2) / d42_d32,
+            2 * dt2 / d42_d32
+        )
+        return np.stack(basis_values)
 
-        return basis_values
 
 
 class Curve:

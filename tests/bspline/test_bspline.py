@@ -35,6 +35,19 @@ class TestSplineBasis:
                 i_found = basis.find_knot_interval(x)
                 assert i_found == interval - 2, "i_found: {} i: {} j: {} x: {} ".format(i_found, interval-2, j, x)
 
+    def test_interval_functions(self):
+
+        knots = [0, 0, 0, 0.25, 0.6, 0.7, 1, 1, 1]
+        basis = bs.SplineBasis.make_from_knots(2, knots)
+        #
+        assert basis.knot_interval_bounds(0) == (0, 0.25)
+        assert basis.knot_interval_bounds(3) == (0.7, 1.0)
+        assert np.isclose(0.25, basis.interval_diff(0))
+        assert np.isclose(0.3, basis.interval_diff(3))
+        diffs = basis.interval_diff_vector()
+        assert len(diffs) == 4
+        assert np.isclose(0.25, diffs[0])
+        assert np.isclose(0.3, diffs[3])
 
     def test_packed_knots(self):
         """
@@ -93,6 +106,16 @@ class TestSplineBasis:
                 s = sum([ basis.eval(i, x) for i in range(basis.size) ])
                 assert np.isclose(s, 1.0)
 
+        # explicit multiplicity
+        eq_basis = bs.SplineBasis.make_equidistant(2, 2, n_boundary=(1, 1))
+        assert eq_basis.size == 2
+        assert eq_basis.eval(0, 0.0) == 0.0
+        assert eq_basis.eval(0, 1.0) == 0.0
+        assert eq_basis.eval(0, 1 - 1e-10) < 1e-19
+        assert eq_basis.eval(1, 0.0) == 0.0
+        assert eq_basis.eval(1, 1.0) == 0.0
+        assert eq_basis.eval(1, 1e-10) < 1e-19
+
     def fn_supp(self):
         basis = bs.SplineBasis.make_equidistant(2, 4)
         for i in range(basis.size):
@@ -115,9 +138,13 @@ class TestSplineBasis:
             assert np.abs( x - t ) < 1e-15
 
     def check_eval_vec(self, basis, i, t):
+        t = np.atleast_1d(t)
         vec = basis.eval_vector(i, t)
+        assert vec.shape[0] == basis.degree + 1
+        n = vec.shape[1]
         for j in range(basis.degree + 1):
-            assert vec[j] == basis.eval(i + j, t)
+            for k in range(n):
+                assert vec[j, k] == basis.eval(i + j, t[k])
 
     def plot_basis_vec(self, basis):
         n_points = 401
@@ -143,6 +170,10 @@ class TestSplineBasis:
         self.check_eval_vec(basis, 3, 0.8)
         self.check_eval_vec(basis, 3, 1.0)
 
+        points = np.array([0.1, 0.15, 0.2])
+        self.check_eval_vec(basis, 0, points)
+        self.check_eval_vec(basis, 1, points + 0.25)
+
         basis = bs.SplineBasis.make_equidistant(3, 4)
         # self.plot_basis_vec(basis)
         self.check_eval_vec(basis, 0, 0.1)
@@ -151,12 +182,21 @@ class TestSplineBasis:
         self.check_eval_vec(basis, 3, 0.8)
         self.check_eval_vec(basis, 3, 1.0)
 
+        points = np.array([0.1, 0.15, 0.2])
+        self.check_eval_vec(basis, 0, points)
+        self.check_eval_vec(basis, 1, points + 0.25)
+
 
 
     def check_diff_vec(self, basis, i, t):
+        t = np.atleast_1d(t)
         vec = basis.eval_diff_vector(i, t)
+        assert vec.shape[0] == basis.degree + 1
+        n = vec.shape[1]
         for j in range(basis.degree + 1):
-            assert np.abs(vec[j] - basis.eval_diff(i + j, t)) < 1e-15
+            for k in range(n):
+                assert np.abs(vec[j, k] - basis.eval_diff(i + j, t[k])) < 1e-15
+
 
     def plot_basis_diff(self, basis):
         n_points = 401
@@ -182,6 +222,10 @@ class TestSplineBasis:
         self.check_diff_vec(basis, 3, 0.8)
         self.check_diff_vec(basis, 3, 1.0)
 
+        points = np.array([0.1, 0.15, 0.2])
+        self.check_diff_vec(basis, 0, points)
+        self.check_diff_vec(basis, 1, points + 0.25)
+
         basis = bs.SplineBasis.make_equidistant(3, 4)
         # self.plot_basis_diff(basis)
         self.check_diff_vec(basis, 0, 0.1)
@@ -190,6 +234,9 @@ class TestSplineBasis:
         self.check_diff_vec(basis, 3, 0.8)
         self.check_diff_vec(basis, 3, 1.0)
 
+        points = np.array([0.1, 0.15, 0.2])
+        self.check_diff_vec(basis, 0, points)
+        self.check_diff_vec(basis, 1, points + 0.25)
 
 
 class TestCurve:

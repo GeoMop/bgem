@@ -192,7 +192,7 @@ class Surface():
         :param geom_file_base:
         :return:
         """
-        self.z_surface = bspline_io.bs_zsurface_read(self.approximation)
+        self.z_surface = self.bs_zsurface_read(self.approximation)
         # Surface approx conatains transform
         #self.z_surface.transform(self.xy_transform)
 
@@ -245,7 +245,7 @@ class Surface():
         plt.plot(x_nodes, y_nodes, 'bo')
 
         # plot boundary
-        vtx = np.array([[0, 1], [0, 0], [1, 0], [1, 1], [0, 1]])
+        vtx = np.array([[0, 1], [0, 0], [1, 0], [1, 1], [0, 1]], dtype=float)
         xy = self.grid_surf.uv_to_xy(vtx)
 
         # variants of the same (for debugging)
@@ -256,6 +256,17 @@ class Surface():
 
         plt.plot(xy[:, 0], xy[:, 1], color='green')
         plt.show()
+
+    @staticmethod
+    def bs_zsurface_read(z_surface_io):
+        io = z_surface_io
+        u_basis = bs.SplineBasis(io.u_degree, io.u_knots)
+        v_basis = bs.SplineBasis(io.v_degree, io.v_knots)
+
+        z_surf = bs.Surface((u_basis, v_basis), io.poles, io.rational)
+        surf = bs.Z_Surface(io.orig_quad, z_surf)
+        surf.transform(io.xy_map, io.z_map)
+        return surf
 
 
 class Interface:
@@ -499,13 +510,13 @@ class Interface:
         """
         axyz, bxyz = edge.points()
 
-        n_points = 16
+        n_points = 1000
         x_points = np.linspace(axyz[0], bxyz[0], n_points)
         y_points = np.linspace(axyz[1], bxyz[1], n_points)
         xy_points = np.stack( (x_points, y_points), axis =1)
         xyz_points = self.surface_approx.eval_xy_array(xy_points)
-        curve_xyz = bs_approx.curve_from_grid(xyz_points)
-        start, end = curve_xyz.eval_array(np.array([0, 1]))
+        curve_xyz = bs_approx.curve_from_grid(xyz_points, tol=1e-5)
+        start, end = curve_xyz.eval_array(np.array([0.0, 1.0]))
         check_point_tol( start, axyz, 1e-3)
         check_point_tol( end, bxyz, 1e-3)
         edge.attach_to_3d_curve((0.0, 1.0), bw.curve_from_bs(curve_xyz))
@@ -514,7 +525,7 @@ class Interface:
         xy_points = np.array([ axyz[0:2], bxyz[0:2]])
         uv_points = self.surface_approx.xy_to_uv(xy_points)
         curve_uv = bs_approx.line( uv_points )
-        start, end = self.surface_approx.eval_array(curve_uv.eval_array(np.array([0, 1])))
+        start, end = self.surface_approx.eval_array(curve_uv.eval_array(np.array([0, 1], dtype=float)))
         check_point_tol( start, axyz, 1e-3)
         check_point_tol( end, bxyz, 1e-3)
         edge.attach_to_2d_curve((0.0, 1.0), bw.curve_from_bs(curve_uv), self.bw_surface)
@@ -856,7 +867,7 @@ class StratumLayer(GeoLayer):
             assert 0.0 <= xy_to_u[0] <= 1.0
             assert 0.0 <= xy_to_u[1] <= 1.0
             boundary_curve = edg_si.vert_curve(v_to_z, xy_to_u)
-            uv_vtx = boundary_curve.eval_array(np.array([0, 1]))
+            uv_vtx = boundary_curve.eval_array(np.array([0.0, 1.0]))
             # Fix errors in U coordinate which should be a sequence from 0 to 1.
             uv_vtx[:, 0] = np.clip(uv_vtx[:,0], 0.0, 1.0)
 
@@ -876,7 +887,7 @@ class StratumLayer(GeoLayer):
         v_vtxs = (edg_vtxs[:, 2] - v_to_z[0]) / (v_to_z[1] - v_to_z[0])
 
         #print("V-UV: ", list(zip(u_vtxs, v_vtxs)))
-        v_edge.shape.attach_to_plane(bw_surf, [u_coord, v_vtxs[0]], [u_coord, v_vtxs[1]])
+        v_edge.shape.attach_to_surface(bw_surf, [u_coord, v_vtxs[0]], [u_coord, v_vtxs[1]])
 
 
     def make_shapes(self):
@@ -1139,7 +1150,7 @@ class LayerGeometry():
         compound.set_free_shapes()
         self.brep_file = os.path.abspath(self.filename_base + ".brep")
         with open(self.brep_file, 'w') as f:
-            bw.write_model(f, compound, bw.Location())
+            bw.write_model(f, compound)
 
     def make_gmsh_shape_dict(self):
         """
@@ -1147,10 +1158,10 @@ class LayerGeometry():
         :return:
         """
         # ignore shapes without ID - not part of the output
-        output_shapes = [si for si in self.all_shapes if hasattr(si.shape, 'id')]
+        output_shapes = [si for si in self.all_shapes if si.shape._brep_id is not None]
 
         # prepare dict: (dim, shape_id) : shape info
-        output_shapes.sort(key=lambda si: si.shape.id, reverse=True)
+        output_shapes.sort(key=lambda si: si.shape.brep_id, reverse=True)
         shape_by_dim = [[] for i in range(4)]
         for shp_info in output_shapes:
             dim = shp_info.dim()
@@ -1390,7 +1401,7 @@ class LayerGeometry():
                 raise Exception("Less then 2 tags.")
             dim = self.el_type_to_dim[el_type]
             shape_id = tags[1]
-            shape_info = self.gmsh_shape_dist[ (dim, shape_id)]
+            shape_info = self.gmsh_shape_dist[(dim, shape_id)]
 
             if not shape_info.free:
                 continue

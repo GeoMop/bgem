@@ -1,11 +1,18 @@
-import numpy as np
-import gmsh
-import pytest
-
 """
 Auxiliary tests of the GMSH SDK API.
 Mainly tests to get insight how individual operations work and reproduce possible problems.
 """
+
+import os
+import numpy as np
+import gmsh
+import pytest
+from fixtures import sandbox_fname
+
+
+work_dir = "sandbox"
+def out_fname(base_name, ext):
+    return os.path.join(work_dir, f"{base_name}.{ext}")
 
 
 def test_extrude_polygon():
@@ -54,7 +61,7 @@ def test_extrude_polygon():
     nodes = gmsh.model.getBoundary(tube_dimtags, combined=False, oriented=False, recursive=True)
     print(nodes)
     p_dimtags = [(0, tag) for tag in point_tags]
-    gmsh.model.occ.setMeshSize(p_dimtags, size=0.2)
+    gmsh.model.occ.mesh.setSize(p_dimtags, size=0.2)
     gmsh.model.occ.synchronize()
     # generate mesh, write to file and output number of entities that produced error
     # gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 0.2)
@@ -68,7 +75,7 @@ def test_extrude_polygon():
     bad_entities = gmsh.model.mesh.getLastEntityError()
     print(bad_entities)
     # gmsh.fltk.run()
-    gmsh.write(file_name + ".msh2")
+    gmsh.write(sandbox_fname(file_name, "msh2"))
     gmsh.finalize()
 
 
