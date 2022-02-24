@@ -85,7 +85,9 @@ class BREPObject:
 
     @property
     def brep_id(self):
-        assert self._brep_id is not None
+        assert self._brep_id is not None, str(self)
+        #if self._brep_id is  None:
+        #    print("    None ID:", str(self))
         return self._brep_id
 
 
@@ -93,6 +95,7 @@ class BREPObject:
         # Generator of the child BREPObjets for the DFS.
         # Default no childs.
         return []
+
 
     @staticmethod
     def gather_groups(objs):
@@ -110,6 +113,8 @@ class BREPObject:
         # DFS recursive function.
         if id(self) in visited:
             return
+        #print(f"visited: {self}")
+        visited.add(id(self))
 
         self._dfs_previsit(groups)
         for ch in self._childs():
@@ -117,10 +122,24 @@ class BREPObject:
         self._dfs_postvisit(groups)
 
 
+    def _dfs_finish(self, visited:Set[int] = None):
+        # DFS recursive function.
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
+        for ch in self._childs():
+            ch._dfs_finish(visited)
+
+
+
     def _group_append(self, groups):
+        #print(f"append: {id(self):x} {self} ")
         group = groups[self._brep_group]
         group.append(self)
         self._brep_id = len(group)
+
 
 
     def _group_pass(self, groups):
@@ -194,12 +213,13 @@ class Location(BREPObject):
 
 
 
-    def __init__(self, matrix=None):
+    def __init__(self, matrix):
         """
         Constructor for elementary afine transformation.
         :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
         Last column is the translation vector.
-        matrix==None means identity location (ID=0).
+
+        Location() is deprecated use 'Identity' object instead.
 
         TODO: Make matrix parameter obligatory.
         """
@@ -736,8 +756,10 @@ class Shape(BREPObject):
         self.flags=ShapeFlag(0,1,0,1,0,0,0)
 
         super().__init__(group=BREPGroup.shapes)
-        # self.shpname: Shape name, defined in childs
-        assert hasattr(self, 'shpname'),  self
+        assert hasattr(self, 'brep_shpname'),  self
+        # Name of particular shape in BREP format, defined in childs.
+        assert hasattr(self, 'sub_types')
+        # Valid types of the shape childs.
 
     def _childs(self):
         for sub_ref in self.childs:
@@ -791,7 +813,7 @@ class Shape(BREPObject):
 
 
     def _brep_output(self, stream, groups):
-        stream.write("{}\n".format(self.shpname))
+        stream.write("{}\n".format(self.brep_shpname))
         self._subrecordoutput(stream)
         self.flags._brep_output(stream)
         stream.write("\n")
@@ -804,19 +826,21 @@ class Shape(BREPObject):
     def _subrecordoutput(self, stream):
         stream.write("\n")
 
+    def _head(self):
+        return f"{id(self):x} {self.brep_shpname} {str(self._brep_id)} "
+
+
     def __repr__(self):
         #if not hasattr(self, 'id'):
         #    self.index_all()
-        if len(self.childs)==0:
-            return ""
-        repr = ""
-        repr += self.shpname + " " + str(self._brep_id) + " : "
+        repr = self._head()
+        #if len(self.childs)==0:
+        #    return ""
+        repr += " : ["
         for child in self.childs:
-            repr+=child.__repr__()
-        repr+="\n"
-        for child in self.childs:
-            repr+=child.shape.__repr__()
-        repr+="\n"
+            repr += child.shape._head()
+        repr += "]"
+        repr += "\n"
         return repr
 
 
@@ -826,9 +850,11 @@ Writer can be generic implemented in bas class Shape.
 """
 
 class Compound(Shape):
-    def __init__(self, shapes=[]):
+    def __init__(self, shapes=None):
+        if shapes is None:
+            shapes = []
         self.sub_types =  [CompoundSolid, Solid, Shell, Wire, Face, Edge, Vertex]
-        self.shpname = 'Co'
+        self.brep_shpname = 'Co'
         super().__init__(shapes)
         #flags: free, modified, IGNORED, orientable, closed, infinite, convex
         self.set_flags( (1, 1, 0, 0, 0, 0, 0) ) # free, modified
@@ -843,31 +869,31 @@ class Compound(Shape):
 
 
 class CompoundSolid(Shape):
-    def __init__(self, solids=[]):
+    def __init__(self, solids=None):
         self.sub_types = [Solid]
-        self.shpname = 'Cs'
+        self.brep_shpname = 'Cs'
         super().__init__(solids)
 
 
 class Solid(Shape):
-    def __init__(self, shells=[]):
+    def __init__(self, shells=None):
         self.sub_types = [Shell]
-        self.shpname='So'
+        self.brep_shpname='So'
         super().__init__(shells)
         self.set_flags((0, 1, 0, 0, 0, 0, 0))  # modified
 
 class Shell(Shape):
-    def __init__(self, faces=[]):
+    def __init__(self, faces=None):
         self.sub_types = [Face]
-        self.shpname='Sh'
+        self.brep_shpname='Sh'
         super().__init__(faces)
         self.set_flags((0, 1, 0, 1, 0, 0, 0))  # modified, orientable
 
 
 class Wire(Shape):
-    def __init__(self, edges=[]):
+    def __init__(self, edges=None):
         self.sub_types = [Edge]
-        self.shpname='Wi'
+        self.brep_shpname='Wi'
         super().__init__(edges)
         self.set_flags((0, 1, 0, 1, 0, 0, 0))  # modified, orientable
         self._set_closed()
@@ -911,7 +937,7 @@ class Face(Shape):
         self.sub_types = [Wire, Edge]
         self.tol=tolerance
         self.restriction_flag =0
-        self.shpname = 'Fa'
+        self.brep_shpname = 'Fa'
 
         if type(wires) != list:
             wires = [ wires ]
@@ -940,8 +966,6 @@ class Face(Shape):
 
     def _childs(self):
         # Finalize the shape.
-        if not self.repr:
-            self.implicit_surface()
         assert len(self.repr) == 1
 
         for repr, loc in self.repr:
@@ -950,6 +974,10 @@ class Face(Shape):
 
         yield from super()._childs()
 
+    def _dfs_finish(self, visited):
+        if not self.repr:
+            self.implicit_surface()
+        super(Face, self)._dfs_finish(visited)
 
     def implicit_surface(self):
         """
@@ -1001,7 +1029,7 @@ class Face(Shape):
     def _subrecordoutput(self, stream):
         assert len(self.repr) == 1
         surf,loc = self.repr[0]
-        stream.write("{} {} {} {}\n\n".format(self.restriction_flag, self.tol, surf._brep_id, loc._brep_id))
+        stream.write("{} {} {} {}\n\n".format(self.restriction_flag, self.tol, surf.brep_id, loc.brep_id))
 
 
 class Edge(Shape):
@@ -1022,7 +1050,7 @@ class Edge(Shape):
         :param tolerance: Tolerance of the representation.
         """
         self.sub_types = [Vertex]
-        self.shpname = 'Ed'
+        self.brep_shpname = 'Ed'
         self.tol = tolerance
         self.repr = []
         self.edge_flags=(1,1,0)         # this is usual value
@@ -1073,6 +1101,7 @@ class Edge(Shape):
         :param location: Location object. Default is None = identity location.
         :return: None
         """
+        #print(f"attach: {self} {curve}")
         assert type(surface) == Surface
         assert type(curve) == Curve2D
         curve._eval_check(t_range[0], surface, self.points()[0])
@@ -1111,38 +1140,39 @@ class Edge(Shape):
         self.attach_to_3d_curve((0.0,1.0), Approx.line_3d( vtx_points ))
         return self
 
-    #def attach_continuity(self):
-
+    def _dfs_finish(self, visited):
+        if all( (r[0] != self.Repr.Curve3d for r in self.repr) ):
+            self.implicit_curve()
+        # No need to finish Vertex
 
     def _childs(self):
         # finalize
-        if not self.repr:
-            self.implicit_curve()
         assert len(self.repr) > 0
 
         for repr in self.repr:
-            if repr[0]==self.Repr.Curve2d:
+            if repr[0] == self.Repr.Curve2d:
                 yield repr[2]
                 yield repr[3]
                 yield repr[4]
-            elif repr[0]==self.Repr.Curve3d:
+            elif repr[0] == self.Repr.Curve3d:
                 yield repr[2]
                 yield repr[3]
         yield from super()._childs()
 
 
     def _subrecordoutput(self, stream):
+        #print(f"subrecord: {self} {id(self):x}")
         assert len(self.repr) > 0
         stream.write(" {} {} {} {}\n".format(self.tol,self.edge_flags[0],self.edge_flags[1],self.edge_flags[2]))
         for i,repr in enumerate(self.repr):
             if repr[0] == self.Repr.Curve2d:
                 curve_type, t_range, curve, surface, location = repr
                 stream.write("2 {} {} {} {} {}\n".format(
-                    curve._brep_id, surface._brep_id, location._brep_id,t_range[0],t_range[1] ))
+                    curve.brep_id, surface.brep_id, location.brep_id, t_range[0],t_range[1] ))
 
             elif repr[0] == self.Repr.Curve3d:
                 curve_type, t_range, curve, location = repr
-                stream.write("1 {} {} {} {}\n".format(curve._brep_id, location._brep_id, t_range[0], t_range[1]))
+                stream.write("1 {} {} {} {}\n".format(curve.brep_id, location.brep_id, t_range[0], t_range[1]))
         stream.write("0\n")
 
 
@@ -1191,7 +1221,7 @@ class Vertex(Shape):
         self.repr=[]
         # Number of edges in which vertex is used. Used internally to check closed wires.
         self.n_edges = 0
-        self.shpname = 'Ve'
+        self.brep_shpname = 'Ve'
         self.sub_types=[]
 
         super().__init__(childs=[])
@@ -1235,6 +1265,9 @@ class Vertex(Shape):
 
     def _childs(self):
         for repr in self.repr:
+            if repr[0]==self.Repr.Surface:
+                yield repr[3] #surface
+                yield repr[4] #location
             if repr[0]==self.Repr.Curve2d:
                 yield repr[2] #curve
                 yield repr[3] #surface
@@ -1249,7 +1282,25 @@ class Vertex(Shape):
         stream.write("{}\n".format(self.tolerance))
         for i in self.point:
             stream.write("{} ".format(i))
-        stream.write("\n0 0\n\n") #no added <vertex data representation>
+        stream.write("\n")
+
+        # <vertex data representation>
+        for i,repr in enumerate(self.repr):
+            if repr[0] == self.Repr.Surface:
+                _, u, v, surface, location = repr
+                stream.write("3 {} {} {} {}\n".format(
+                    u, v, surface.brep_id, location.brep_id))
+            if repr[0] == self.Repr.Curve2d:
+                _, t, curve, surface, location = repr
+                stream.write("2 {} {} {} {}\n".format(
+                    t, curve.brep_id, surface.brep_id, location.brep_id))
+
+            elif repr[0] == self.Repr.Curve3d:
+                _, t, curve, location = repr
+                stream.write("1 {} {} {}\n".format(
+                    t, curve.brep_id, location.brep_id))
+
+        stream.write("\n0 0\n\n")
 
     def _surface_uv(self, surface):
         for r in self.repr:
@@ -1270,6 +1321,7 @@ def write_model(stream, compound, location=Identity):
     to the 'stream'.
     """
     assert isinstance(compound, Compound)
+    compound._dfs_finish()
     groups = BREPObject.gather_groups([Identity, compound, location])
     locations = groups[BREPGroup.locations]
     curves_3d = groups[BREPGroup.curves_3d]
@@ -1277,15 +1329,17 @@ def write_model(stream, compound, location=Identity):
     surfaces = groups[BREPGroup.surfaces]
     shapes = groups[BREPGroup.shapes]
 
-    # fix shape IDs
+    # modify IDs according to the BREP format
+    for loc in locations:
+        loc._brep_id -= 1
     n_shapes = len(shapes) + 1
     for shape in shapes:
         shape._brep_id = n_shapes - shape._brep_id
 
     stream.write("DBRep_DrawableShape\n\n")
     stream.write("CASCADE Topology V1, (c) Matra-Datavision\n")
-    stream.write("Locations {}\n".format(len(locations)))
-    for loc in locations:
+    stream.write("Locations {}\n".format(len(locations) - 1))
+    for loc in locations[1:]:
         loc._brep_output(stream, groups)
 
     stream.write("Curve2ds {}\n".format(len(curves_2d)))
@@ -1309,6 +1363,6 @@ def write_model(stream, compound, location=Identity):
     stream.write("\nTShapes {}\n".format(len(shapes)))
     for shape in shapes:
         shape._brep_output(stream, groups)
-    stream.write("\n+1 0")
+    stream.write(f"\n+1 {location.brep_id}")
 
 

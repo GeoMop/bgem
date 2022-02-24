@@ -27,13 +27,20 @@ class PlottingPlotly:
         self.data_2d = []
 
     def add_curve_2d(self, X, Y, **kwargs):
-        self.data_2d.append(  go.Scatter(x=X, y=Y, mode = 'lines') )
+        marker = dict(
+            size=10,
+            color='blue',
+        )
+        marker.update(kwargs)
+        self.data_2d.append( go.Scatter(x=X, y=Y, mode = 'lines', marker=marker) )
+
 
     def add_points_2d(self, X, Y, **kwargs):
         marker = dict(
             size=10,
             color='red',
         )
+        marker.update(kwargs)
         self.data_2d.append(  go.Scatter(x=X, y=Y,
                          mode = 'markers',
                          marker=marker) )
@@ -55,6 +62,7 @@ class PlottingPlotly:
             # ),
             opacity=0.6
         )
+        marker.update(kwargs)
         self.data_3d.append( go.Scatter3d(
             x=X, y=Y, z=Z,
             mode='markers',
@@ -114,21 +122,21 @@ class Plotting:
     def __init__(self, backend = PlottingPlotly()):
         self.backend = backend
 
-    def plot_2d(self, X, Y):
+    def plot_2d(self, X, Y, **marker_dict):
         """
         Add line scatter plot. Every plot use automatically different color.
         :param X: x-coords of points
         :param Y: y-coords of points
         """
-        self.backend.add_curve_2d(X,Y)
+        self.backend.add_curve_2d(X, Y, **marker_dict)
 
-    def scatter_2d(self, X, Y):
+    def scatter_2d(self, X, Y, **marker_dict):
         """
         Add point scatter plot. Every plot use automatically different color.
         :param X: x-coords of points
         :param Y: y-coords of points
         """
-        self.backend.add_points_2d(X,Y)
+        self.backend.add_points_2d(X, Y, **marker_dict)
 
     def plot_surface(self, X, Y, Z):
         """
@@ -166,13 +174,13 @@ class Plotting:
         x_poles, y_poles = curve.poles.T[0:2, :]    # remove weights
         return self.backend.add_points_2d(x_poles, y_poles)
 
-    def scatter_3d(self, X, Y, Z):
+    def scatter_3d(self, X, Y, Z, **marker_dict):
         """
         Add point scatter plot. Every plot use automatically different color.
         :param X: x-coords of points
         :param Y: y-coords of points
         """
-        self.backend.add_points_3d(X, Y, Z)
+        self.backend.add_points_3d(X, Y, Z, **marker_dict)
 
 
     def plot_surface_3d(self, surface, n_points=(100, 100), poles=False):
