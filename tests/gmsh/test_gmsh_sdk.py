@@ -54,7 +54,7 @@ def test_extrude_polygon():
     nodes = gmsh.model.getBoundary(tube_dimtags, combined=False, oriented=False, recursive=True)
     print(nodes)
     p_dimtags = [(0, tag) for tag in point_tags]
-    gmsh.model.occ.setMeshSize(p_dimtags, size=0.2)
+    gmsh.model.occ.mesh.setSize(p_dimtags, size=0.2)
     gmsh.model.occ.synchronize()
     # generate mesh, write to file and output number of entities that produced error
     # gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 0.2)

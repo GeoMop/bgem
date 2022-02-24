@@ -5,6 +5,10 @@ import enum
 import attr
 import numpy as np
 import gmsh
+import re
+
+from bgem.gmsh.field import Field
+from bgem.gmsh import options as gmsh_options
 
 
 
@@ -225,7 +229,8 @@ class GeometryOCC:
 
         self._region_names = {}
         self._need_synchronize = False
-
+        self.mesh_options = gmsh_options.Mesh()
+        self.geom_options = gmsh_options.Geometry()
         gmsh.option.setNumber("General.Terminal", kwargs.get('verbose', False))
 
     @staticmethod
@@ -286,6 +291,16 @@ class GeometryOCC:
             res = self.model.addVolume([surf_loop])
         self._need_synchronize = True
         return self.object(dim, res)
+
+    def line(self, a, b):
+        """
+        Make line between points a,b.
+        return: Object set with a single dimtag.
+        """
+        point_ids = [self.model.addPoint(*p) for p in [a,b]]
+        res = self.model.addLine(*point_ids)
+        self._need_synchronize = True
+        return self.object(1, res)
 
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
         """
@@ -544,6 +559,7 @@ class GeometryOCC:
             reg._gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
             gmsh.model.setPhysicalName(reg.dim, reg._gmsh_id, reg.name)
 
+
     def _set_mesh_step(self, obj: 'ObjectSet'):
         self.synchronize()
         step_to_dimtags = {}
@@ -557,17 +573,27 @@ class GeometryOCC:
 
         # sort from the largest to the smallest step
         step_to_dimtags_sorted = sorted(step_to_dimtags.items(), key=lambda item: item[0], reverse=True)
-
-        # set recursively the mesh step
         for step, dimtags in step_to_dimtags_sorted:
-            # Get boundary resursive to obtain nodes
-            try:
-                b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
-            except ValueError as err:
-                message = "\nobj dimtags: {} ...".format(str(dimtags[:10]))
-                raise GetBoundaryError(message) from err
-            nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
-            gmsh.model.mesh.setSize(nodes, step)
+            #self._set_size_recursive(dimtags, step)
+            self.model.mesh.setSize(dimtags, step)
+
+    def _set_size_recursive(self, dimtags, step):
+        # Workaround for non-functional occ.setSize.
+        # Get boundary resursive to obtain nodes
+        try:
+            b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
+        except ValueError as err:
+            message = "\nobj dimtags: {} ...".format(str(dimtags[:10]))
+            raise GetBoundaryError(message) from err
+        nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
+        gmsh.model.mesh.setSize(nodes, step)
+
+
+
+    def set_mesh_step_field(self, field: Field) -> None:
+        field.reset_id()
+        id = field.construct(self)
+        gmsh.model.mesh.field.setAsBackgroundMesh(id)
 
     def make_mesh(self, objects: List['ObjectSet'], dim=3, eliminate=True) -> None:
         """
@@ -607,6 +633,7 @@ class GeometryOCC:
         Format is given by extension (see MeshFormat for supported formats)
         If 'filename' is not provided it is determined by the model name given in constructor.
         In such case the format is given by the 'format' parameter.
+        TODO: check that mesh is created.
         """
         if filename is None:
             gmsh.option.setNumber('Mesh.Format', format)
@@ -627,10 +654,24 @@ class GeometryOCC:
             group_dimtags = []
         all_dimtags = set(gmsh.model.getEntities())
         remove_dimtags = all_dimtags.difference(set(group_dimtags))
-        try:
-            self.model.remove(list(remove_dimtags), recursive=True)
-        except ValueError:
-            pass
+        remove_dimtags = list(remove_dimtags)
+        # Recursive removal may lead to duplicate removal of dimtags.
+        # We sort the list by dimension avoid this.
+        remove_dimtags.sort()
+        while remove_dimtags:
+            try:
+                self.model.remove(remove_dimtags, recursive=True)
+            except Exception as e:
+                msg = str(e)
+                res = re.match('Unknown OpenCASCADE entity of dimension (\\d*) with tag (\\d*)', msg)
+                if res:
+                    dim, tag = int(res[1]), int(res[2])
+                    idx = remove_dimtags.index((dim, tag))
+                    remove_dimtags = remove_dimtags[idx+1:]
+                else:
+                    raise e
+            else:
+                remove_dimtags = []
 
     def all_entities(self):
         self.synchronize()
