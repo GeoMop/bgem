@@ -28,12 +28,25 @@ class SquareShape(LineShape):
     """
     Class represents the square fracture shape.
     """
-    _points = np.array([[-0.5, -0.5, 0], [0.5, 0, 0], [-0.5, -0.5, 0], [0.5, 0, 0]])
+    _points = np.array([[-0.5, -0.5, 0], [0.5, -0.5, 0], [0.5, 0.5, 0], [-0.5, 0.5, 0]])
 
 
 class DiscShape:
     """
     Class represents the square fracture shape.
+    """
+
+    @classmethod
+    def make_approx(cls, x_scale, y_scale, step=1.0):
+        n_sides = np.pi * min(x_scale, y_scale) / step
+        n_sides = max(4, n_sides)
+        angles = np.linspace(0, 2 * np.pi, n_sides, endpoint=False)
+        points = np.stack(np.cos(angles) * x_scale, np.sin(angles) * y_scale, np.ones_like(angles))
+        return points
+
+class ConvexPolygon:
+    """
+    Class represents the convex polygon shape.
     """
 
     @classmethod
@@ -70,8 +83,24 @@ class Fracture:
     # absolute term in plane equation
     _plane_coor_system: np.array = attr.ib(init=False, default=None)
     # local coordinate system
+    _vertices: np.array = attr.ib(init=False, default=None)
+    # coordinates of the vertices
+    _ref_vertices: np.array = attr.ib(init=False, default=None)
+    # local coordinates of the vertices (xy - plane)
     aspect: float = 1
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
+
+    @property
+    def vertices(self):
+        if self._vertices is None:
+            _vertices = self.transform(self.shape_class._points)
+        return _vertices
+
+    @property
+    def ref_vertices(self):
+        if self._ref_vertices is None:
+            _ref_vertices = self.shape_class._points
+        return _ref_vertices
 
     @property
     def rx(self):
@@ -108,55 +137,104 @@ class Fracture:
     @property
     def plane_coor_system(self):
         if self._plane_coor_system is None:
-            _plane_coor_system = self.transform(np.array([[1, 0, 0], [0, 1 ,0]]))
+            _plane_coor_system = self.transform(np.array([[1.0, 0, 0], [0, 1.0 ,0]]))
         return _plane_coor_system
 
-    def internal_point(self, points):
+    def get_angle_with_respect_normal(self,vec):
 
+        dot = self.normal[0] * vec[0] + self.normal[1] * vec[1] + self.normal[2] * vec[2]
+        angle = np.arccos((dot)/np.linalg(vec))
+
+        return angle
+
+    def internal_point_2d(self, points):
+        """
+        Determines the interior points of the fracture.
+        :param points: array (3,n)
+        :return:
+        polygon_points as list of int: indices od of the interior points in points
+        """
         polygon_points = []
-        for point in points:
-            eps = abs(self.normal[0] * point[0] + self.normal[1] * point[1] + self.normal[2] * point[2] - self.distance)\
-                  / math.sqrt(np.linalg.norm(self.normal)**2 + self.distance**2 )
-            if eps < 1e-15:
-                continue
+        for i in range(0,points.shape[0]):
+            #eps = abs(self.normal[0,0] * points[i,0] + self.normal[0,1] * points[i,1] + self.normal[0,2] * points[i,2] - self.distance)\
+            #      / math.sqrt(np.linalg.norm(self.normal)**2 + self.distance**2 )
+            #if eps < 1e-15:
+            #    continue
 
-            dot = np.zeros((self.vertices.shape()[1]))
-            for i in range(-1, self.vertices.shape()[1]):
-                bound_vec = self.vertices[i+1] - self.fracture.vertices[i]
-                sec_vec =  self.vertices[i+1] - point
-                dot[i+1] = bound_vec[0]*sec_vec[0] + bound_vec[1]*sec_vec[1] + bound_vec[2]*sec_vec[2]
+            dot = np.zeros((self.ref_vertices.shape[0]))
+            for j in range(-1, self.ref_vertices.shape[0]-1):
+                bound_vec = self.ref_vertices[j+1] - self.ref_vertices[j]
+                sec_vec = self.ref_vertices[j+1] - points[i,:]
+                dot[j+1] = bound_vec[0]*sec_vec[0] + bound_vec[1]*sec_vec[1] + bound_vec[2]*sec_vec[2]
 
-            if np.sum(abs(dot)) == self.vertices.shape()[1]:
-                polygon_points.append(point)
+            if np.sum(dot>0) == self.ref_vertices.shape[0] or np.sum(dot<0) == self.ref_vertices.shape[0]:
+                polygon_points.append(i)
+
+        #if polygon_points == []:
+        #     polygon_points = None
 
         return polygon_points
 
+    def dist_from_plane(self,point):
+     """
+        Computes distance from plane
+        :param point: array (3,)
+        :return: distance as double
+        """
+
+     dist = self.normal[0,0] * point[0] + self.normal[0,1] * point[1] + self.normal[0,2] * point[2] + self.distance
+     return dist
+
+
     def get_isec_with_line(self, x_0,loc_direct):
+        """
+        Computes intersection of the fracture and line x0 + t*loc_direct (in local coordinates).
+        :param x0: array (3,)
+        :param loc_direct: array (3,)
+        :return:
+        x_isec as list of array (3,): real intersection points
+        x_isec_false as list of array (3,): intersection points outside the edge of the fracture
+        x_isec_start_vert_ind as list of int: index of the nearest initial point of the false intersection point
+        """
 
         x_isec = []
+        x_isec_false = []
+        x_isec_start_vert_ind = []
 
-        bound_vec = np.array(self.vertices.shape)
-        x_0_b = np.array(self.vertices.shape)
+        bound_vec = np.zeros(self.shape_class._points.shape)
+        x_0_b = np.zeros(self.shape_class._points.shape)
 
-        for i in range(-1, self.vertices.shape()[1]):
-            bound_vec[:,i+1] = self.vertices[i+1] - self.fracture.vertices[i]
-            bound_vec[:,i+1] /= np.linalg.norm(bound_vec[:,i+1])
-            x_0_b[:,i+1] = self.fracture.vertices[i]
+        aspect = np.array([self.r, self.aspect * self.r, 1], dtype=float) # 0.5 *
+        points = self.shape_class._points #* aspect[None, :]  # self.shape_class._points
 
 
-        col2 = loc_direct
-        for i in range(0, self.vertices.shape()[1]+1):
-            col1 = bound_vec[:,i]
-            rhs = x_0 - x_0_b[:,i]
+
+        col2 = loc_direct[0]
+        for i in range(0, self.shape_class._points.shape[0]-1):
+            col1 = points[i]  - points[i-1]
+            rhs = (x_0 - points[i-1])[0]
             det = col1[0] * col2[1] - col1[1] * col2[0]
             det_x1 = rhs[0] * col2[1] - rhs[1] * col2[0]
             #colinear intersections (joins) should be solved in a different way
             if abs(det) > 0:
                 t = det_x1/det
-            if (t > 0) and (t < 1):
-                x_isec.append(x_0_b[:,i] + col1 * t)
+                if (t >= 0.0) and (t <= 1.0):
+                    x_isec.append(x_0_b[i] + col1 * t)
+                else:
+                    x_isec_false.append(x_0_b[i] + col1 * t)
+                if (t < 0.0):
+                    x_isec_start_vert_ind.append(i-1)
+                elif (t > 1.0):
+                    x_isec_start_vert_ind.append(i)
+            else:
+                if (i - 1) not in x_isec_start_vert_ind:
+                    x_isec_start_vert_ind.append(i-1)
+                    x_isec_false.append([])
+                if (i) not in x_isec_start_vert_ind:
+                    x_isec_start_vert_ind.append(i)
+                    x_isec_false.append([])
 
-        return x_isec
+        return x_isec, x_isec_false, x_isec_start_vert_ind
 
     def transform(self, points):
         """
@@ -164,13 +242,13 @@ class Fracture:
         :param points: array (n, 3)
         :return: transformed points
         """
-        aspect = np.array([0.5 * self.r, 0.5 * self.aspect * self.r, 1], dtype=float)
-        points[:, :] *= aspect[None, :]
+        aspect = np.array([self.r, self.aspect * self.r, 1], dtype=float)
+        t_points= points  * aspect[None, :] #[:, :]
         #points[:, :] *= aspect[:,None]
-        points = rotate(points, np.array([0, 0, 1]), self.shape_angle)
-        points = rotate(points, self.rotation_axis, self.rotation_angle)
-        points += self.centre[None, :]
-        return points
+        t_points = rotate(t_points, np.array([0, 0, 1]), self.shape_angle)
+        t_points = rotate(t_points, self.rotation_axis, self.rotation_angle)
+        t_points += self.centre[None, :]
+        return t_points
 
     def back_transform(self, points):
         """
@@ -178,13 +256,40 @@ class Fracture:
         :param points: array (n, 3)
         :return: transformed points
         """
-        aspect = np.array([0.5 * self.r, 0.5 * self.aspect * self.r, 1], dtype=float)
+        aspect = np.array([self.r, self.aspect * self.r, 1], dtype=float)
+        t_points = points - self.centre[None, :]
+        t_points = rotate(t_points, self.rotation_axis, -self.rotation_angle)
+        t_points = rotate(t_points, np.array([0, 0, 1]), -self.shape_angle)
+        t_points /= aspect[None, :]
+        return t_points
 
-        points -= self.centre[None, :]
-        points = rotate(points, self.rotation_axis, -self.rotation_angle)
-        points = rotate(points, np.array([0, 0, 1]), -self.shape_angle)
-        points[:, :] /= aspect[None, :]
-        return points
+
+    def transform_clear(self, points):
+        """
+        Map local points on the fracture to the 3d scene.
+        :param points: array (n, 3)
+        :return: transformed points
+        """
+        aspect = np.array([self.r, self.aspect * self.r, 1], dtype=float)
+        t_points= points  * aspect[None, :] #[:, :]
+        #points[:, :] *= aspect[:,None]
+        t_points = rotate(t_points, np.array([0, 0, 1]), self.shape_angle)
+        t_points = rotate(t_points, self.rotation_axis, self.rotation_angle)
+        #t_points += self.centre[None, :]
+        return t_points
+
+    def back_transform_clear(self, points):
+        """
+        Map points from 3d scene into local coordinate system.
+        :param points: array (n, 3)
+        :return: transformed points
+        """
+        aspect = np.array([self.r, self.aspect * self.r, 1], dtype=float)
+        #t_points = points - self.centre[None, :]
+        t_points = rotate(points, self.rotation_axis, -self.rotation_angle)
+        t_points = rotate(t_points, np.array([0, 0, 1]), -self.shape_angle)
+        t_points /= aspect[None, :]
+        return t_points
 
 def normal_to_axis_angle(normal): ## todo
     z_axis = np.array([0, 0, 1], dtype=float)

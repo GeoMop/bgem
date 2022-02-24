@@ -541,7 +541,6 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
 def compute_intersections(fractures: fracture.Fracture):
     surface = []
     fracs = []
-    edges = []
     n_fr = len(fractures)
 
     for fracture in fractures:
@@ -554,20 +553,9 @@ def compute_intersections(fractures: fracture.Fracture):
     for i in p:
         for j in p[i + 1:n_fr]:  # may be reduced to relevant adepts
             frac_isec = FIC.FracIsec(fractures[i],fractures[j])
-            points_A, points_B, conflict = frac_isec._get_points()
-            conflict.get_distance()
-
-            if len(points_A) > 0:
-                va1 = bw.Vertex(points_A[0,:])
-                if points_A.shape[0] == 2:
-                    va2 = bw.Vertex(points_A[1,:])
-                    ea1 = bw.Edge([va1, va2])
-
-            if len(points_B) > 0:
-                vb1 = bw.Vertex(points_B[0, :])
-                if points_B.shape[0] == 2:
-                    vb2 = bw.Vertex(points_B[1, :])
-                    eb1 = bw.Edge([vb1, vb2])
+            points_A, points_B = frac_isec._get_points()
+            if not((points_A == None) and (points_B == None)):
+                print('here')
 
 
 def check_duplicities(fi,fj,coor,vertices,tol):
