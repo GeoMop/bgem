@@ -12,17 +12,21 @@
 Primary focus are hydrogeological applications with geometries including both random fractures and deterministic natural or antropogenic features.
 
 ## Rationale
-GMSH is a mature meshing tool recently complemented by the `gmsh-sdk` intreface library. However its practical usage (from Python) have several issues:
+GMSH is a mature meshing tool providing a minimalistic API common for several languages. For Python the GMSH library and its Python API is accessible
+through the 'gmsh' package. However usage for practical applications is nontrivial partly due to intrinsic limitations of the underlaying OpenCASCADE 
+library and partly due to generic API lacking the Python idioms. In particular, we have identified following sort of problems:
 
-- Geometry bolean operations (based on OCC) doesn't preserve "compatible" geometry, i.e. boundary separation two volumes exists only once. This
-  makes major problems in meshing.
-- Lack of support to work with "groups of shapes". E.g. a group of subdomains fragmented by a fracture  network results in a mess of all resulting subshapes.
-  Note, that we must make a single fragmenting operation in order to get "compatible" geometry.
-- Compatible boundary shapes can only be retrieved from the final volume, loosing information about it's parts (e.g. boundary of internal hole vs. outer boundary).
-- The regions (physical groups in GMSH) are composed from the shapes, while the compatible geometry requests a single region per shape. So it seems logical to assigne regions to the shapes.
-- For thousands of regions, the internal GMSH/OCC algorithms are extremaly slow (probably do to quadratic complexity).
-- `gmsh-sdk` builds on semantics of GMSH scripting language leading to cumbersome usage from Python, namely for Fields and Options.
-
+- Geometry bolean operations (based on OCC) doesn't preserve "compatible" geometry, e.g. a surface separating two volumes can be duplicate, once for each volume. 
+  This produces a mesh with duplicated nodes loosing the coupling in the FEM simulations. Function for removal of duplicities is provided, but not reliable.
+- API only operates with atomic geometric entities lacking a support to organise them into logical groups, especialy after fragmenting due to bolean oeprations.
+- GMSH forms "physical groups" from the geometric entities so an entity can be part of two physical groups. That leads to duplicate elements after meshing, 
+  so we rather want "physical groups" (called "regions" for distinction) assigned to the geometric objects. We also want to preserve assigned regions during set operation if possible.
+- Consider an extracted boundary A' (e.g. for prescribing a boundary condition) of an object A. Once the object A is part of a set operation it becomes fragmented to a set B and 
+  there is no way how to get boundary corresponding to A'.
+- For thousands of "physical groups", the internal GMSH/OCC algorithms are extremaly slow (probably do to quadratic complexity).
+- The generic GMSH API is cumbersome, namely for Fields and Options.
+- For Fields related to the geometic entites these must be the final geometric entities, their fragmentation by boolean operations 
+  leads to spurious results. 
 
 
 ## Features:

@@ -325,56 +325,6 @@ def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
 
 
 
-class Quat:
-    """
-    Simple quaternion class as numerically more stable alternative to the Orientation methods.
-    TODO: finish, test, substitute
-    """
-
-    def __init__(self, q):
-        self.q = q
-
-    def __matmul__(self, other: 'Quat') -> 'Quat':
-        """
-        Composition of rotations. Quaternion multiplication.
-        """
-        w1, x1, y1, z1 = self.q
-        w2, x2, y2, z2 = other.q
-        w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-        x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
-        y = w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2
-        z = w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2
-        return Quat((w, x, y, z))
-
-    @staticmethod
-    def from_euler(a: float, b: float, c: float) -> 'Quat':
-        """
-        X-Y-Z Euler angles to quaternion
-        :param a: angle to rotate around Z
-        :param b: angle to rotate around X
-        :param c: angle to rotate around Z
-        :return: Quaterion for composed rotation.
-        """
-        return Quat([np.cos(a / 2), 0, 0, np.sin(a / 2)]) @ \
-               Quat([np.cos(b / 2), 0, np.sin(b / 2), 0]) @ \
-               Quat([np.cos(c / 2), np.sin(c / 2), 0, 0])
-
-    def axisangle_to_q(self, v, theta):
-        # convert rotation given by axis 'v' and angle 'theta' to quaternion representation
-        v = v / np.linalg.norm(v)
-        x, y, z = v
-        theta /= 2
-        w = np.cos(theta)
-        x = x * np.sin(theta)
-        y = y * np.sin(theta)
-        z = z * np.sin(theta)
-        return w, x, y, z
-
-    def q_to_axisangle(self, q):
-        # convert from quaternion to rotation given by axis and angle
-        w, v = q[0], q[1:]
-        theta = np.acos(w) * 2.0
-        return v / np.linalg.norm(v), theta
 
 
 @attr.s(auto_attribs=True)
@@ -1334,3 +1284,56 @@ def fr_intersect(fractures):
     # w_vec ... unit normal
     # fractures with angle that their max distance in the case of intersection
     # is not greater the 'epsilon'
+
+
+
+# class Quat:
+#     """
+#     Simple quaternion class as numerically more stable alternative to the Orientation methods.
+#     TODO: finish, test, substitute
+#     """
+#
+#     def __init__(self, q):
+#         self.q = q
+#
+#     def __matmul__(self, other: 'Quat') -> 'Quat':
+#         """
+#         Composition of rotations. Quaternion multiplication.
+#         """
+#         w1, x1, y1, z1 = self.q
+#         w2, x2, y2, z2 = other.q
+#         w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+#         x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+#         y = w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2
+#         z = w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2
+#         return Quat((w, x, y, z))
+#
+#     @staticmethod
+#     def from_euler(a: float, b: float, c: float) -> 'Quat':
+#         """
+#         X-Y-Z Euler angles to quaternion
+#         :param a: angle to rotate around Z
+#         :param b: angle to rotate around X
+#         :param c: angle to rotate around Z
+#         :return: Quaterion for composed rotation.
+#         """
+#         return Quat([np.cos(a / 2), 0, 0, np.sin(a / 2)]) @ \
+#                Quat([np.cos(b / 2), 0, np.sin(b / 2), 0]) @ \
+#                Quat([np.cos(c / 2), np.sin(c / 2), 0, 0])
+#
+#     def axisangle_to_q(self, v, theta):
+#         # convert rotation given by axis 'v' and angle 'theta' to quaternion representation
+#         v = v / np.linalg.norm(v)
+#         x, y, z = v
+#         theta /= 2
+#         w = np.cos(theta)
+#         x = x * np.sin(theta)
+#         y = y * np.sin(theta)
+#         z = z * np.sin(theta)
+#         return w, x, y, z
+#
+#     def q_to_axisangle(self, q):
+#         # convert from quaternion to rotation given by axis and angle
+#         w, v = q[0], q[1:]
+#         theta = np.acos(w) * 2.0
+#         return v / np.linalg.norm(v), theta
