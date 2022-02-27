@@ -1,7 +1,0 @@
-Plugin(Distance).PhysicalPoint=0;
-Plugin(Distance).PhysicalLine=0;
-Plugin(Distance).PhysicalSurface=0;
-Plugin(Distance).DistanceType=0;
-Plugin(Distance).MinScale=0;
-Plugin(Distance).MaxScale=0;
-Plugin(Distance).Run;

@@ -24,7 +24,10 @@ from bgem.gmsh import field as gmsh_field
 from bgem.stochastic import fracture
 from bgem.bspline import brep_writer as bw
 
-script_dir = os.path.dirname(os.path.realpath(__file__))
+
+from fixtures import sandbox_fname
+
+#script_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 # def test_touch():
@@ -136,7 +139,7 @@ def test_angle():
 
     comp = bw.Compound(faces)
     loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
-    with open('positions_angle_test.brep', "w") as f:
+    with open(sandbox_fname('positions_angle_test', 'brep'), "w") as f:
         bw.write_model(f, comp, loc)
 
     return
@@ -183,7 +186,7 @@ def test_cross():
 
     comp = bw.Compound(faces)
     loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
-    with open('positions_cross_test.brep', "w") as f:
+    with open(sandbox_fname('positions_cross_test', 'brep'), "w") as f:
         bw.write_model(f, comp, loc)
 
     return

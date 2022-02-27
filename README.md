@@ -34,10 +34,10 @@ library and partly due to generic API lacking the Python idioms. In particular, 
 Longterm goal to have own CAD like library producing only compatible geometries (indepdent of OCC).
 - representation of B-spline curves and surfaces
 - approximation of point clouds by B-spline curves and surfaces
-- intersections of curves and surfaces
+- (in progress) intersections of curves and surfaces
 - composition of compatible 3D geometries using BREP format and B-splines
-- ultimate goal: fast algorithms for B-spline logical operations
-- work in progress
+- (in progress) ultimate goal: fast algorithms for B-spline logical operations
+
 
 ### bgem.gmsh
 Wrapping 'gmsh-sdk' meat and bones into enjoyable being.
@@ -45,7 +45,6 @@ Wrapping 'gmsh-sdk' meat and bones into enjoyable being.
 - documented and usable wrapper for 'Fields'
 - operations with groups of shapes
 - own association of shapes with regions, assigned just before meshing or even after meshing
-- work in progress
 
 ### bgem.polygons
 Decomposition of the plane into disjoint polygons by line segments. 
@@ -53,6 +52,13 @@ Decomposition of the plane into disjoint polygons by line segments.
 - support for merging close points and segments with sharp angles (enhance regularity of resulting mesh)
 - support for assignment of regions (or other data) to the shapes (points, segments, polygons)
 - support for undo/redo of the operations
+
+### bgem.dfn
+Stochastic discrete fracture network.
+- stochastic description and realization of raw a fracture set
+- (in progress) calculating intersections
+- (in progress) regularization of the fracture network
+
 
 ## Installation
 

@@ -24,11 +24,13 @@ from bgem.gmsh import field as gmsh_field
 from bgem.stochastic import fracture
 from bgem.bspline import brep_writer as bw
 
-script_dir = os.path.dirname(os.path.realpath(__file__))
+from fixtures import sandbox_fname
+
+
+#script_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 def test_trans():
-
     """
     Create the BREP file from a list of fractures using the brep writer interface.
     """
@@ -74,7 +76,7 @@ def test_trans():
     #faces = get_face(frac_B,faces)
 
     frac_isec = FIC.FracIsec(frac_X1,frac_X2)
-    points_A, points_B = frac_isec._get_points()
+    points_A, points_B, conflict = frac_isec._get_points()
     print('here')
     #v1 = bw.Vertex(frac[2, :])
     #v2 = bw.Vertex(frac[3, :])
@@ -82,7 +84,7 @@ def test_trans():
 
     comp = bw.Compound(faces)
     loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
-    with open('trans_test.brep', "w") as f:
+    with open(sandbox_fname('trans_test','brep'), "w") as f:
         bw.write_model(f, comp, loc)
 
     return
