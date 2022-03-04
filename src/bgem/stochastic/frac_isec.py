@@ -5,11 +5,59 @@ from bgem.stochastic import isec_conflict as IC
 
 class FracIsec:
     """
-    Point as the result of intersection with corresponding coordinates on both surfaces
+    Intersection of two fractures.
+    TODO:
+    Fast detection of intersection of bounding polytops - blow up fracture by tolerance
+    1. Try to use some library for Kd trees - limit cube inner size from bellow by tolerance
+    2. for candidate fracture pair A,B :
 
-    """
+        """
+    @staticmethod
+    def colision_indicator(fracture_A, fracture_B, tol):
+        """
+        Indicator of collision based on bounding boxs aligned with fracture and intersection line.
+        False implies no collision guaranteed.
+        """
+        nA = fracture_A.normal[0]
+        nB = fracture_B.normal[0]
+        isec_direction = np.cross(nA, nB)
+        cross_norm = np.linalg.norm(isec_direction)
+        isec_direction /= cross_norm
+        perp_A = np.cross(nA, isec_direction)
+        perp_B = np.cross(nB, isec_direction)
 
-    def __init__(self, fracture_A,fracture_B):
+        # origin - center of fracture in 0,0 of the local system
+        # diameter of the bounding box plus tolerance
+        RA = np.linalg.norm(fracture_A.scale) + tol
+        RB = np.linalg.norm(fracture_B.scale) + tol
+
+        # Bounding rectangle of the fracture in the local intersecion system
+        # ( -R,+R) in isec_direction
+        # ( -Q,+Q) in perpendircular direction
+        # Q = R + tol / |tan(phi)| , phi - is angle between normals = angle between surfaces
+        # cos(phi) = nA @ nB
+        # |sin(phi)| = cross_norm
+        tol_shadow = tol * cross_norm / (nA @ nB)
+        QA = RA + tol_shadow
+        QB = RB + tol_shadow
+
+        # Is intersection line further then QA | QB from origionA | originB ?
+        # a ... dist line to orig A
+        # b ... dist line to orig B
+
+        # A eq: nA @ X = nA @ oA
+        # X = oA + a * pA
+        # B eq: nB @ X = nB @ oB
+        # nB @ oA + a * nB @ pA  = nB @ oB
+        center_diff = fracture_B.center - fracture_A.center
+        a = nB @ center_diff / nB @ perp_A
+        b = - nA @ center_diff / nA @ perp_B
+
+        if -QA < a < QA and -QB < b < QB and isec_direction @ center_diff < RA + RB:
+            return True
+        return False
+
+    def __init__(self, fracture_A, fracture_B):
         """
         :param vertices: vertices of the fracture as numpy array 3x4
         :param x_loc: normalized vector of local x-axis as numpy array 3x1
@@ -26,14 +74,21 @@ class FracIsec:
         self.loc_x0_B = None
         self.loc_direct_C_B = None
 
-    def _get_points(self):
+    def _get_points(self, tol):
+        """
+        Calculate intersection / incidence of close fractures.
+        """
 
         self._get_isec_eqn()
         points_A,points_false_A, points_init_ind_A = self._get_frac_isecs(self.fracture_A, self.fracture_B,self.loc_x0_A,self.loc_direct_C_A)
         points_B,points_false_B, points_init_ind_B = self._get_frac_isecs(self.fracture_B, self.fracture_A,self.loc_x0_B,self.loc_direct_C_B)
-        conflict = IC.IsecConflict(self.fracture_A,self.fracture_B, points_false_A ,points_false_B,points_init_ind_A, points_init_ind_B)
 
-        return points_A, points_B, conflict
+        conflict = IC.IsecConflict(self.fracture_A,self.fracture_B, points_false_A ,points_false_B,points_init_ind_A, points_init_ind_B)
+        conflict.get_distance()
+
+        self.have_colision = len(points_A) + len(points_B) > 0 or min([0.0,*conflict.AB_dist, *conflict.BA_dist]) < tol
+        return points_A, points_B
+
 
     def _get_frac_isecs(self,fracture_A,fracture_B,loc_x0,loc_direct):
 
@@ -59,9 +114,9 @@ class FracIsec:
         normal_A = self.fracture_A.normal
         normal_B = self.fracture_B.normal
 
-        a_1 = normal_A[0,0]
-        a_2 = normal_A[0,1]
-        a_3 = normal_A[0,2]
+        a_1 = normal_A[0, 0]
+        a_2 = normal_A[0, 1]
+        a_3 = normal_A[0, 2]
 
         b_1 = normal_B[0,0]
         b_2 = normal_B[0,1]
@@ -69,19 +124,23 @@ class FracIsec:
 
         self.direct_C = np.array([[a_2 * b_3 - a_3 * b_2, a_3 * b_1 - a_1 * b_3, a_1 * b_2 - a_2 * b_1 ]])
         self.direct_C = self.direct_C/np.linalg.norm(self.direct_C)
-       # np.cross(normal_A,normal_B)#
+        # np.cross(normal_A,normal_B)#
+        # Unit direction vector of the intersection line.
+
         a_4 = self.fracture_A.distance
         b_4 = self.fracture_B.distance
+        # Distance terms of the normal equations
 
-        rhs = np.array([[-a_4, -b_4, 0]])
+        # rhs = np.array([[-a_4, -b_4, 0]])
 
         c_1 = self.direct_C[0,0]
         c_2 = self.direct_C[0,1]
         c_3 = self.direct_C[0,2]
 
-        x0 = a_4 * b_3 * c_2 + a_2 * b_4 * c_3 - a_4 * b_2 * c_3 - a_3 * b_4 * c_2
-        y0 = a_3 * b_4 * c_1 + a_4 * b_1 * c_3 - a_1 * b_4 * c_3 - a_4 * b_3 * c_1
-        z0 = a_4 * b_2 * c_1 + a_1 * b_4 * c_2 - a_2 * b_4 * c_1 - a_4 * b_1 * c_2
+        # Solving system with RHS using Crammer's rule.
+        x0 = a_4 * (b_3 * c_2 - b_2 * c_3) + b_4 * (a_2 * c_3 - a_3 * c_2)
+        y0 = b_4 * (a_3 * c_1 - a_1 * c_3) + a_4 * (b_1 * c_3 - b_3 * c_1)
+        z0 = a_4 * (b_2 * c_1  - b_1 * c_2) + b_4 * (a_1 * c_2 - a_2 * c_1)
 
         mat = np.array([normal_A[0,:].T,normal_B[0,:].T,self.direct_C[0,:].T])
         dt = np.linalg.det(mat)
@@ -105,16 +164,16 @@ class FracIsec:
         self.loc_x0_B = self.fracture_B.back_transform(self.x_0)
         self.loc_direct_C_B = self.fracture_B.back_transform_clear(self.direct_C)
 
-    def _transform_to_local(self,x0,direct,fracture):
-        x0 -= fracture.centre
-        #a = fracture.plane_coor_system
-        loc_x0 = fracture.plane_coor_system @ x0
-        loc_direct = fracture.plane_coor_system @ direct
-        #aspect = np.array([0.5 * fracture.r, 0.5 * fracture.aspect * fracture.r, 1], dtype=float)
-        #loc_x0 /= aspect[0:2] # [:, :]
-        #loc_direct /= aspect[0:2]
-        return loc_x0, loc_direct
-
+    # def _transform_to_local(self,x0,direct,fracture):
+    #     x0 -= fracture.centre
+    #     #a = fracture.plane_coor_system
+    #     loc_x0 = fracture.plane_coor_system @ x0
+    #     loc_direct = fracture.plane_coor_system @ direct
+    #     #aspect = np.array([0.5 * fracture.r, 0.5 * fracture.aspect * fracture.r, 1], dtype=float)
+    #     #loc_x0 /= aspect[0:2] # [:, :]
+    #     #loc_direct /= aspect[0:2]
+    #     return loc_x0, loc_direct
+    #
  #   def _transform_to_local(self,x_0,direct_C,fracture):
  #       loc_x0 = x_0# - fracture.centre
  #       loc_direct = direct_C# - fracture.centre

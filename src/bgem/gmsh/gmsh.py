@@ -519,7 +519,7 @@ class GeometryOCC:
             print("fr: ", i, "tag: ", shape.dim_tags)
             shape = shape.scale([fr.rx, fr.ry, 1]) \
                 .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
-                .translate(fr.centre) \
+                .translate(fr.center) \
                 .set_region(fr.region)
 
             shapes.append(shape)

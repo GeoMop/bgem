@@ -1,33 +1,15 @@
-import os
-import itertools
-import pytest
-
-from bgem.polygons import polygons as poly
-from bgem.stochastic import frac_plane as FP
 from bgem.stochastic import frac_isec as FIC
-from bgem.stochastic import isec_plane_point as IPP
-#from bgem.stochastic import fracture as FRC
-#from bgem.stochastic import SquareShape as SS
 
-import scipy.linalg as la
 import numpy.linalg as lan
-import attr
 import numpy as np
 import math
-import collections
-# import matplotlib.pyplot as plt
 
 # from bgem
-from bgem.gmsh import gmsh
-from bgem.gmsh import options as gmsh_options
-from bgem.gmsh import field as gmsh_field
-from bgem.stochastic import fracture
+from bgem.stochastic.fracture import Fracture, SquareShape
 from bgem.bspline import brep_writer as bw
 
 
 from fixtures import sandbox_fname
-
-#script_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 # def test_touch():
@@ -73,8 +55,18 @@ from fixtures import sandbox_fname
 #
 #     return
 
-def test_angle():
+# def fr_pair(shape, r, center, normal, angle):
+#     """
+#     One reference fracture.
+#     Second given by parameters.
+#     Random shift and rotation for both.
+#     """
+#     ref = Fracture(shape, 1, [0, 0, 0], [0, 0, 1], 0.0)
+# def random_transform(fractures):
+#
 
+
+def test_angle():
     """
     Create the BREP file from a list of fractures using the brep writer interface.
     """
@@ -82,7 +74,7 @@ def test_angle():
     faces = []
     #fracx = fracture(shape_class=fracture.SquareShape, r=5, centre= np.array([1,5,3]),normal=np.array([1,-2,1]),shape_angle=0.3,aspect=1)
 
-    phi = math.pi/4#math.pi/4  # (0, pi/2)
+    phi = math.pi/4 #math.pi/4  # (0, pi/2)
     eps = 0.1
     r1 = 7.0
     offset = np.array([5.0, 5.0, 0.0])
@@ -97,8 +89,8 @@ def test_angle():
     normal2 = normal2 / np.linalg.norm(normal2)
     angle2 = 0.0
 
-    frac_X1= fracture.Fracture(fracture.SquareShape,r1, center1 , normal1 ,angle1, 1.0)
-    frac_X2= fracture.Fracture(fracture.SquareShape,r2, center2 , normal2 ,angle2, 1.0)
+    frac_X1= Fracture(SquareShape,r1, center1 , normal1 ,angle1, 1.0)
+    frac_X2= Fracture(SquareShape,r2, center2 , normal2 ,angle2, 1.0)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)
@@ -108,10 +100,9 @@ def test_angle():
 
 
     frac_isec = FIC.FracIsec(frac_X1,frac_X2)
-    points_A, points_B, conflict = frac_isec._get_points()
-    conflict.get_distance()
+    points_A, points_B = frac_isec._get_points(10)
+    #conflict.get_distance()
 
-    print('here')
     if len(points_A) ==1:
         e1 = bw.Vertex(points_A[0])
         faces.append(e1)
@@ -169,8 +160,8 @@ def test_cross():
     normal2 = normal2 / np.linalg.norm(normal2)
     angle2 = 0.0
 
-    frac_X1= fracture.Fracture(fracture.SquareShape,r1, center1 , normal1 ,angle1, 1.0)
-    frac_X2= fracture.Fracture(fracture.SquareShape,r2, center2 , normal2 ,angle2, 1.0)
+    frac_X1= Fracture(SquareShape,r1, center1 , normal1 ,angle1, 1.0)
+    frac_X2= Fracture(SquareShape,r2, center2 , normal2 ,angle2, 1.0)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)

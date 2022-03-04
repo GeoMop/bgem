@@ -67,14 +67,16 @@ class Fracture:
     # Basic fracture shape.
     r: float
     # Fracture diameter, laying in XY plane
-    centre: np.array
+    center: np.array
     # location of the barycentre of the fracture
     normal: np.array
     # fracture normal
     shape_angle: float
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
-    region: Union[str, int]
+    region: Union[str, int] = "fracture"
     # name or ID of the physical group
+    aspect: float = 1
+    # aspect ratio of the fracture =  y_length / x_length where  x_length == r
     _rotation_axis: np.array = attr.ib(init=False, default=None)
     # axis of rotation
     _rotation_angle: float = attr.ib(init=False, default=None)
@@ -87,8 +89,7 @@ class Fracture:
     # coordinates of the vertices
     _ref_vertices: np.array = attr.ib(init=False, default=None)
     # local coordinates of the vertices (xy - plane)
-    aspect: float = 1
-    # aspect ratio of the fracture =  y_length / x_length where  x_length == r
+
 
     @property
     def vertices(self):
@@ -111,6 +112,10 @@ class Fracture:
         return self.r * self.aspect
 
     @property
+    def scale(self):
+        return [self.r, self.r * self.aspect]
+
+    @property
     def rotation_angle(self):
         if self._rotation_angle is None:
             _rotation_axis, _rotation_angle = self.axis_angle()
@@ -131,7 +136,7 @@ class Fracture:
     @property
     def distance(self):
         if self._distance is None:
-            _distance = -np.dot(self.centre,self.normal[0,:])
+            _distance = -np.dot(self.center, self.normal[0, :])
         return _distance
 
     @property
@@ -186,7 +191,7 @@ class Fracture:
      return dist
 
 
-    def get_isec_with_line(self, x_0,loc_direct):
+    def get_isec_with_line(self, x_0, loc_direct):
         """
         Computes intersection of the fracture and line x0 + t*loc_direct (in local coordinates).
         :param x0: array (3,)
@@ -247,7 +252,7 @@ class Fracture:
         #points[:, :] *= aspect[:,None]
         t_points = rotate(t_points, np.array([0, 0, 1]), self.shape_angle)
         t_points = rotate(t_points, self.rotation_axis, self.rotation_angle)
-        t_points += self.centre[None, :]
+        t_points += self.center[None, :]
         return t_points
 
     def back_transform(self, points):
@@ -257,7 +262,7 @@ class Fracture:
         :return: transformed points
         """
         aspect = np.array([self.r, self.aspect * self.r, 1], dtype=float)
-        t_points = points - self.centre[None, :]
+        t_points = points - self.center[None, :]
         t_points = rotate(t_points, self.rotation_axis, -self.rotation_angle)
         t_points = rotate(t_points, np.array([0, 0, 1]), -self.shape_angle)
         t_points /= aspect[None, :]
@@ -292,6 +297,9 @@ class Fracture:
         return t_points
 
 def normal_to_axis_angle(normal): ## todo
+    """
+
+    """
     z_axis = np.array([0, 0, 1], dtype=float)
     norms = normal / np.linalg.norm(normal, axis=1)[:, None]
     cos_angle = norms @ z_axis
@@ -935,10 +943,10 @@ class Population:
             #fr_axis_angle = f.orientation.sample_axis_angle(size=len(diams))
             shape_angle = f.shape_angle.sample_angle(len(diams))
                 #np.random.uniform(0, 2 * np.pi, len(diams))
-            for r, normals, sa in zip(diams, fr_normals, shape_angle):
+            for r, normal, sa in zip(diams, fr_normals, shape_angle):
                 #axis, angle = aa[:3], aa[3]
                 center = pos_distr.sample()
-                fractures.append(Fracture(self.shape_class, r, center, normals[None,:], sa, name, 1))
+                fractures.append(Fracture(self.shape_class, r, center, normal[None,:], sa, name, 1))
         return fractures
 
 
@@ -1060,7 +1068,7 @@ class Fractures:
         base_line = np.array([[-0.5, 0, 0], [0.5, 0, 0]])
         for i_fr, fr in enumerate(self.fractures):
             line = FisherOrientation.rotate(base_line * fr.rx, np.array([0, 0, 1]), fr.shape_angle)
-            line += fr.centre
+            line += fr.center
             i_pt = len(self.points)
             self.points.append(line[0])
             self.points.append(line[1])
@@ -1254,7 +1262,7 @@ class Fractures:
     #             if i_fr > i:
     #                 cos_angle_of_normals = self.trans_matrix[i, :, 2] @ self.trans_matrix[i_fr, :, 2]
     #                 if cos_angle_of_normals > cos_limit:
-    #                     wrong_angle[i_fr] = 1
+    #                     wrong_angle[i_fr] = 1----
     #                     print("wrong_angle: ", i, i_fr)
     #
     #                 # atract vertices

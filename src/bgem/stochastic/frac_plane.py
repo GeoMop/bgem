@@ -4,7 +4,7 @@ import scipy.linalg as la
 
 class FracPlane:
     """
-    Point as the result of intersection with corresponding coordinates on both surfaces
+    Fracture plane decomposition and references from the segments of decomposition to the fractures.
 
     """
 

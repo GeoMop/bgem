@@ -2,7 +2,6 @@ from bgem.polygons import polygons as poly
 import numpy as np
 import scipy.linalg as la
 
-
 class IsecConflict:
     """
     Point as the result of intersection with corresponding coordinates on both surfaces
@@ -35,9 +34,8 @@ class IsecConflict:
 
 
     def get_distance(self):
-
         self.AB_dist = self.solve_conflict(self.fracture_A, self.fracture_B, self.points_false_A, self.points_init_ind_A)
-        self.BA_dist  = self.solve_conflict(self.fracture_B, self.fracture_A, self.points_false_B, self.points_init_ind_B)
+        self.BA_dist = self.solve_conflict(self.fracture_B, self.fracture_A, self.points_false_B, self.points_init_ind_B)
 
 
     def solve_conflict(self,fracture_A, fracture_B,points_false_A,points_init_ind_A):

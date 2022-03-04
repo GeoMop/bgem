@@ -3,16 +3,8 @@
 """
 
 import os
-import itertools
-import pytest
-
-from bgem.polygons import polygons as poly
 from bgem.stochastic import frac_plane as FP
 from bgem.stochastic import frac_isec as FIC
-from bgem.stochastic import isec_plane_point as IPP
-
-import scipy.linalg as la
-import numpy.linalg as lan
 import attr
 import numpy as np
 import collections
@@ -24,11 +16,11 @@ from bgem.gmsh import options as gmsh_options
 from bgem.gmsh import field as gmsh_field
 from bgem.stochastic import fracture
 from bgem.bspline import brep_writer as bw
-
-script_dir = os.path.dirname(os.path.realpath(__file__))
+from fixtures import sandbox_fname
+#script_dir = os.path.dirname(os.path.realpath(__file__))
 
 geometry_dict = {
-    'box_dimensions': [600, 600, 600],
+    'box_dimensions': [100, 100, 100],
     'center_depth': 5000,
     'fracture_mesh_step': 15,
     'n_frac_limit': 200,
@@ -132,38 +124,19 @@ def plot_fr_orientation(fractures):
     # plt.show()
 
 
-def generate_fractures(geometry_dict, statistics):
-    dimensions = geometry_dict["box_dimensions"]
-    well_z0, well_z1 = geometry_dict["well_openning"]
-    well_length = well_z1 - well_z0
-    well_r = geometry_dict["well_effective_radius"]
-    well_dist = geometry_dict["well_distance"]
-
+def generate_uniform(statistics, n_frac_limit):
     # generate fracture set
-    fracture_box = [1.5 * well_dist, 1.5 * well_length, 1.5 * well_length]
+    box_size = 100
+    fracture_box = 3 * [box_size]
     volume = np.product(fracture_box)
     pop = fracture.Population(volume)
     pop.initialize(statistics)
-    pop.set_sample_range([1, well_dist], sample_size=geometry_dict["n_frac_limit"])
+    pop.set_sample_range([1, box_size], sample_size=n_frac_limit)
     print("total mean size: ", pop.mean_size())
-    connected_position = geometry_dict.get('connected_position_distr', False)
-    if connected_position:
-        # Not yet supported.
-        eps = well_r / 2
-        left_well_box = [-well_dist / 2 - eps, -eps, well_z0, -well_dist / 2 + eps, +eps, well_z1]
-        right_well_box = [well_dist / 2 - eps, -eps, well_z0, well_dist / 2 + eps, +eps, well_z1]
-        pos_gen = fracture.ConnectedPosition(
-            confining_box=fracture_box,
-            init_boxes=[left_well_box, right_well_box])
-    else:
-        pos_gen = fracture.UniformBoxPosition(fracture_box)
+    pos_gen = fracture.UniformBoxPosition(fracture_box)
     fractures = pop.sample(pos_distr=pos_gen, keep_nonempty=True)
     # fracture.fr_intersect(fractures)
 
-    for fr in fractures:
-        fr.region = "fr"
-    used_families = set((f.region for f in fractures))
-    # config_fracture_regions(used_families)
     return fractures
 
 
@@ -186,7 +159,7 @@ def create_fractures_rectangles(gmsh_geom, fractures, base_shape: 'ObjectSet'):
         print("fr: ", i, "tag: ", shape.dim_tags)
         shape = shape.scale([fr.rx, fr.ry, 1]) \
             .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
-            .translate(fr.centre) \
+            .translate(fr.center) \
             .set_region(fr.region)
 
         shapes.append(shape)
@@ -480,11 +453,14 @@ def make_mesh(geometry_dict, fractures: fracture.Fracture, mesh_name: str):
 #    factory, mesh = make_mesh(geometry_dict, fractures, "geothermal_dnf")
 
 
-# @pytest.mark.skip
+#@pytest.mark.skip
 def test_brep_dfn():
-    np.random.seed()
-    fractures = generate_fractures(geometry_dict, fracture_stats)
-    fr_points = make_brep(geometry_dict, fractures, "_test_fractures.brep")
+    np.random.seed(123)
+    fractures = generate_uniform(fracture_stats, n_frac_limit=50)
+    for i, f in enumerate(fractures):
+        f.id = i
+    make_brep(geometry_dict, fractures, sandbox_fname("test_dfn", "brep"))
+
     ipps = compute_intersections(fractures)
     #resolve_fractures_intersection(ipss)
 
@@ -504,38 +480,27 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
     """
     Create the BREP file from a list of fractures using the brep writer interface.
     """
-    fracture_mesh_step = geometry_dict['fracture_mesh_step']
-    dimensions = geometry_dict["box_dimensions"]
+    #fracture_mesh_step = geometry_dict['fracture_mesh_step']
+    #dimensions = geometry_dict["box_dimensions"]
 
     print("n fractures:", len(fractures))
 
     faces = []
-    fr_points = []
     for i, fr in enumerate(fractures):
         #ref_fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]]) # polovina
         ref_fr_points = fracture.SquareShape()._points
         frac_points = fr.transform(ref_fr_points)
-        fr_points.append(frac_points.transpose())  #
-        #print(frac_points.shape)
-        v1 = bw.Vertex(frac_points[0,:])
-        v2 = bw.Vertex(frac_points[1,:])
-        v3 = bw.Vertex(frac_points[2,:])
-        v4 = bw.Vertex(frac_points[3,:])
-        e1 = bw.Edge([v1, v2])
-        e2 = bw.Edge([v2, v3])
-        e3 = bw.Edge([v3, v4])
-        e4 = bw.Edge([v4, v1])
-        f1 = bw.Face([e1, e2, e3, e4])
-        faces.append(f1)
+        vtxs = [bw.Vertex(p) for p in frac_points]
+        vtxs.append(vtxs[0])
+        edges = [bw.Edge([a, b]) for a, b in zip(vtxs[:-1], vtxs[1:])]
+        face = bw.Face(edges)
+        faces.append(face)
 
     comp = bw.Compound(faces)
     loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
     with open(brep_name, "w") as f:
         bw.write_model(f, comp, loc)
 
-    return fr_points
-
-#ipps = make_vertex_list(fr_points)
 
 
 def compute_intersections(fractures: fracture.Fracture):
@@ -550,12 +515,16 @@ def compute_intersections(fractures: fracture.Fracture):
         surface.append(frac_plane.surface)
 
     p = np.array(surface).argsort()
-
+    tolerance = 10
     for i in p:
         for j in p[i + 1:n_fr]:  # may be reduced to relevant adepts
             frac_isec = FIC.FracIsec(fractures[i],fractures[j])
-            points_A, points_B, conflict = frac_isec._get_points()
-            conflict.get_distance()
+            points_A, points_B = frac_isec._get_points(tolerance)
+            possible_colision = FIC.FracIsec.colision_indicator(fractures[i], fractures[j], tolerance)
+
+            if possible_colision or frac_isec.have_colision:
+                print(f"collision: {frac_isec.fracture_A.id}, {frac_isec.fracture_B.id}")
+            assert not possible_colision or frac_isec.have_colision
 
             if len(points_A) > 0:
                 va1 = bw.Vertex(points_A[0,:])
@@ -582,3 +551,5 @@ def check_duplicities(fi,fj,coor,vertices,tol):
                 if vertices[ids].check_duplicity(coor, tol) == True:
                    duplicity_with = ids
                    break
+
+
