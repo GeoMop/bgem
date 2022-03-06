@@ -1,6 +1,7 @@
 import enum
 import numpy as np
 from typing import *
+from . import bspline
 
 '''
 TODO:
@@ -492,7 +493,7 @@ def surface_from_bs(surf):
     :return:
     """
     s = Surface(surf.poles, (surf.u_basis.pack_knots(), surf.v_basis.pack_knots()),
-                   surf.rational, (surf.u_basis.degree, surf.v_basis.degree) )
+                    (surf.u_basis.degree, surf.v_basis.degree), surf.rational )
     s._bs_surface = surf
     return s
 
@@ -501,7 +502,7 @@ class Surface(BREPObject):
     Defines a B-spline surface in 3d space. We shall work only with B-splines of degree 2.
     Corresponds to "B-spline Surface - < surface record 9 >" from BREP format description.
     """
-    def __init__(self, poles, knots, rational=False, degree=(2,2)):
+    def __init__(self, poles, knots, degree=(2,2),  rational=False):
         """
         Construct a B-spline in 3d space.
         :param poles: Matrix (list of lists) of Nu times Nv poles (control points).
@@ -511,9 +512,9 @@ class Surface(BREPObject):
                       (knot, multiplicity), where knot is float, t-parameter on the curve of the knot
                       and multiplicity is positive int. For both U and V knot vector the total number of knots,
                       i.e. sum of their multiplicities, must be degree + N + 1, where N is number of poles.
+        :param degree: (u_degree, v_degree) Both positive ints.
         :param rational: True for rational B-spline, i.e. NURB. Use weighted poles. BREP format have two independent flags
                       for U and V parametr, but only choices 0,0 and 1,1 have sense.
-        :param degree: (u_degree, v_degree) Both positive ints.
         """
 
         if rational:
@@ -575,7 +576,7 @@ class Surface(BREPObject):
 class Approx:
     """
     Approximation methods for B/splines of degree 2.
-    
+
     """
     @classmethod
     def plane(cls, vtxs):
@@ -613,7 +614,8 @@ class Approx:
                   [vtxs[1], mid(1,2), vtxs[2]]
                   ]
         knots = [(0.0, 3), (1.0, 3)]
-        surface = Surface(poles, (knots, knots))
+        bs_surface = bspline.Surface.make_raw(poles, (knots, knots), degree=(2,2), rational=False)
+        surface = surface_from_bs(bs_surface)
         vtxs_uv = [ (0, 0), (1, 0), (1, 1), (0, 1) ]
         return (surface, vtxs_uv)
 
