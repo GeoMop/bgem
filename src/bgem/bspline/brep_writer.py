@@ -257,6 +257,17 @@ def curve_from_bs( curve):
     c._bs_curve = curve
     return c
 
+class Line3D(BREPObject):
+    def _brep_output(self, stream):
+        """
+        Output of BREP format: 3d curve : Line record
+        <3D curve record 1> = "1" <_> <3D point> <_> <3D direction> <_\n>;
+        Parametric format.
+        """
+        # writes plane surface
+        stream.write(f"1 {self.origin} {self.direction}\n")
+
+
 
 class Curve3D(BREPObject):
     """
@@ -307,6 +318,18 @@ class Curve3D(BREPObject):
                 stream.write(" {}".format(value))
             stream.write(" ")
         stream.write("\n")
+
+
+class Line2D(BREPObject):
+    def _brep_output(self, stream):
+        """
+        Output of BREP format: 3d curve : Line record
+        <2D curve record 1> = "1" <_> <2D point> <_> <2D direction> <_\n>;
+        Parametric format.
+        """
+        # writes plane surface
+        stream.write(f"1 {self.origin} {self.direction}\n")
+
 
 class Curve2D(BREPObject):
     """
@@ -370,6 +393,18 @@ def surface_from_bs(surf):
                     (surf.u_basis.degree, surf.v_basis.degree), surf.rational )
     s._bs_surface = surf
     return s
+
+class Plane(BREPObject):
+
+    def _brep_output(self, stream):
+        """
+        Output of BREP format: Plane surface record
+        <surface record 1> = "1" <_> <3D point> (<_> <3D direction>) ^ 3 <_\n>;
+        Three orthogonal direction vectors: normal, U-vector, V-vector.
+        """
+        # writes plane surface
+        stream.write(f"1 {self.origin} {self.normal} {self.u_vector} {self.v_vector}\n")
+
 
 class Surface(BREPObject):
 
@@ -1197,16 +1232,15 @@ class Vertex(Shape):
         for i,repr in enumerate(self.repr):
             if repr[0] == self.Repr.Surface:
                 _, u, v, surface, location = repr
-                stream.write("3 {} {} {} {}\n".format(
+                stream.write("{} 3 {} {} {}\n".format(
                     u, v, surface.brep_id, location.brep_id))
             if repr[0] == self.Repr.Curve2d:
                 _, t, curve, surface, location = repr
-                stream.write("2 {} {} {} {}\n".format(
+                stream.write("{} 2 {} {} {}\n".format(
                     t, curve.brep_id, surface.brep_id, location.brep_id))
-
             elif repr[0] == self.Repr.Curve3d:
                 _, t, curve, location = repr
-                stream.write("1 {} {} {}\n".format(
+                stream.write("{} 1 {} {}\n".format(
                     t, curve.brep_id, location.brep_id))
 
         stream.write("\n0 0\n\n")
@@ -1274,4 +1308,91 @@ def write_model(stream, compound, location=Identity):
         shape._brep_output(stream)
     stream.write(f"\n+1 {location.brep_id}")
 
+
+class Factory:
+    """
+    Preliminary factory functions for creating basic shapes.
+    """
+    @staticmethod
+    def polygon(points_2d:List['Point']):
+        """
+        :param points: list of 2d points, or  array of shape (N,2)
+        """
+        surface, _ = Approx.plane([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
+        vtxs = [Vertex.on_surface(*uv, surface) for uv in points_2d]
+        #vtxs = [Vertex([*p, 0]) for p in points_2d]
+        vtxs.append(vtxs[0])
+        #edges = [Edge(*vtx).attach_to_surface(surface, *uv) for vtx, uv in zip(zip(vtxs[:-1], vtxs[1:]), points_2d)]
+        edges = [Edge(*vtx).attach_to_surface(surface) for vtx in zip(vtxs[:-1], vtxs[1:])]
+        #edges = [Edge(a, b) for a, b in zip(vtxs[:-1], vtxs[1:])]
+        face = Face(edges, surface=surface)
+        #face = Face(edges)
+        return face
+
+    @staticmethod
+    def prism(points_2d, height:float):
+        """
+        :param points: np.array, shape (2, N)
+        """
+        base_face = Factory.polygon(points_2d)
+        prism_raw = Factory.extrude(base_face, [0,0,height])
+        # centered
+
+        return Compound(ShapeRef(prism_raw, location=Transform.Translate([0,0,-height/2])))
+
+
+    @staticmethod
+    def extrude(shape, vector):
+        """
+        Extrude 'shape' which should be at most of dimension 2 (not Shell or Solid)
+        Composed should not be excluded.
+        TOOD: through testing
+        """
+        assert shape.dimension() <= 2
+        vector = np.array(vector, dtype=float)
+        top_map = {}
+        extrusion_map = {}
+        # new vertices
+        for v_bot in shape.children(of_type=Vertex):
+            v_top = Vertex(v_bot.point + vector)
+            top_map[id(v_bot)] = v_top
+            extrusion_map[id(v_bot)] = Edge(v_bot, v_top)
+        # new edges
+        for e_bot in shape.children(of_type=Edge):
+            vtxs_top = [top_map(id(v)) for v in e_bot.subshapes()]
+            assert len(vtxs_top) == 2
+            e_top = Edge(*vtxs_top)
+            top_map[id(e_top)] = e_top
+
+            edges_extr = [extrusion_map(id(v)) for v in e_bot.subshapes()]
+
+            edges = [e_bot, edges_extr[1], e_top.m(), edges_extr[0].m()]
+            extrusion_map[id(e_bot)] = Face(edges)
+        # new faces
+
+        def map_shape_ref(shape_ref, map):
+            return ShapeRef(map[id(shape_ref.shape)], shape_ref.orientation, shape_ref.location)
+
+        def top_wire(bot_wire):
+            top_edges = [map_shape_ref(edge, top_map) for edge in bot_wire.subrefs()]
+            return Wire(top_edges)
+
+        solids = []
+        for f_bot in shape.children(of_type= Face):
+            top_wires = [top_wire(bot_wire) for bot_wire in f_bot.subrefs()]
+            f_top = Face(top_wires)
+            top_map[id(f_bot)] = f_top
+
+            faces_extr_refs = [map_shape_ref(edge, extrusion_map) for edge in f_bot.edge_refs()]
+            shell = Shell([f_bot, f_top.m(), *faces_extr_refs])
+            solids.append(Solid(shell))
+
+        return CompoundSolid(solids)
+
+
+    @staticmethod
+    def box(dimensions=[1,1,1], center=[0,0,0]):
+        raw_box = Factory.prism([[-1, -1], [1,-1], [1, 1], [-1,1]], height=1)
+        loc = Transform().scale(np.array(dimensions) / 2).translate(center)
+        return Compound(ShapeRef(raw_box, location=loc))
 

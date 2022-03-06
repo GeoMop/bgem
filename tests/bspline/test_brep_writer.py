@@ -187,16 +187,34 @@ def tetrahedron():
     s = bw.Solid([shell])
     return bw.Compound([s]), bw.Identity
 
+def polygon():
+    v0 = bw.Vertex([0,0,0])
+    v1 = bw.Vertex([1,0,0])
+    v2 = bw.Vertex([0,1,0])
+
+    e01 = bw.Edge(v0, v1)
+    e02 = bw.Edge(v0, v2)
+    e12 = bw.Edge(v1, v2)
+
+    f1 = bw.Face([e01, e12, e02.m()])
+    #shell = bw.Shell([f1])
+    #s = bw.Solid([shell])
+    return bw.Compound([f1]), bw.Identity
 
 
+def factory_polygon():
+    #s = bw.Factory.polygon([[0, 0], [1, 0], [0.5, 0.5], [1, 1], [0, 1]])
+    s = bw.Factory.polygon([[0, 0], [1, 0], [0, 1]])
+    return bw.Compound([s]), bw.Identity
 
 
 @pytest.mark.parametrize("compound_fn",
-    [prism, prism_perturbed, tetrahedron])
+    [prism, prism_perturbed, tetrahedron, polygon, factory_polygon])
 def test_geometries(compound_fn):
     name = compound_fn.__name__ + '_ref.brep'
     compound, location = compound_fn()
     assert compare_brep(compound, name, location)
+
 
 
 
