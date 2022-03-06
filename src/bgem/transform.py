@@ -6,7 +6,7 @@ from typing import *
 import numpy as np
 from bgem import ParamError
 
-def check_matrix(mat, shape, values, idx=[]):
+def check_matrix(mat, shape, values, idx=()):
     '''
     Check shape and type of scalar, vector or matrix.
     :param mat: Scalar, vector, or vector of vectors (i.e. matrix). Vector may be list or other iterable.
@@ -36,7 +36,7 @@ def check_matrix(mat, shape, values, idx=[]):
                 raise ParamError("Wrong len {} of element {}, should be  {}.".format(l, idx, shape[0]))
             for i, item in enumerate(mat):
                 sub_shape = shape[1:]
-                check_matrix(item, sub_shape, values, idx = [i] + idx)
+                check_matrix(item, sub_shape, values, idx = (i, *idx))
                 shape[1:] = sub_shape
         return shape
     except ParamError:
@@ -57,16 +57,113 @@ class Transform:
         return np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
 
     @staticmethod
-    def Translate(vector):
+    def _flat(composition):
         """
-        Create a translation by the shift 'vector'.
+        Combine transfromations from self._composition.
+        """
+        matrix = np.eye(4)
+        for m, p in composition:
+            full_matrix = Transform._matrix_expand(m)
+            for _ in range(p):
+                matrix = full_matrix @ matrix
+        return Transform._matrix_compress(matrix)
+
+    @staticmethod
+    def _matrix_expand(matrix):
+        return np.concatenate([matrix, np.array([[0, 0, 0, 1]])], axis=0)
+
+    @staticmethod
+    def _matrix_compress(matrix):
+        return matrix[:-1, :]
+
+    def __init__(self, matrix: Matrix = None, power:Power = 1, previous:'Transform' = None):
+        """
+        Constructor for elementary afine transformation.
+        :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
+        Last column is the translation vector.
+        """
+        if matrix is None:
+            if previous is None:
+                self._matrix = None
+                self._composition = []
+                return
+            matrix = Transform._identity_matrix()
+        else:
+            check_matrix(matrix, [3, 4], (int, float))
+            matrix = np.array(matrix, dtype=float)
+
+        self._composition: List[Tuple[Matrix, Power]] = []
+        if previous is None or previous.is_identity():
+            previous_comp = []
+        else:
+            previous_comp = previous._composition
+        self._composition.extend(previous_comp)
+        self._composition.append((matrix, power))
+        self._matrix = self._flat(self._composition)
+
+    def is_composed(self) -> bool :
+        """
+        Composed of singel matrix with power one.
+        """
+        return len(self._composition) == 1 and self._composition[0][1] == 1
+
+    def is_identity(self):
+        return self._matrix is None
+
+    @property
+    def matrix(self):
+        if self.is_identity():
+            return Transform._identity_matrix()
+        else:
+            return self._matrix
+
+
+    def __call__(self, points:np.array) -> np.array:
+        """
+        :param points: shape (3, N)
+        return: transformed array, shape (3, N)
+        """
+        return self.matrix[:, :3] @ points + (self.matrix[:, 3])[:, None]
+
+
+    def __pow__(self, power:int):
+        """
+        Return power of the transform.
+        """
+        result = copy.copy(self)
+        result._composition = [(m, p * power) for m, p  in result._composition]
+        result._matrix = result._flat(result._composition)
+        return result
+
+    def __matmul__(self, other: 'Transform') -> 'Transform':
+        """
+        Can use matrix multiplication operator '@' to compose Locations.
+        E.g.
+
+        location = Identity @ Location.Rotate([0,1,0], angle) @ Location.Translate([1,2,3])
+
+        is equivalent to
+
+        location = Identity.rotate([0,1,0], angle).translate([1,2,3])
+
+        Return ComposedLocation.
+        """
+        result = copy.copy(other)
+        print(self._composition)
+        result._composition.extend(self._composition)
+        result._matrix = result._flat(result._composition)
+        return result
+
+    def translate(self, vector):
+        """
+        Apply translation by the shift 'vector'.
+        Return a composed location.
         """
         matrix = Transform._identity_matrix()
         matrix[:, 3] += np.array(vector, dtype=float)
-        return Transform(matrix)
+        return Transform(matrix, previous=self)
 
-    @staticmethod
-    def Rotate(axis, angle, center=[0, 0, 0]):
+    def rotate(self, axis, angle, center=(0, 0, 0)):
         """
         Assuming the coordinate system:
 
@@ -92,10 +189,9 @@ class Transform:
         matrix[:, 3] -= center
         matrix = M @ matrix
         matrix[:, 3] += center
-        return Transform(matrix)
+        return Transform(matrix, previous=self)
 
-    @staticmethod
-    def Scale(scale_vector, center=[0, 0, 0]):
+    def scale(self, scale_vector, center=(0, 0, 0)):
         """
         Create a scaling the 'scale_vector' keeping 'center' unmodified.
         """
@@ -105,105 +201,5 @@ class Transform:
         matrix[:, 3] -= center
         matrix = np.diag(scale_vector) @ matrix
         matrix[:, 3] += center
-        return Transform(matrix)
-
-
-    def __init__(self, matrix: Matrix = None, power:Power = 1, previous:'Transform' = None):
-        """
-        Constructor for elementary afine transformation.
-        :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
-        Last column is the translation vector.
-        """
-        if matrix is None:
-            _matrix = Transform._identity_matrix()
-        else:
-            check_matrix(matrix, [3, 4], (int, float))
-            _matrix = np.array(matrix, dtype=float)
-
-        self._composition: List[Tuple[Matrix, Power]] = []
-        if previous is not None:
-            self._composition.extend(previous._composition)
-        self._composition.append((matrix, power))
-        self.matrix = self._flat(self._composition)
-
-
-    @staticmethod
-    def _flat(composition):
-        """
-        Combine transfromations from self._composition.
-        """
-        matrix = np.eye(4)
-        for m, p in composition:
-            full_matrix = Transform._matrix_expand(m)
-            for _ in range(p):
-                matrix = full_matrix @ matrix
-        return Transform._matrix_compress(matrix)
-
-
-    @staticmethod
-    def _matrix_expand(matrix):
-        return np.concatenate([matrix, np.array([[0, 0, 0, 1]])], axis=0)
-
-    @staticmethod
-    def _matrix_compress(matrix):
-        return matrix[:-1, :]
-
-
-    def __call__(self, points:np.array) -> np.array:
-        """
-        :param points: shape (3, N)
-        return: transformed array, shape (3, N)
-        """
-        return self.matrix[:, :3] @ points + (self.matrix[:, 3])[:, None]
-
-
-    def __pow__(self, power:int):
-        """
-        Return power of the transform.
-        """
-        result = copy.copy(self)
-        result._composition = [(m, p * power) for m, p  in result._composition]
-        result.matrix = result._flat(result._composition)
-        return result
-
-    def __matmul__(self, other: 'Transform') -> 'Transform':
-        """
-        Can use matrix multiplication operator '@' to compose Locations.
-        E.g.
-
-        location = Identity @ Location.Rotate([0,1,0], angle) @ Location.Translate([1,2,3])
-
-        is equivalent to
-
-        location = Identity.rotate([0,1,0], angle).translate([1,2,3])
-
-        Return ComposedLocation.
-        """
-        result = copy.copy(other)
-        print(self._composition)
-        result._composition.extend(self._composition)
-        #result._matrix = self._matrix_compress(self._matrix_expand(self.matrix) @ self._matrix_expand(other.matrix))
-        result.matrix = result._flat(result._composition)
-        return result
-
-    def translate(self, vector):
-        """
-        Apply translation by the shift 'vector'.
-        Return a composed location.
-        """
-        return Transform(Transform.Translate(vector), previous=self)
-
-    def rotate(self, axis, angle, center=[0, 0, 0]):
-        """
-        Apply rotation.
-        Return a composed location.
-        """
-        return Transform(Transform.Rotate(axis, angle, center), previous=self)
-
-    def scale(self, scale_vector, center=[0, 0, 0]):
-        """
-        Apply scaling.
-        Return a composed location.
-        """
-        return Transform(Transform.Scale(scale_vector, center), previous=self)
+        return Transform(matrix, previous=self)
 
