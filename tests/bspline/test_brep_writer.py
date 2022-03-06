@@ -203,8 +203,7 @@ def polygon():
 
 
 def factory_polygon():
-    #s = bw.Factory.polygon([[0, 0], [1, 0], [0.5, 0.5], [1, 1], [0, 1]])
-    s = bw.Factory.polygon([[0, 0], [1, 0], [0, 1]])
+    s = bw.Factory.polygon([[0, 0], [1, 0], [0.5, 0.5], [1, 1], [0, 1]])
     return bw.Compound([s]), bw.Identity
 
 

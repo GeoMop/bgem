@@ -744,7 +744,7 @@ class Shape(BREPObject):
         return self.flags['closed']
 
 
-    def _brep_output(self, stream, groups):
+    def _brep_output(self, stream):
         stream.write("{}\n".format(self.brep_shpname))
         self._subrecordoutput(stream)
         self.flags._brep_output(stream)
