@@ -19,7 +19,7 @@ TODO:
 class ParamError(Exception):
     pass
 
-def check_matrix(mat, shape, values, idx=[]):
+def check_matrix(mat, shape, values, idx=tuple()):
     '''
     Check shape and type of scalar, vector or matrix.
     :param mat: Scalar, vector, or vector of vectors (i.e. matrix). Vector may be list or other iterable.
@@ -49,7 +49,7 @@ def check_matrix(mat, shape, values, idx=[]):
                 raise ParamError("Wrong len {} of element {}, should be  {}.".format(l, idx, shape[0]))
             for i, item in enumerate(mat):
                 sub_shape = shape[1:]
-                check_matrix(item, sub_shape, values, idx = [i] + idx)
+                check_matrix(item, sub_shape, values, idx = (i, *idx))
                 shape[1:] = sub_shape
         return shape
     except ParamError:
@@ -172,7 +172,7 @@ class Location(BREPObject):
         return Location(matrix)
 
     @staticmethod
-    def Rotate(axis, angle, center=[0, 0, 0]):
+    def Rotate(axis, angle, center=(0, 0, 0)):
         """
         Assuming the coordinate system:
 
@@ -200,7 +200,7 @@ class Location(BREPObject):
         return Location(matrix)
 
     @staticmethod
-    def Scale(scale_vector, center=[0, 0, 0]):
+    def Scale(scale_vector, center=(0, 0, 0)):
         """
         Create a scaling the 'scale_vector' keeping 'center' unmodified.
         """
@@ -270,14 +270,14 @@ class Location(BREPObject):
         """
         return self @ Location.Translate(vector)
 
-    def rotate(self, axis, angle, center=[0, 0, 0]):
+    def rotate(self, axis, angle, center=(0, 0, 0)):
         """
         Apply rotation.
         Return a composed location.
         """
         return self @ Location.Rotate(axis, angle, center)
 
-    def scale(self, scale_vector, center=[0, 0, 0]):
+    def scale(self, scale_vector, center=(0, 0, 0)):
         """
         Apply scaling.
         Return a composed location.
@@ -311,12 +311,13 @@ class ComposedLocation(Location):
     Defines an affine transformation as a composition of othr transformations. Corresponds to the <location data 2> in the BREP file.
     BREP format allows to use different transformations for individual shapes.
     """
-    def __init__(self, location_powers=[]):
+    def __init__(self, location_powers=None):
         """
 
         :param location_powers: List of pairs (location, power)  where location is instance of Location and power is float.
         """
-
+        if location_powers is None:
+            location_powers = []
         locs, pows =  zip(*location_powers)
         l = len(locs)
         check_matrix(locs, [ l ], (Location, ComposedLocation) )
