@@ -517,7 +517,7 @@ class Surface:
     """
 
     @classmethod
-    def make_raw(cls, poles, knots, rational=False, degree=(2,2)):
+    def make_raw(cls, poles, knots, degree=(2,2), rational=False):
         """
         Construct a B-spline curve.
         :param poles: List of poles (control points) ( X, Y, Z ) or weighted points (X,Y,Z, w). X,Y,Z,w are floats.
@@ -525,11 +525,11 @@ class Surface:
         :param knots: List of tuples (knot, multiplicity), where knot is float, t-parameter on the curve of the knot
                    and multiplicity is positive int. Total number of knots, i.e. sum of their multiplicities, must be
                    degree + N + 1, where N is number of poles.
+        :param degree: (deg u, deg v) Non-negative ints
         :param rational: True for rational B-spline, i.e. NURB. Use weighted poles.
-        :param degree: Non-negative int
         """
-        u_basis = SplineBasis(degree[0], knots[0])
-        v_basis = SplineBasis(degree[1], knots[1])
+        u_basis = SplineBasis.make_from_packed_knots(degree[0], knots[0])
+        v_basis = SplineBasis.make_from_packed_knots(degree[1], knots[1])
         return cls((u_basis, v_basis), poles, rational)
 
 
