@@ -2,60 +2,22 @@ import enum
 import numpy as np
 from typing import *
 from . import bspline
-
+from bgem import Transform, check_matrix, ParamError
 '''
 TODO:
 - For Solid make auto conversion from Faces similar to Face from Edges
 - For Solid make test that Shells are closed.
 - Implement closed test for shells (similar to wire)
-- Improve test of slosed (Wire, Shell) to check also orientation of (Edges, Faces). ?? May be both if holes are allowed.
+- Improve test of closed (Wire, Shell) to check also orientation of (Edges, Faces). ?? May be both if holes are allowed.
 - Rename attributes and methods to more_words_are_separated_by_underscore.
-- rename _writeformat to _brep_output
-- remove (back) groups parameter from _brepo_output, make checks of IDs at main level (only in DEBUG mode)
 - document public methods
+- Plane and Line support
+- support of implicit attachment of vertices and edges to surfaces (projection), 
+  has to be done in Approx
+- test various attachments
 '''
 
 
-class ParamError(Exception):
-    pass
-
-def check_matrix(mat, shape, values, idx=tuple()):
-    '''
-    Check shape and type of scalar, vector or matrix.
-    :param mat: Scalar, vector, or vector of vectors (i.e. matrix). Vector may be list or other iterable.
-    :param shape: List of dimensions: [] for scalar, [ n ] for vector, [n_rows, n_cols] for matrix.
-    If a value in this list is None, the dimension can be arbitrary. The shape list is set fo actual dimensions
-    of the matrix.
-    :param values: Type or tuple of  allowed types of elements of the matrix. E.g. ( int, float )
-    :param idx: Internal. Used to pass actual index in the matrix for possible error messages.
-    :return:
-    TODO: replace check_matrix by conversion to appropriate numpy array.
-    '''
-    try:
-
-        if len(shape) == 0:
-            if not isinstance(mat, values):
-                raise ParamError("Element at index {} of type {}, expected instance of {}.".format(idx, type(mat), values))
-        else:
-
-            if shape[0] is None:
-                shape[0] = len(mat)
-            l=None
-            if not hasattr(mat, '__len__'):
-                l=0
-            elif len(mat) != shape[0]:
-                l=len(mat)
-            if not l is None:
-                raise ParamError("Wrong len {} of element {}, should be  {}.".format(l, idx, shape[0]))
-            for i, item in enumerate(mat):
-                sub_shape = shape[1:]
-                check_matrix(item, sub_shape, values, idx = (i, *idx))
-                shape[1:] = sub_shape
-        return shape
-    except ParamError:
-        raise
-    except Exception as e:
-        raise ParamError(e)
 
 
 class BREPGroup(enum.IntEnum):
@@ -91,10 +53,20 @@ class BREPObject:
         #    print("    None ID:", str(self))
         return self._brep_id
 
+    def children(self, of_type):
+        """
+        Generator of the child BREPObjets for the DFS.
+        :param of_type: one or tuple of BREPObject subclasses to generate
+        """
+        for c in self._children_impl():
+            if isinstance(c, of_type):
+                yield c
 
-    def _childs(self):
-        # Generator of the child BREPObjets for the DFS.
-        # Default no childs.
+    def _children_impl(self):
+        """
+        Generator of the child BREPObjets for the DFS.
+        Default no children.
+        """
         return []
 
 
@@ -118,7 +90,7 @@ class BREPObject:
         visited.add(id(self))
 
         self._dfs_previsit(groups)
-        for ch in self._childs():
+        for ch in self._children_impl():
             ch._dfs_gather_groups(groups, visited)
         self._dfs_postvisit(groups)
 
@@ -130,7 +102,7 @@ class BREPObject:
         if id(self) in visited:
             return
         visited.add(id(self))
-        for ch in self._childs():
+        for ch in self._children_impl():
             ch._dfs_finish(visited)
 
 
@@ -154,65 +126,16 @@ class Location(BREPObject):
     BREP format allows to use different transformations for individual shapes.
     Location are numberd from 1. Zero index means identity location.
 
-    TODO: possibly convert transformation methods to returning a Composed Location, that wy we
-    can have a pure functional API.
+    BGEM provides construction of location from bgem.Transform.
     """
 
     @staticmethod
-    def _identity_matrix():
-        return np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
-
-    @staticmethod
-    def Translate(vector):
-        """
-        Create a translation by the shift 'vector'.
-        """
-        matrix = Location._identity_matrix()
-        matrix[:, 3] += np.array(vector, dtype=float)
-        return Location(matrix)
-
-    @staticmethod
-    def Rotate(axis, angle, center=(0, 0, 0)):
-        """
-        Assuming the coordinate system:
-
-        ^ Y
-        |
-        Z --> X
-
-        Create a rotation anticlockwise (right hand rule) by the `angle` (radians)
-        around the (normalised) `axis` vector.
-        Optionally the center of the rotation can be specified.
-        """
-        matrix = Location._identity_matrix()
-        center = np.array(center, dtype=float)
-        axis = np.array(axis, dtype=float)
-        axis /= np.linalg.norm(axis)
-
-        W = np.array(
-            [[0, -axis[2], axis[1]],
-             [axis[2], 0, -axis[0]],
-             [-axis[1], axis[0], 0]])
-        M = np.eye(3) +  np.sin(angle) * W + 2 * np.sin(angle/2) ** 2 *  W @ W
-        matrix[:, 3] -= center
-        matrix = M @ matrix
-        matrix[:, 3] += center
-        return Location(matrix)
-
-    @staticmethod
-    def Scale(scale_vector, center=(0, 0, 0)):
-        """
-        Create a scaling the 'scale_vector' keeping 'center' unmodified.
-        """
-        matrix = Location._identity_matrix()
-        center = np.array(center, dtype=float)
-        scale_vector = np.array(scale_vector, dtype=float)
-        matrix[:, 3] -= center
-        matrix = np.diag(scale_vector) @ matrix
-        matrix[:, 3] += center
-        return Location(matrix)
-
-
+    def from_transform(t: Transform) -> Union['Location', 'ComposedLocation']:
+        if t.is_composed():
+            composition = [(Location(m), p) for m,p in reversed(t._composition)]
+            return ComposedLocation(composition)
+        else:
+            return Location(t.matrix)
 
     def __init__(self, matrix):
         """
@@ -236,58 +159,7 @@ class Location(BREPObject):
         check_matrix(matrix, [3, 4], (int, float))
         self.matrix=np.array(matrix)
 
-
-    # def _make_nondefault(self):
-    #     if self.matrix is None:
-    #         self.matrix = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
-
-    def apply(self, points:np.array) -> np.array:
-        #  points: shape 3xN
-        return self.matrix[:, :3] @ points + (self.matrix[:, 3])[:, None]
-
-    def flat(self):
-        return self
-
-    def __matmul__(self, other: 'Location') -> 'ComposedLocation':
-        """
-        Can use matrix multiplication operator '@' to compose Locations.
-        E.g.
-
-        location = Identity @ Location.Rotate([0,1,0], angle) @ Location.Translate([1,2,3])
-
-        is equivalent to
-
-        location = Identity.rotate([0,1,0], angle).translate([1,2,3])
-
-        Return ComposedLocation.
-        """
-        return ComposedLocation([(self, 1), (other,1)])
-
-    def translate(self, vector):
-        """
-        Apply translation by the shift 'vector'.
-        Return a composed location.
-        """
-        return self @ Location.Translate(vector)
-
-    def rotate(self, axis, angle, center=(0, 0, 0)):
-        """
-        Apply rotation.
-        Return a composed location.
-        """
-        return self @ Location.Rotate(axis, angle, center)
-
-    def scale(self, scale_vector, center=(0, 0, 0)):
-        """
-        Apply scaling.
-        Return a composed location.
-        """
-        return self @ Location.Scale(scale_vector, center)
-
-    def _matrix_expand(self):
-        return np.concatenate([self.matrix, np.array([[0,0,0,1]])], axis=0)
-
-    def _brep_output(self, stream, groups):
+    def _brep_output(self, stream):
         if self.matrix is None:
             # implicit identity
             return
@@ -301,7 +173,7 @@ class _Identity(Location):
     def __init__(self):
         super().__init__('identity')
 
-    def _brep_output(self, stream, groups):
+    def _brep_output(self, stream):
         pass
 Identity = _Identity()
 
@@ -343,11 +215,11 @@ class ComposedLocation(Location):
 
 
 
-    def _childs(self):
+    def _children_impl(self):
         return self._locations
 
 
-    def _brep_output(self, stream, groups):
+    def _brep_output(self, stream):
         stream.write("2 ")
         for loc, pow in zip(self._locations, self._powers):
             stream.write("{} {} ".format(loc.brep_id, pow))
@@ -384,6 +256,7 @@ def curve_from_bs( curve):
     c = curve_dim(curve.poles, curve.basis.pack_knots(), curve.rational, curve.basis.degree)
     c._bs_curve = curve
     return c
+
 
 class Curve3D(BREPObject):
     """
@@ -422,7 +295,7 @@ class Curve3D(BREPObject):
                 raise Exception("Point: {} far from curve repr: {}".format(point, repr_pt))
 
 
-    def _brep_output(self, stream, groups):
+    def _brep_output(self, stream):
         # writes b-spline curve
         stream.write("7 {} 0  {} {} {} ".format(int(self.rational), self.degree, len(self.poles), len(self.knots)))
         for pole in self.poles:
@@ -472,7 +345,7 @@ class Curve2D(BREPObject):
             surface._eval_check(u, v, point)
 
 
-    def _brep_output(self, stream, groups):
+    def _brep_output(self, stream):
         # writes b-spline curve
         stream.write("7 {} 0  {} {} {} ".format(int(self.rational), self.degree, len(self.poles), len(self.knots)))
         for pole in self.poles:
@@ -499,6 +372,10 @@ def surface_from_bs(surf):
     return s
 
 class Surface(BREPObject):
+
+
+
+
     """
     Defines a B-spline surface in 3d space. We shall work only with B-splines of degree 2.
     Corresponds to "B-spline Surface - < surface record 9 >" from BREP format description.
@@ -549,7 +426,7 @@ class Surface(BREPObject):
                 raise Exception("Point: {} far from curve repr: {}".format(point, repr_pt))
 
 
-    def _brep_output(self, stream, groups):
+    def _brep_output(self, stream):
         #writes b-spline surface
         stream.write("9 {} {} 0 0 ".format(int(self.rational),int(self.rational))) #prints B-spline surface u or v rational flag - both same
         for i in self.degree: #prints <B-spline surface u degree> <_>  <B-spline surface v degree>
@@ -656,15 +533,11 @@ class Approx:
 
 
 class Orient(enum.IntEnum):
-    Forward=1
-    Reversed=2
-    Internal=3
-    External=4
+    Forward=0
+    Reversed=1
+    Internal=2
+    External=3
 
-#op=Orient.Forward
-#om=Orient.Reversed
-#oi=Orient.Internal
-#oe=Orient.External
 
 class ShapeRef:
     """
@@ -685,19 +558,22 @@ class ShapeRef:
         """
         if not issubclass(type(shape), Shape):
             raise ParamError("Expected Shape, get: {}.".format(shape))
+        self.shape = shape
+        # referenced shape
         assert isinstance(orient, Orient)
-        assert issubclass(type(location), Location)
+        self.orientation = orient
+        # orientation of the shape
+        if isinstance(location, Transform):
+            location = Location.from_transform(location)
+        assert isinstance(location, (Location, ComposedLocation))
+        self.location = location
+        # (affine) transformation of the shape
 
-        self.shape=shape
-        self.orientation=orient
-        self.location=location
-
-    def _writeformat(self, stream, groups):
-
-        stream.write("{}{} {} ".format(self.orient_chars[self.orientation-1], self.shape._brep_id, self.location._brep_id))
+    def _brep_output(self, stream):
+        stream.write("{}{} {} ".format(self.orient_chars[self.orientation], self.shape._brep_id, self.location._brep_id))
 
     def __repr__(self):
-        return "{}{} ".format(self.orient_chars[self.orientation-1], self.shape._brep_id)
+        return "{}{} ".format(self.orient_chars[self.orientation], self.shape._brep_id)
 
 
 class ShapeFlag(dict):
@@ -735,7 +611,7 @@ class ShapeFlag(dict):
             stream.write(str(self[k]))
 
 class Shape(BREPObject):
-    def __init__(self, childs):
+    def __init__(self, children, dim):
         """
         Construct base Shape object.
         Examples:
@@ -743,7 +619,7 @@ class Shape(BREPObject):
             Wire(edge_1, ShapeRef(edge_2, Orient.Reversed, some_location), edge_3)
             ... not recommended since it is bad idea to reference same shape with different Locations.
 
-        :param childs: List of ShapeRefs or child objects.
+        :param children: List of ShapeRefs or child objects.
         """
 
         # self.subtypes - List of allowed types of childs.
@@ -751,9 +627,12 @@ class Shape(BREPObject):
 
         # convert list of shape reference tuples to ShapeRef objects
         # automaticaly wrap naked shapes into tuple.
-        self.childs=[]
-        for child in childs:
+        self._subshape_refs=[]
+        for child in children:
             self.append(child)   # append convert to ShapeRef
+
+        self._dim = dim
+        # Shape dimensionality.
 
         # Thes flags are usualy produced by OCC for all other shapes safe vertices.
         self.flags=ShapeFlag(0,1,0,1,0,0,0)
@@ -764,40 +643,55 @@ class Shape(BREPObject):
         assert hasattr(self, 'sub_types')
         # Valid types of the shape childs.
 
-    def _childs(self):
-        for sub_ref in self.childs:
+    def dimension(self):
+        return self._dim
+
+    def _children_impl(self):
+        for sub_ref in self._subshape_refs:
             yield sub_ref.location
             yield sub_ref.shape
     """
     Methods to simplify ceration of oriented references.
     """
     def p(self):
+        # orientation plus (default)
         return ShapeRef(self, Orient.Forward)
 
     def m(self):
+        # orientation minus, e.g. reversed edge
         return ShapeRef(self, Orient.Reversed)
 
     def i(self):
+        # ? BREP doc
         return ShapeRef(self, Orient.Internal)
 
     def e(self):
+        # ? BREP doc
         return ShapeRef(self, Orient.External)
+
+    def subrefs(self):
+        """
+        List of subreferences of the shape (reference to subshapes).
+        """
+        return self._subshape_refs
 
     def subshapes(self):
         # Return list of subshapes stored in child ShapeRefs.
-        return [chld.shape for chld in self.childs]
+        return [chld.shape for chld in self._subshape_refs]
 
     def append(self, shape_ref):
         """
-        Append a reference to shild
+        Append a reference to a child
         :param shape_ref: Either ShapeRef or child shape.
         :return: None
         """
-        if type(shape_ref) != ShapeRef:
+        if isinstance(shape_ref, Shape):
             shape_ref=ShapeRef(shape_ref)
+        if not isinstance(shape_ref, ShapeRef):
+            raise ParamError("Wrong child type: {}, allowed: Shape or ShapRef".format(type(shape_ref)))
         if not isinstance(shape_ref.shape, tuple(self.sub_types)):
             raise ParamError("Wrong child type: {}, allowed: {}".format(type(shape_ref.shape), self.sub_types))
-        self.childs.append(shape_ref)
+        self._subshape_refs.append(shape_ref)
 
     #def _convert_to_shaperefs(self, childs):
 
@@ -821,8 +715,8 @@ class Shape(BREPObject):
         self.flags._brep_output(stream)
         stream.write("\n")
 #        stream.write("{}".format(self.childs))
-        for child in self.childs:
-            child._writeformat(stream, groups)
+        for subref in self._subshape_refs:
+            subref._brep_output(stream)
         stream.write("*\n")
         #subshape, tj. childs
 
@@ -840,7 +734,7 @@ class Shape(BREPObject):
         #if len(self.childs)==0:
         #    return ""
         repr += " : ["
-        for child in self.childs:
+        for child in self._subshape_refs:
             repr += child.shape._head()
         repr += "]"
         repr += "\n"
@@ -856,11 +750,16 @@ class Compound(Shape):
     def __init__(self, shapes=None):
         if shapes is None:
             shapes = []
-        self.sub_types =  [CompoundSolid, Solid, Shell, Wire, Face, Edge, Vertex]
+        if isinstance(shapes, (Shape, ShapeRef)):
+            shapes = [shapes]
+        self.sub_types = [Compound, CompoundSolid, Solid, Shell, Wire, Face, Edge, Vertex]
         self.brep_shpname = 'Co'
-        super().__init__(shapes)
+        super().__init__(shapes, None)
         #flags: free, modified, IGNORED, orientable, closed, infinite, convex
         self.set_flags( (1, 1, 0, 0, 0, 0, 0) ) # free, modified
+
+    def dimension(self):
+        return max(self.subshapes().dimension())
 
     def set_free_shapes(self):
         """
@@ -875,21 +774,21 @@ class CompoundSolid(Shape):
     def __init__(self, solids=None):
         self.sub_types = [Solid]
         self.brep_shpname = 'Cs'
-        super().__init__(solids)
+        super().__init__(solids, dim=3)
 
 
 class Solid(Shape):
     def __init__(self, shells=None):
         self.sub_types = [Shell]
         self.brep_shpname='So'
-        super().__init__(shells)
+        super().__init__(shells, dim=3)
         self.set_flags((0, 1, 0, 0, 0, 0, 0))  # modified
 
 class Shell(Shape):
     def __init__(self, faces=None):
         self.sub_types = [Face]
         self.brep_shpname='Sh'
-        super().__init__(faces)
+        super().__init__(faces, dim=2)
         self.set_flags((0, 1, 0, 1, 0, 0, 0))  # modified, orientable
 
 
@@ -897,7 +796,7 @@ class Wire(Shape):
     def __init__(self, edges=None):
         self.sub_types = [Edge]
         self.brep_shpname='Wi'
-        super().__init__(edges)
+        super().__init__(edges, dim=1)
         self.set_flags((0, 1, 0, 1, 0, 0, 0))  # modified, orientable
         self._set_closed()
 
@@ -945,15 +844,15 @@ class Face(Shape):
         if type(wires) != list:
             wires = [ wires ]
         assert(len(wires) > 0)
-        super().__init__(wires)
+        super().__init__(wires, dim=2)
 
         # auto convert list of edges into wire
-        shape_type = type(self.childs[0].shape)
+        shape_type = type(self._subshape_refs[0].shape)
         for shape in self.subshapes():
             assert type(shape) == shape_type
         if shape_type == Edge:
-            wire = Wire(self.childs)
-            self.childs = []
+            wire = Wire(self._subshape_refs)
+            self._subshape_refs = []
             self.append(wire)
 
         # check that wires are closed
@@ -967,20 +866,29 @@ class Face(Shape):
             assert type(surface) == Surface
             self.repr=[(surface, location)]
 
-    def _childs(self):
+    def _children_impl(self):
         # Finalize the shape.
-        assert len(self.repr) == 1
-
         for repr, loc in self.repr:
             yield repr
             yield loc
 
-        yield from super()._childs()
+        yield from super()._children_impl()
 
     def _dfs_finish(self, visited):
         if not self.repr:
             self.implicit_surface()
+
         super(Face, self)._dfs_finish(visited)
+
+    def edge_refs(self):
+        """
+        Generator of edge references of all wires, orientation and location
+        combined.
+        TODO: test location propagation
+        """
+        for w in self.subrefs():
+            for e in w.subrefs():
+                yield ShapeRef(e.shape, (e.orientation * w.orientation) % 2, ComposedLocation(w.location, e.location))
 
     def implicit_surface(self):
         """
@@ -994,7 +902,7 @@ class Face(Shape):
         edges = {}
         vtxs = []
         for wire in self.subshapes():
-            for edge in wire.childs:
+            for edge in wire.subrefs():
                 edges[id(edge.shape)] =  edge.shape
                 e_vtxs = edge.shape.subshapes()
                 if edge.orientation == Orient.Reversed:
@@ -1047,7 +955,7 @@ class Edge(Shape):
         #Continuous2d=3
 
 
-    def __init__(self, vertices, tolerance=1.0e-3):
+    def __init__(self, a, b, tolerance=1.0e-3):
         """
         :param vertices: List of shape reference tuples, see ShapeRef class.
         :param tolerance: Tolerance of the representation.
@@ -1058,12 +966,10 @@ class Edge(Shape):
         self.repr = []
         self.edge_flags=(1,1,0)         # this is usual value
 
-        assert(len(vertices) == 2)
-
-        super().__init__(vertices)
+        super().__init__([a,b], dim=1)
         # Overwrite vertex orientation
-        self.childs[0].orientation = Orient.Forward
-        self.childs[1].orientation = Orient.Reversed
+        self._subshape_refs[0].orientation = Orient.Forward
+        self._subshape_refs[1].orientation = Orient.Reversed
 
     def set_edge_flags(self, same_parameter, same_range, degenerated):
         """
@@ -1115,7 +1021,7 @@ class Edge(Shape):
     def _vtx_surface_uv(self, i, surface, uv_vtx=None):
         if uv_vtx is not None:
             return uv_vtx
-        return self.childs[i].shape._surface_uv(surface)
+        return self._subshape_refs[i].shape._surface_uv(surface)
 
     def attach_to_surface(self, surface, v0=None, v1=None):
         """
@@ -1148,7 +1054,7 @@ class Edge(Shape):
             self.implicit_curve()
         # No need to finish Vertex
 
-    def _childs(self):
+    def _children_impl(self):
         # finalize
         assert len(self.repr) > 0
 
@@ -1160,7 +1066,7 @@ class Edge(Shape):
             elif repr[0] == self.Repr.Curve3d:
                 yield repr[2]
                 yield repr[3]
-        yield from super()._childs()
+        yield from super()._children_impl()
 
 
     def _subrecordoutput(self, stream):
@@ -1227,7 +1133,7 @@ class Vertex(Shape):
         self.brep_shpname = 'Ve'
         self.sub_types=[]
 
-        super().__init__(childs=[])
+        super().__init__(children=[], dim=0)
 
     def attach_to_3d_curve(self, t, curve, location=Identity):
         """
@@ -1266,7 +1172,7 @@ class Vertex(Shape):
         self.repr.append( (self.Repr.Surface, u,v, surface, location) )
         return self
 
-    def _childs(self):
+    def _children_impl(self):
         for repr in self.repr:
             if repr[0]==self.Repr.Surface:
                 yield repr[3] #surface
@@ -1278,7 +1184,7 @@ class Vertex(Shape):
             elif repr[0]==self.Repr.Curve3d:
                 yield repr[2] #curve
                 yield repr[3] #location
-        yield from super()._childs()
+        yield from super()._children_impl()
 
 
     def _subrecordoutput(self, stream): #prints vertex data
@@ -1343,15 +1249,15 @@ def write_model(stream, compound, location=Identity):
     stream.write("CASCADE Topology V1, (c) Matra-Datavision\n")
     stream.write("Locations {}\n".format(len(locations) - 1))
     for loc in locations[1:]:
-        loc._brep_output(stream, groups)
+        loc._brep_output(stream)
 
     stream.write("Curve2ds {}\n".format(len(curves_2d)))
     for curve in curves_2d:
-        curve._brep_output(stream, groups)
+        curve._brep_output(stream)
 
     stream.write("Curves {}\n".format(len(curves_3d)))
     for curve in curves_3d:
-        curve._brep_output(stream, groups)
+        curve._brep_output(stream)
 
     stream.write("Polygon3D 0\n")
 
@@ -1359,13 +1265,13 @@ def write_model(stream, compound, location=Identity):
 
     stream.write("Surfaces {}\n".format(len(surfaces)))
     for surface in surfaces:
-        surface._brep_output(stream, groups)
+        surface._brep_output(stream)
 
     stream.write("Triangulations 0\n")
 
     stream.write("\nTShapes {}\n".format(len(shapes)))
     for shape in shapes:
-        shape._brep_output(stream, groups)
+        shape._brep_output(stream)
     stream.write(f"\n+1 {location.brep_id}")
 
 

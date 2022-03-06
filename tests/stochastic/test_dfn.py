@@ -492,7 +492,7 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
         frac_points = fr.transform(ref_fr_points)
         vtxs = [bw.Vertex(p) for p in frac_points]
         vtxs.append(vtxs[0])
-        edges = [bw.Edge([a, b]) for a, b in zip(vtxs[:-1], vtxs[1:])]
+        edges = [bw.Edge(a, b) for a, b in zip(vtxs[:-1], vtxs[1:])]
         face = bw.Face(edges)
         faces.append(face)
 
@@ -530,13 +530,13 @@ def compute_intersections(fractures: fracture.Fracture):
                 va1 = bw.Vertex(points_A[0,:])
                 if points_A.shape[0] == 2:
                     va2 = bw.Vertex(points_A[1,:])
-                    ea1 = bw.Edge([va1, va2])
+                    ea1 = bw.Edge(va1, va2)
 
             if len(points_B) > 0:
                 vb1 = bw.Vertex(points_B[0, :])
                 if points_B.shape[0] == 2:
                     vb2 = bw.Vertex(points_B[1, :])
-                    eb1 = bw.Edge([vb1, vb2])
+                    eb1 = bw.Edge(vb1, vb2)
 
 
 def check_duplicities(fi,fj,coor,vertices,tol):

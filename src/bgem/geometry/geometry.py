@@ -383,7 +383,7 @@ class Interface:
         for segment in decomp.segments.values():
             #nodes_id, surface_id = segment
             pa, pb = segment.vtxs
-            edge = bw.Edge( [self.vertices[pa.id].shape, self.vertices[pb.id].shape] )
+            edge = bw.Edge(self.vertices[pa.id].shape, self.vertices[pb.id].shape)
             curve_z = self.add_curve_to_edge(edge)
             si = ShapeInfo(edge)
             si.curve_z = curve_z
@@ -905,7 +905,7 @@ class StratumLayer(GeoLayer):
             bot_new_pt = self.i_bot.vertices[bot_subobjs[0][id][0]]
 
 
-            edge = bw.Edge( [bot_new_pt.shape, top_new_pt.shape] )
+            edge = bw.Edge(bot_new_pt.shape, top_new_pt.shape)
             edge.implicit_curve()
             edge_info = ShapeInfo(edge)
             vert_edges[id] = edge_info

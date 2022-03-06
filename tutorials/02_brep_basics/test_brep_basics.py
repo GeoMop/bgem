@@ -73,7 +73,7 @@ def make_shell_brep(surface_3d):
     vertices = [bw.Vertex.on_surface(u, v, bw_surface)
                 for u, v in [(0,0), (1,0), (1,1), (0,1)]]
     vertices.append(vertices[0])
-    edges = [bw.Edge(vertices[i:i+2]).attach_to_surface(bw_surface) for i in range(4)]
+    edges = [bw.Edge(*vertices[i:i+2]).attach_to_surface(bw_surface) for i in range(4)]
     face = bw.Face([bw.Wire(edges)],bw_surface)
     shell = bw.Shell([face])
     compound = bw.Compound([shell])

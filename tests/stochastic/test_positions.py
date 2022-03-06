@@ -109,7 +109,7 @@ def test_angle():
     if len(points_A) == 2:
         v1 = bw.Vertex(points_A[0])
         v2 = bw.Vertex(points_A[1])
-        e1 = bw.Edge([v1, v2])
+        e1 = bw.Edge(v1, v2)
         faces.append(e1)
     if len(points_B) ==1:
         e1 = bw.Vertex(points_B[0])
@@ -117,7 +117,7 @@ def test_angle():
     if len(points_B) == 2:
         v1 = bw.Vertex(points_B[0])
         v2 = bw.Vertex(points_B[1])
-        e1 = bw.Edge([v1, v2])
+        e1 = bw.Edge(v1, v2)
         faces.append(e1)
 
 #
@@ -125,7 +125,7 @@ def test_angle():
 #    faces.append(e1)
 #    v3 = bw.Vertex(points_B[0])
 #    v4 = bw.Vertex(points_B[1])
-#    e2 = bw.Edge([v3, v4])
+#    e2 = bw.Edge(v3, v4])
 #    faces.append(e2)
 
     comp = bw.Compound(faces)
@@ -188,10 +188,10 @@ def get_face(frac,faces):
     v2 = bw.Vertex(frac[1, :])
     v3 = bw.Vertex(frac[2, :])
     v4 = bw.Vertex(frac[3, :])
-    e1 = bw.Edge([v1, v2])
-    e2 = bw.Edge([v2, v3])
-    e3 = bw.Edge([v3, v4])
-    e4 = bw.Edge([v4, v1])
+    e1 = bw.Edge(v1, v2)
+    e2 = bw.Edge(v2, v3)
+    e3 = bw.Edge(v3, v4)
+    e4 = bw.Edge(v4, v1)
     f1 = bw.Face([e1, e2, e3, e4])
     faces.append(f1)
 
