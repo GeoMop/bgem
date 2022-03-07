@@ -5,7 +5,7 @@ import math
 # from bgem
 from bgem.stochastic import fracture
 from bgem.bspline import brep_writer as bw
-
+from bgem import Transform
 from fixtures import sandbox_fname
 
 def test_trans():
@@ -34,7 +34,7 @@ def test_trans():
     faces = get_face(X3_vertr, faces)
 
     comp = bw.Compound(faces)
-    loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+    loc = Transform([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
     with open(sandbox_fname('trans_test','brep'), "w") as f:
         bw.write_model(f, comp, loc)
 

@@ -7,25 +7,14 @@ from bgem import Transform
 from fixtures import sandbox_fname
 this_source_dir = os.path.dirname(os.path.realpath(__file__))
 
-def check_location(location, case):
-    location = bw.Location.from_transform(location)
+def check_location(transform, case):
     compound = bw.Factory.box()
-    assert compare_brep(compound, case, location)
+    assert compare_brep(compound, case, transform)
 
 
 @pytest.mark.skip
 class TestLocation:
     def test_Location(self):
-        print( "test locations")
-        with pytest.raises(bw.ParamError):
-            bw.Location([1,2,3])
-        with pytest.raises(bw.ParamError):
-            bw.Location([[1], [2], [3]])
-        with pytest.raises(bw.ParamError):
-            a = 1
-            b = 'a'
-            bw.Location([[a, b, a, b], [a, b, a, b], [a, b, a, b]])
-
         check_location(Transform().translate([0.5, -0.5, 0]), "shift_location")
         #check_location(Transform().translate([0.5, -0.5, 0]), "shift_location")
 
@@ -47,20 +36,20 @@ class TestConstructors:
         with pytest.raises(bw.ParamError):
             bw.Vertex(['a','b','c'])
 
-def compare_brep(compound, ref_brep, location):
+def compare_brep(compound, ref_brep, transform):
     full_ref_brep = os.path.join(this_source_dir,'ref_brepwriter', ref_brep)
     new_brep = '_'.join(ref_brep.split('_')[:-1]) + '_tst.brep'
     full_new_brep = os.path.join(this_source_dir,'ref_brepwriter', new_brep)
     with open(full_new_brep, "w") as f:
-        bw.write_model(f, compound, location)
+        bw.write_model(f, compound, transform)
 
     return filecmp.cmp(full_new_brep, full_ref_brep)
 
 
 def composed_location():
-    loc1=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
-    loc2=bw.Location([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
-    cloc=bw.ComposedLocation([(loc1,1),(loc2,1)])
+    loc1 = Transform([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
+    loc2 = Transform([[0,0,1,0],[1,0,0,0],[0,1,0,0]])
+    cloc = loc1 @ loc2
     return cloc
 
 
@@ -206,13 +195,19 @@ def factory_polygon():
     s = bw.Factory.polygon([[0, 0], [1, 0], [0.5, 0.5], [1, 1], [0, 1]])
     return bw.Compound([s]), bw.Identity
 
+def factory_extrude():
+    #base = bw.Factory.polygon([[0, 0], [1, 0], [0.5, 0.5], [1, 1], [0, 1]])
+    base = bw.Factory.polygon([[0, 0], [1, 0], [0, 1]])
+
+    volume = bw.Factory.extrude(base, [1,1,2])
+    return bw.Compound([volume]), bw.Identity
 
 @pytest.mark.parametrize("compound_fn",
-    [prism, prism_perturbed, tetrahedron, polygon, factory_polygon])
+    [prism, prism_perturbed, tetrahedron, polygon, factory_polygon, factory_extrude])
 def test_geometries(compound_fn):
     name = compound_fn.__name__ + '_ref.brep'
-    compound, location = compound_fn()
-    assert compare_brep(compound, name, location)
+    compound, transform = compound_fn()
+    assert compare_brep(compound, name, transform)
 
 
 

@@ -1,10 +1,8 @@
 """
 
 """
-
+import pytest
 import os
-from bgem.stochastic import frac_plane as FP
-from bgem.stochastic import frac_isec as FIC
 import attr
 import numpy as np
 import collections
@@ -14,8 +12,11 @@ import collections
 from bgem.gmsh import gmsh
 from bgem.gmsh import options as gmsh_options
 from bgem.gmsh import field as gmsh_field
+from bgem.stochastic import frac_plane as FP
+from bgem.stochastic import frac_isec as FIC
 from bgem.stochastic import fracture
 from bgem.bspline import brep_writer as bw
+from bgem import Transform
 from fixtures import sandbox_fname
 #script_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -497,7 +498,7 @@ def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
         faces.append(face)
 
     comp = bw.Compound(faces)
-    loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+    loc = Transform([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
     with open(brep_name, "w") as f:
         bw.write_model(f, comp, loc)
 

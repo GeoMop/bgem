@@ -7,6 +7,7 @@ import math
 # from bgem
 from bgem.stochastic.fracture import Fracture, SquareShape
 from bgem.bspline import brep_writer as bw
+from bgem import Transform
 
 
 from fixtures import sandbox_fname
@@ -129,7 +130,7 @@ def test_angle():
 #    faces.append(e2)
 
     comp = bw.Compound(faces)
-    loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+    loc = Transform([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
     with open(sandbox_fname('positions_angle_test', 'brep'), "w") as f:
         bw.write_model(f, comp, loc)
 
@@ -176,7 +177,7 @@ def test_cross():
 
 
     comp = bw.Compound(faces)
-    loc = bw.Location([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+    loc = Transform([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
     with open(sandbox_fname('positions_cross_test', 'brep'), "w") as f:
         bw.write_model(f, comp, loc)
 
