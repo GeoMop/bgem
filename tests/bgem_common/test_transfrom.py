@@ -41,7 +41,7 @@ class TestLocation:
         lc_points_ref = lb(la(la(points)))
         assert np.allclose(lc_points_ref, lc_points)
 
-        ld = Transform(lb.matrix, 1, Transform(la.matrix, 2))
+        ld = Transform(lb.matrix) @ Transform(la.matrix) **2
         ld_points = ld(points)
         assert np.allclose(lc_points_ref, ld_points)
 

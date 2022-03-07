@@ -61,12 +61,12 @@ class Transform:
         """
         Combine transfromations from self._composition.
         """
-        matrix = np.eye(4)
-        for m, p in composition:
-            full_matrix = Transform._matrix_expand(m)
+        result = np.eye(4)
+        for t, p in composition:
+            full_matrix = Transform._matrix_expand(t.matrix)
             for _ in range(p):
-                matrix = full_matrix @ matrix
-        return Transform._matrix_compress(matrix)
+                result = full_matrix @ result
+        return Transform._matrix_compress(result)
 
     @staticmethod
     def _matrix_expand(matrix):
@@ -76,36 +76,24 @@ class Transform:
     def _matrix_compress(matrix):
         return matrix[:-1, :]
 
-    def __init__(self, matrix: Matrix = None, power:Power = 1, previous:'Transform' = None):
+    def __init__(self, matrix: Matrix = None):
         """
         Constructor for elementary afine transformation.
         :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
         Last column is the translation vector.
         """
+        self._composition = []
         if matrix is None:
-            if previous is None:
-                self._matrix = None
-                self._composition = []
-                return
-            matrix = Transform._identity_matrix()
+            self._matrix = None
         else:
             check_matrix(matrix, [3, 4], (int, float))
-            matrix = np.array(matrix, dtype=float)
-
-        self._composition: List[Tuple[Matrix, Power]] = []
-        if previous is None or previous.is_identity():
-            previous_comp = []
-        else:
-            previous_comp = previous._composition
-        self._composition.extend(previous_comp)
-        self._composition.append((matrix, power))
-        self._matrix = self._flat(self._composition)
+            self._matrix = np.array(matrix, dtype=float)
 
     def is_composed(self) -> bool :
         """
         Composed of singel matrix with power one.
         """
-        return len(self._composition) == 1 and self._composition[0][1] == 1
+        return len(self._composition) > 0
 
     def is_identity(self):
         return self._matrix is None
@@ -130,9 +118,13 @@ class Transform:
         """
         Return power of the transform.
         """
-        result = copy.copy(self)
-        result._composition = [(m, p * power) for m, p  in result._composition]
-        result._matrix = result._flat(result._composition)
+        if self.is_composed():
+            composition = [(t, p * power) for t, p  in self._composition]
+        else:
+            composition = [(self, power)]
+        result = Transform()
+        result._composition = composition
+        result._matrix = result._flat(composition)
         return result
 
     def __matmul__(self, other: 'Transform') -> 'Transform':
@@ -148,11 +140,17 @@ class Transform:
 
         Return ComposedLocation.
         """
-        result = copy.copy(other)
-        print(self._composition)
-        result._composition.extend(self._composition)
+        if other.is_identity():
+            return self
+        if self.is_identity():
+            return other
+        a = self ** 1
+        b = other ** 1
+        result = Transform()
+        result._composition = b._composition + a._composition
         result._matrix = result._flat(result._composition)
         return result
+
 
     def translate(self, vector):
         """
@@ -161,7 +159,7 @@ class Transform:
         """
         matrix = Transform._identity_matrix()
         matrix[:, 3] += np.array(vector, dtype=float)
-        return Transform(matrix, previous=self)
+        return Transform(matrix) @ self
 
     def rotate(self, axis, angle, center=(0, 0, 0)):
         """
@@ -189,7 +187,7 @@ class Transform:
         matrix[:, 3] -= center
         matrix = M @ matrix
         matrix[:, 3] += center
-        return Transform(matrix, previous=self)
+        return Transform(matrix) @ self
 
     def scale(self, scale_vector, center=(0, 0, 0)):
         """
@@ -201,5 +199,5 @@ class Transform:
         matrix[:, 3] -= center
         matrix = np.diag(scale_vector) @ matrix
         matrix[:, 3] += center
-        return Transform(matrix, previous=self)
+        return Transform(matrix) @ self
 
