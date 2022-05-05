@@ -4,6 +4,7 @@ from __future__ import print_function
 import struct
 import numpy as np
 import enum
+import gmsh
 
 
 # class ElementType(enum.IntEnum):
@@ -43,7 +44,9 @@ class GmshIO:
         self.nodes = {}
         self.elements = {}
         self.physical = {}
+        self.node_data = {}
         self.element_data = {}
+        self.element_node_data = {}
 
     def read_element_data_head(self, mshfile):
 
@@ -115,111 +118,75 @@ class GmshIO:
 
         return self.physical
 
-    def read(self, mshfile=None):
+    def read(self):
         """Read a Gmsh .msh file.
 
         Reads Gmsh format 1.0 and 2.0 mesh files, storing the nodes and
         elements in the appropriate dicts.
         """
 
-        if not mshfile:
-            mshfile = open(self.filename, 'r')
+        gmsh.initialize()
+        gmsh.open(self.filename)
 
-        readmode = 0
-        print('Reading %s' % mshfile.name)
-        line = 'a'
-        while line:
-            line = mshfile.readline()
-            line = line.strip()
+        # nodes
+        nodeTags, coord, parametricCoord = gmsh.model.mesh.getNodes()
+        for i, el_tag in enumerate(nodeTags):
+            offset = i * 3
+            self.nodes[int(el_tag)] = [float(coord[offset]),
+                                       float(coord[offset + 1]),
+                                       float(coord[offset + 2])]
 
-            if line.startswith('$'):
-                if line == '$NOD' or line == '$Nodes':
-                    readmode = 1
-                elif line == '$ELM':
-                    readmode = 2
-                elif line == '$Elements':
-                    readmode = 3
-                elif line == '$MeshFormat':
-                    readmode = 4
-                elif line == '$PhysicalNames':
-                    readmode = 5
-                elif line == '$ElementData':
-                    self.read_element_data_block(mshfile)
+        # elements
+        # el_type: num of nodes per element
+        tdict = {1: 2, 2: 3, 3: 4, 4: 4, 5: 5, 6: 6, 7: 5, 8: 3, 9: 6, 10: 9, 11: 10, 15: 1}
+
+        for entity_dim, entity_tag in gmsh.model.getEntities():
+            physicalTags = gmsh.model.getPhysicalGroupsForEntity(entity_dim, entity_tag)
+            if len(physicalTags):
+                physical_tag = int(physicalTags[0])
+            else:
+                physical_tag = -1
+
+            elementTypes, elementTags, nodeTags = gmsh.model.mesh.getElements(entity_dim, entity_tag)
+            for i, type in enumerate(elementTypes):
+                for j, element_tag in enumerate(elementTags[i]):
+                    nodes_num = tdict[type]
+                    offset = j * nodes_num
+                    self.elements[int(element_tag)] = (int(type),
+                                                       [physical_tag, entity_tag],
+                                                       [int(nodeTags[i][offset + k]) for k in range(nodes_num)])
+
+        # physical
+        for dim, tag in gmsh.model.getPhysicalGroups():
+            name = gmsh.model.getPhysicalName(dim, tag)
+            self.physical[name] = (tag, dim)
+
+        # data
+        for view_tag in gmsh.view.getTags():
+            steps_num = int(gmsh.view.option.getNumber(view_tag, "NbTimeStep"))
+            name = gmsh.view.option.getString(view_tag, "Name")
+            for step in range(steps_num):
+                dataType, tags, data, time, numComponents = gmsh.view.getModelData(view_tag, step)
+                if dataType == "NodeData":
+                    data_dict = self.node_data
+                elif dataType == "ElementData":
+                    data_dict = self.element_data
+                elif dataType == "ElementNodeData":
+                    data_dict = self.element_node_data
                 else:
-                    readmode = 0
-            elif readmode:
-                columns = line.split()
-                if readmode == 5:
-                    if len(columns) == 3:
-                        self.physical[str(columns[2]).strip('\"')] = (int(columns[1]), int(columns[0]))
+                    continue
+                if name not in data_dict:
+                    data_dict[name] = {}
+                values_dict = {}
+                for i, tag in enumerate(tags):
+                    values_dict[int(tag)] = data[i].tolist()
+                data_dict[name][step] = (time, values_dict)
 
-                if readmode == 4:
-                    if len(columns) == 3:
-                        vno, ftype, dsize = (float(columns[0]),
-                                             int(columns[1]),
-                                             int(columns[2]))
-                        print(('ASCII', 'Binary')[ftype] + ' format')
-                    else:
-                        endian = struct.unpack('i', columns[0])
-                if readmode == 1:
-                    # Version 1.0 or 2.0 Nodes
-                    try:
-                        if ftype == 0 and len(columns) == 4:
-                            self.nodes[int(columns[0])] = [float(col) for col in columns[1:]]
-                        elif ftype == 1:
-                            nnods = int(columns[0])
-                            for N in range(nnods):
-                                data = mshfile.read(4 + 3 * dsize)
-                                i, x, y, z = struct.unpack('=i3d', data)
-                                self.nodes[i] = [x, y, z]
-                            mshfile.read(1)
-                    except ValueError as e:
-                        print('Node format error: ' + line, e)
-                        readmode = 0
-                elif ftype == 0 and (readmode == 2 or readmode == 3) and len(columns) > 5:
-                    # Version 1.0 or 2.0 Elements
-                    try:
-                        columns = [int(col) for col in columns]
-                    except ValueError as e:
-                        print('Element format error: ' + line, e)
-                        readmode = 0
-                    else:
-                        (id, type) = columns[0:2]
-                        if readmode == 2:
-                            # Version 1.0 Elements
-                            tags = columns[2:4]
-                            nodes = columns[5:]
-                        else:
-                            # Version 2.0 Elements
-                            ntags = columns[2]
-                            tags = columns[3:3 + ntags]
-                            nodes = columns[3 + ntags:]
-                        self.elements[id] = (type, tags, nodes)
-                elif readmode == 3 and ftype == 1:
-                    # el_type : num of nodes per element
-                    tdict = {1: 2, 2: 3, 3: 4, 4: 4, 5: 5, 6: 6, 7: 5, 8: 3, 9: 6, 10: 9, 11: 10, 15: 1}
-                    try:
-                        neles = int(columns[0])
-                        k = 0
-                        while k < neles:
-                            etype, ntype, ntags = struct.unpack('=3i',
-                                                                mshfile.read(3 * 4))
-                            k += 1
-                            for j in range(ntype):
-                                mysize = 1 + ntags + tdict[etype]
-                                data = struct.unpack('=%di' % mysize,
-                                                     mshfile.read(4 * mysize))
-                                self.elements[data[0]] = (etype,
-                                                          data[1:1 + ntags],
-                                                          data[1 + ntags:])
-                    except:
-                        raise
-                    mshfile.read(1)
+        gmsh.clear()
+        gmsh.finalize()
 
         print('  %d Nodes' % len(self.nodes))
         print('  %d Elements' % len(self.elements))
-
-        mshfile.close()
 
     def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
         """
