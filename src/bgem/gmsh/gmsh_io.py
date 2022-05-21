@@ -48,46 +48,6 @@ class GmshIO:
         self.element_data = {}
         self.element_node_data = {}
 
-    def read_element_data_head(self, mshfile):
-
-        columns = mshfile.readline().strip().split()
-        n_str_tags = int(columns[0])
-        assert (n_str_tags == 1)
-        field = mshfile.readline().strip().strip('"')
-
-        columns = mshfile.readline().strip().split()
-        n_real_tags = int(columns[0])
-        assert (n_real_tags == 1)
-        columns = mshfile.readline().strip().split()
-        time = float(columns[0])
-
-        columns = mshfile.readline().strip().split()
-        n_int_tags = int(columns[0])
-        assert (n_int_tags == 3)
-        columns = mshfile.readline().strip().split()
-        t_idx = int(columns[0])
-        columns = mshfile.readline().strip().split()
-        n_comp = int(columns[0])
-        columns = mshfile.readline().strip().split()
-        n_elem = int(columns[0])
-        return field, time, t_idx, n_comp, n_elem
-
-    def read_element_data_block(self, mshfile):
-        field, time, t_idx, n_comp, n_ele = self.read_element_data_head(mshfile)
-        field_time_dict = self.element_data.setdefault(field, {})
-        assert t_idx not in field_time_dict
-        elem_data = {}
-        field_time_dict[t_idx] = (time, elem_data)
-        for i in range(n_ele):
-            line = mshfile.readline()
-            if line.startswith('$'):
-                raise Exception("Insufficient number of entries in the $ElementData block: {} time={}".format(field, time))
-            columns = line.split()
-            iel = int(columns[0])
-            values = [float(v) for v in columns[1:]]
-            assert len(values) == n_comp
-            elem_data[iel] = values
-
     def read_physical_names(self, mshfile=None):
         """Read physical names from a Gmsh .msh file.
 
@@ -130,9 +90,9 @@ class GmshIO:
 
         # nodes
         nodeTags, coord, parametricCoord = gmsh.model.mesh.getNodes()
-        for i, el_tag in enumerate(nodeTags):
+        for i, node_tag in enumerate(nodeTags):
             offset = i * 3
-            self.nodes[int(el_tag)] = [float(coord[offset]),
+            self.nodes[int(node_tag)] = [float(coord[offset]),
                                        float(coord[offset + 1]),
                                        float(coord[offset + 2])]
 
@@ -218,33 +178,13 @@ class GmshIO:
                 ele_ids_list.append(eid)
         return np.array(ele_ids_list)
 
-    def write_ascii(self, mshfile=None):
+    def write_ascii(self, filename=None):
         """Dump the mesh out to a Gmsh 2.0 msh file."""
 
-        if not mshfile:
-            mshfile = open(self.filename, 'w')
+        if not filename:
+            filename = self.filename
 
-        print('$MeshFormat\n2.2 0 8\n$EndMeshFormat', file=mshfile)
-        print('$PhysicalNames\n%d' % len(self.physical), file=mshfile)
-        for name in sorted(self.physical.keys()):
-            value = self.physical[name]
-            region_id, dim = value
-            print('%d %d "%s"' % (dim, region_id, name), file=mshfile)
-        print('$EndPhysicalNames', file=mshfile)
-        print('$Nodes\n%d' % len(self.nodes), file=mshfile)
-        for node_id in sorted(self.nodes.keys()):
-            coord = self.nodes[node_id]
-            print(node_id, ' ', ' '.join([str(c) for c in coord]), sep="",
-                  file=mshfile)
-        print('$EndNodes', file=mshfile)
-        print('$Elements\n%d' % len(self.elements), file=mshfile)
-        for ele_id in sorted(self.elements.keys()):
-            elem = self.elements[ele_id]
-            (ele_type, tags, nodes) = elem
-            print(ele_id, ' ', ele_type, ' ', len(tags), ' ',
-                  ' '.join([str(c) for c in tags]), ' ',
-                  ' '.join([str(c) for c in nodes]), sep="", file=mshfile)
-        print('$EndElements', file=mshfile)
+        self.write(filename)
 
     def write_binary(self, filename=None):
         """Dump the mesh out to a Gmsh 2.0 msh file."""
@@ -252,30 +192,90 @@ class GmshIO:
         if not filename:
             filename = self.filename
 
-        mshfile = open(filename, 'wr')
+        self.write(filename, bin=True)
 
-        mshfile.write("$MeshFormat\n2.2 1 8\n")
-        mshfile.write(struct.pack('@i', 1))
-        mshfile.write("\n$EndMeshFormat\n")
-        mshfile.write("$Nodes\n%d\n" % (len(self.nodes)))
-        for node_id, coord in self.nodes.items():
-            mshfile.write(struct.pack('@i', node_id))
-            mshfile.write(struct.pack('@3d', *coord))
-        mshfile.write("\n$EndNodes\n")
-        mshfile.write("$Elements\n%d\n" % (len(self.elements)))
-        for ele_id, elem in self.elements.items():
-            (ele_type, tags, nodes) = elem
-            mshfile.write(struct.pack('@i', ele_type))
-            mshfile.write(struct.pack('@i', 1))
-            mshfile.write(struct.pack('@i', len(tags)))
-            mshfile.write(struct.pack('@i', ele_id))
-            for c in tags:
-                mshfile.write(struct.pack('@i', c))
-            for c in nodes:
-                mshfile.write(struct.pack('@i', c))
-        mshfile.write("\n$EndElements\n")
+    def write(self, filename, binary=False):
+        if binary:
+            argv = ["", "-bin"]
+        else:
+            argv = []
+        gmsh.initialize(argv=argv)
 
-        mshfile.close()
+        model_name = "model"
+        gmsh.model.add(model_name)
+
+        # nodes
+        # el_type : dim
+        tdict = {1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 3, 7: 3, 8: 1, 9: 2, 10: 2, 11: 3, 15: 0}
+        max_entity_tag = 0
+        for type, tags, node_tags in self.elements.values():
+            entity_tag = tags[1]
+            dim = tdict[type]
+            if dim == 0 and entity_tag > max_entity_tag:
+                max_entity_tag = entity_tag
+        node_entity_tag = max_entity_tag + 1
+        gmsh.model.addDiscreteEntity(0, node_entity_tag)
+        node_tags = []
+        coords = []
+        for node_tag, coord in self.nodes.items():
+            node_tags.append(node_tag)
+            coords.extend(coord)
+        gmsh.model.mesh.addNodes(0, node_entity_tag, node_tags, coords)
+
+        # elements
+        #created_nodes = set()
+        created_entities = set()
+        physical_dict = {}
+        for element_tag, (type, tags, node_tags) in self.elements.items():
+            physical_tag = tags[0]
+            entity_tag = tags[1]
+            dim = tdict[type]
+
+            # create entity
+            if (dim, entity_tag) not in created_entities:
+                gmsh.model.addDiscreteEntity(dim, entity_tag)
+                created_entities.add((dim, entity_tag))
+                phy_dim_tag = (dim, physical_tag)
+                if phy_dim_tag not in physical_dict:
+                    physical_dict[phy_dim_tag] = []
+                physical_dict[phy_dim_tag].append(entity_tag)
+
+            # create nodes
+            # for node_tag in node_tags:
+            #     if node_tag not in created_nodes:
+            #         gmsh.model.mesh.addNodes(dim, entity_tag, [node_tag], self.nodes[node_tag])
+
+            gmsh.model.mesh.addElementsByType(entity_tag, type, [element_tag], node_tags)
+
+        # physical
+        for (dim, physical_tag), entity_tags in physical_dict.items():
+            gmsh.model.addPhysicalGroup(dim, entity_tags, physical_tag)
+        for name, v in self.physical.items():
+            gmsh.model.setPhysicalName(v[1], v[0], name)
+
+        # data
+        # for data_dict, data_type in [(self.node_data, "NodeData"), (self.element_data, "ElementData"),
+        #                              (self.element_node_data, "ElementNodeData")]:
+        #     for name, steps_dict in data_dict.items():
+        #         view_tag = gmsh.view.add("")
+        #         gmsh.view.option.setNumber(view_tag, "NbTimeStep", len(steps_dict))
+        #         gmsh.view.option.setString(view_tag, "Name", name)
+        #         for step, (time, values_dict) in steps_dict.items():
+        #             tags = []
+        #             data = []
+        #             for tag, d in values_dict.items():
+        #                 tags.append(tag)
+        #                 data.append(d)
+        #             gmsh.view.addModelData(view_tag, step, model_name, data_type, tags, data, time)
+
+        gmsh.write(filename)
+
+        # write views
+        # for view_tag in gmsh.view.getTags():
+        #     gmsh.view.write(view_tag, filename)
+
+        gmsh.clear()
+        gmsh.finalize()
 
     def write_element_data(self, f, ele_ids, name, values):
         """
