@@ -19,6 +19,19 @@ import gmsh
 # }
 #
 
+
+class ModelDataItem:
+    def __init__(self, time, tags, values):
+        """
+        :param time:
+        :param tags: list or ndarray of tags
+        :param values: list of ndarrays (1D) or ndarray (2D)
+        """
+        self.time = time
+        self.tags = tags
+        self.values = values
+
+
 class GmshIO:
     """This is a class for storing nodes and elements. Based on Gmsh.py
 
@@ -137,10 +150,7 @@ class GmshIO:
                     continue
                 if name not in data_dict:
                     data_dict[name] = {}
-                values_dict = {}
-                for i, tag in enumerate(tags):
-                    values_dict[int(tag)] = data[i].tolist()
-                data_dict[name][step] = (time, values_dict)
+                data_dict[name][step] = ModelDataItem(time, tags, data)
 
         gmsh.clear()
         gmsh.finalize()
@@ -192,7 +202,7 @@ class GmshIO:
         if not filename:
             filename = self.filename
 
-        self.write(filename, bin=True)
+        self.write(filename, binary=True)
 
     def write(self, filename, binary=False):
         if binary:
@@ -276,6 +286,65 @@ class GmshIO:
 
         gmsh.clear()
         gmsh.finalize()
+
+        # data
+        assert not binary
+        for data_dict, data_type in [(self.node_data, "NodeData"), (self.element_data, "ElementData"),
+                                     (self.element_node_data, "ElementNodeData")]:
+            for name, steps_dict in data_dict.items():
+                for step, data_item in steps_dict.items():
+                    if data_type == "ElementNodeData":
+                        n_comp = np.atleast_1d(data_item.values[0]).shape[0] // len(self.elements[data_item.tags[0]][2])
+                    else:
+                        n_comp = np.atleast_1d(data_item.values[0]).shape[0]
+                    self.write_model_data(filename, data_type, data_item.tags, name, data_item.values, data_item.time, step, n_comp)
+
+    def write_model_data(self, file_name, data_type, ele_ids, name, values, time, time_idx, n_comp):
+        """
+        Write given element data to the MSH file. Write only a single '$ElementData' section.
+        :param file_name: Output file name.
+        :param data_type:
+        :param ele_ids: Iterable giving element ids of N value rows given in 'values'
+        :param name: Field name.
+        :param values: np.array (N, L); N number of elements, L values per element (components)
+        :param time:
+        :param time_idx:
+        :param n_comp:
+        :return:
+
+        """
+        if isinstance(values, list):
+            n_els = len(values)
+        else:
+            n_els = values.shape[0]
+        header_dict = dict(
+            field=str(name),
+            time=time,
+            time_idx=time_idx,
+            n_components=n_comp,
+            n_els=n_els
+        )
+
+        header = "1\n" \
+                 "\"{field}\"\n" \
+                 "1\n" \
+                 "{time}\n" \
+                 "3\n" \
+                 "{time_idx}\n" \
+                 "{n_components}\n" \
+                 "{n_els}\n".format(**header_dict)
+
+        with open(file_name, "a") as f:
+            f.write('${}\n'.format(data_type))
+            f.write(header)
+            for ele_id, value_row in zip(ele_ids, values):
+                if data_type == "ElementNodeData":
+                    nodes_str = " {}".format(len(value_row) // n_comp)
+                else:
+                    nodes_str = ""
+                value_line = " ".join([str(val) for val in value_row])
+                f.write("{:d}{} {}\n".format(int(ele_id), nodes_str, value_line))
+            f.write('$End{}\n'.format(data_type))
 
     def write_element_data(self, f, ele_ids, name, values):
         """
