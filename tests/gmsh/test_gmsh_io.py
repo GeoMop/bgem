@@ -20,8 +20,8 @@ def test_read():
     assert len(gio.element_data) == 2
     assert "pressure_p0" in gio.element_data
     assert len(gio.element_data["pressure_p0"]) == 14
-    assert gio.element_data["pressure_p0"][0][0] == 0.0
-    assert len(gio.element_data["pressure_p0"][0][1]) == 356
+    assert gio.element_data["pressure_p0"][0].time == 0.0
+    assert len(gio.element_data["pressure_p0"][0].values) == 356
 
 
 def test_write():
