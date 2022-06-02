@@ -1,35 +1,38 @@
 import pytest
 import os
+from typing import *
 from gmsh import model as gmsh_model
-from bgem.gmsh import gmsh, field, options
+from bgem.gmsh import field
+from bgem.gmsh.gmsh import GeometryOCC, ObjectSet, MeshFormat
 import numpy as np
 from fixtures import sandbox_fname
 
+def base_model_2d(mesh_name, size=100):
+    model = GeometryOCC(mesh_name)
+    rec = model.rectangle([size, size])
+    return model, rec
+
+def base_model_3d(mesh_name, size=100):
+    model = GeometryOCC(mesh_name)
+    rec = model.box([size, size, size])
+    return model, rec
 
 
-
-def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh_name="field_mesh"):
-    """
-    Create a mesh of dimension dim on a unit cube and
-    compare element sizes to given reference funcion of coordinates.
-
-    dim: Create mesh of that dimension.
-    tolerance: maximum relative error of element sizes, actual size is max of edges, reference size is the field
-          evaluated in the barycenter
-    max_mismatch: maximum number of elements that could be over the tolerance
-    """
-    model = gmsh.GeometryOCC(mesh_name)
-    rec = model.rectangle([100, 100])
+def make_test_mesh(model, obj_set: List['ObjectSet'], field, min_step=0.5):
+    mesh_name = model.model_name
+    #obj_set = ObjectSet.group(*obj_set)
+    dim = ObjectSet.group(*obj_set).max_dim()
     model.set_mesh_step_field(field)
     brep_fname = sandbox_fname(mesh_name, "brep")
     model.write_brep(brep_fname)
-    model.mesh_options.CharacteristicLengthMin = 0.5
-    model.mesh_options.CharacteristicLengthMax = 100
-    model.make_mesh([rec], dim=dim)
+    model.mesh_options.CharacteristicLengthMin = min_step
+    model.mesh_options.CharacteristicLengthMax = 1000
+    model.make_mesh(obj_set, dim=dim)
     mesh_fname = sandbox_fname(mesh_name, "msh2")
-    model.write_mesh(mesh_fname, gmsh.MeshFormat.msh2)
+    model.write_mesh(mesh_fname, MeshFormat.msh2)
 
-    # check
+
+def check_mesh(dim, reference_fn, tolerance, max_mismatch):
     ref_shape_edges = {
         1: [(0,1)],
         2: [(0,1), (0, 2), (1,2)],
@@ -63,6 +66,22 @@ def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh
     assert n_mismatch <= max_mismatch
     print(f"n_mismatch: {n_mismatch}, max n mismatch: {max_mismatch}")
     print(f"max rel error: {max_rel_error}")
+
+def apply_field(field, reference_fn, dim=2, tolerance=0.15, max_mismatch=5, mesh_name="field_mesh" , model=None, obj_set=None):
+    """
+    Create a mesh of dimension dim on a unit cube and
+    compare element sizes to given reference funcion of coordinates.
+
+    dim: Create mesh of that dimension.
+    tolerance: maximum relative error of element sizes, actual size is max of edges, reference size is the field
+          evaluated in the barycenter
+    max_mismatch: maximum number of elements that could be over the tolerance
+    """
+    if model is None:
+        model, obj_set = base_model_2d(mesh_name)
+    dim = obj_set.max_dim()
+    make_test_mesh(model, [obj_set], field)
+    check_mesh(dim, reference_fn, tolerance, max_mismatch)
     del model
 
 def test_eval_expr():
@@ -145,6 +164,43 @@ def test_distance_nodes_2d():
                    np.linalg.norm(np.array(x) - np.array([50,50,0])))
         return max(0.5 * dist, 0.5)
     apply_field(f_distance, ref_size, dim=2, tolerance=0.7, max_mismatch=10, mesh_name="dist_2d")
+
+def test_distance_3d():
+    mesh_name = "dist_all_3d"
+    model = GeometryOCC(mesh_name)
+    cube = model.box([200,200,200])
+    dist_rec = [50, 50]
+    rec = model.rectangle(dist_rec)
+    dist_line = ([-100, -100, -100], [-100, -100, 100])
+    c1 = model.line(*dist_line)
+    dist_point = [100,100,100]
+    p1 = model.point(dist_point)
+    o_set = model.group(rec, c1, p1)
+    f_distance = field.distance(o_set, sampling=20)
+
+    # points spanning o_set objects
+    line_a, line_b = np.array(dist_line)
+    ref_points = [dist_point]
+    for t in np.linspace(0, 1, 20):
+        ref_points.append(line_a*t + line_b*(1-t))
+    a, b = dist_rec
+    for u in np.linspace(0, 1, 20):
+        for v in np.linspace(0,1, 20):
+            ref_points.append( np.array([a/2*(2*u-1), b/2*(2*v-1), 0]))
+
+    ref_points = np.array(ref_points)
+    def ref_size(x):
+        dist = np.min(np.linalg.norm(np.array(x) - ref_points, axis=1))
+        return max(dist, 5)
+
+    dim = 3
+    obj_set = [cube, o_set]
+    make_test_mesh(model, obj_set, f_distance, min_step=3)
+    check_mesh(dim, ref_size, tolerance=1.3, max_mismatch=3)
+
+
+def test_aniso():
+    pass
 
 
 def test_minmax_nodes_2d():
