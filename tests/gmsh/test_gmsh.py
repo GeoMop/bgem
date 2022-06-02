@@ -6,6 +6,12 @@ from bgem.gmsh import gmsh
 from fixtures import sandbox_fname
 from bgem.gmsh import gmsh_exceptions
 
+def test_line():
+    mesh_name = "square_mesh"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True, gmsh_exceptions=True)
+    l = gen.line([0,0,0], [1,1,1])
+    print(l)
+
 def test_exceptions():
     """
     Test exceptions.
