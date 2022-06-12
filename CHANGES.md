@@ -27,6 +27,11 @@ Polygons
   to the points of lower deformability during the regularization
 - new mechanism to track last polygon splitting operations
 
+Stochastic (WIP)
+- fracture.py : DFN stochastic fractures model
+
+
+
 
 
 ### bspline
