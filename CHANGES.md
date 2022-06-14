@@ -42,6 +42,18 @@ Stochastic (WIP)
 ### added geometry subpackage
 Creation of a layered BREP geometry from the LayerEditor format.
 
+# Release 0.2.0
+- ObjectSet.mesh_step can be used to associate a mesh step with a the object set.
+  Setting the mesh step is postponed right before the mesh is created otherwise the mesh step is forgotten by GMSH
+  during later geometric operations.
+- GeometryOCC new methods:
+  operations: extrude, revolve
+  primitives: circle, disc, cylinder_discrete, disc_discrete
+- Complex geometry of the Greet experiment is presented as a tutorial 'tutorials/01_Greet_experiment'.
+
+# Release 0.1.1
+
+- imporoved testing and publishing actions
 
 # Release 0.1.0
 
