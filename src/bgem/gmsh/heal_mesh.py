@@ -253,6 +253,11 @@ class HealMesh:
                 self.remove_node(nid)
                 # if nid in self.node_els:
 
+    def move_all(self, vec):
+        print("Move nodes")
+        np_vec = np.array(vec)
+        for k, v in self.mesh.nodes.items():
+            self.mesh.nodes[k] = v + np_vec
 
     def make_node_to_el(self):
         # make node -> element map

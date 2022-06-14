@@ -679,6 +679,14 @@ class GeometryOCC:
 
         self._need_synchronize = True
 
+    def all(self):
+        """
+        Return all model entities as a single ObjectSet.
+        """
+        all_dimtags = gmsh.model.getEntities()
+        regions = [Region.default_region[dim] for dim, tag in all_dimtags]
+        return ObjectSet(self, all_dimtags, regions)
+
     def keep_only(self, *object_sets):
         self.synchronize()
         if object_sets:
@@ -938,7 +946,8 @@ class ObjectSet:
         """
         Split objects in ObjectSet into ObjectSets of same dimension.
         :return: list of ObjectSets
-        TODO: Return Group
+        TODO: add parameter dim: Union[Int,List[Int]] specify dimension to get
+        Rename to 'get_dim'.
         """
         dimtags = [[], [], [], []]
         regions = [[], [], [], []]
