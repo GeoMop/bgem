@@ -45,7 +45,14 @@ class GmshIO:
         self.physical = {}
         self.element_data = {}
 
-    def read_element_data_head(self, mshfile):
+    def read_physical_names(self, file_name):
+        if file_name is None:
+            file_name = self.filename
+        with open(file_name, 'r') as mshfile:
+            self._read_physical_names(mshfile)
+        return self.physical
+
+    def _read_element_data_head(self, mshfile):
 
         columns = mshfile.readline().strip().split()
         n_str_tags = int(columns[0])
@@ -69,8 +76,8 @@ class GmshIO:
         n_elem = int(columns[0])
         return field, time, t_idx, n_comp, n_elem
 
-    def read_element_data_block(self, mshfile):
-        field, time, t_idx, n_comp, n_ele = self.read_element_data_head(mshfile)
+    def _read_element_data_block(self, mshfile):
+        field, time, t_idx, n_comp, n_ele = self._read_element_data_head(mshfile)
         field_time_dict = self.element_data.setdefault(field, {})
         assert t_idx not in field_time_dict
         elem_data = {}
@@ -85,7 +92,8 @@ class GmshIO:
             assert len(values) == n_comp
             elem_data[iel] = values
 
-    def read_physical_names(self, mshfile=None):
+
+    def _read_physical_names(self, mshfile=None):
         """Read physical names from a Gmsh .msh file.
 
         Reads Gmsh format 1.0 and 2.0 mesh files,
@@ -111,22 +119,11 @@ class GmshIO:
                 columns = line.split()
                 if len(columns) == 3:
                     self.physical[str(columns[2]).strip('\"')] = (int(columns[1]), int(columns[0]))
-        mshfile.close()
 
         return self.physical
 
-    def read(self, mshfile=None):
-        """Read a Gmsh .msh file.
-
-        Reads Gmsh format 1.0 and 2.0 mesh files, storing the nodes and
-        elements in the appropriate dicts.
-        """
-
-        if not mshfile:
-            mshfile = open(self.filename, 'r')
-
+    def _read(self, mshfile):
         readmode = 0
-        print('Reading %s' % mshfile.name)
         line = 'a'
         while line:
             line = mshfile.readline()
@@ -144,7 +141,7 @@ class GmshIO:
                 elif line == '$PhysicalNames':
                     readmode = 5
                 elif line == '$ElementData':
-                    self.read_element_data_block(mshfile)
+                    self._read_element_data_block(mshfile)
                 else:
                     readmode = 0
             elif readmode:
@@ -215,11 +212,21 @@ class GmshIO:
                     except:
                         raise
                     mshfile.read(1)
+    def read(self, file_name=None):
+        """Read a Gmsh .msh file.
 
-        print('  %d Nodes' % len(self.nodes))
-        print('  %d Elements' % len(self.elements))
+        Reads Gmsh format 1.0 and 2.0 mesh files, storing the nodes and
+        elements in the appropriate dicts.
+        """
+        if file_name is None:
+            file_name = self.filename
 
-        mshfile.close()
+        with open(file_name, 'r') as mshfile:
+            print('Reading %s' % mshfile.name)
+            self._read(mshfile)
+            print('  %d Nodes' % len(self.nodes))
+            print('  %d Elements' % len(self.elements))
+        self.read_physical_names(file_name)
 
     def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
         """
@@ -251,64 +258,62 @@ class GmshIO:
                 ele_ids_list.append(eid)
         return np.array(ele_ids_list)
 
-    def write_ascii(self, mshfile=None):
+    def write_ascii(self, file_name=None):
         """Dump the mesh out to a Gmsh 2.0 msh file."""
+        if file_name is None:
+            file_name = self.filename
 
-        if not mshfile:
-            mshfile = open(self.filename, 'w')
+        with open(file_name, 'w') as mshfile:
 
-        print('$MeshFormat\n2.2 0 8\n$EndMeshFormat', file=mshfile)
-        print('$PhysicalNames\n%d' % len(self.physical), file=mshfile)
-        for name in sorted(self.physical.keys()):
-            value = self.physical[name]
-            region_id, dim = value
-            print('%d %d "%s"' % (dim, region_id, name), file=mshfile)
-        print('$EndPhysicalNames', file=mshfile)
-        print('$Nodes\n%d' % len(self.nodes), file=mshfile)
-        for node_id in sorted(self.nodes.keys()):
-            coord = self.nodes[node_id]
-            print(node_id, ' ', ' '.join([str(c) for c in coord]), sep="",
-                  file=mshfile)
-        print('$EndNodes', file=mshfile)
-        print('$Elements\n%d' % len(self.elements), file=mshfile)
-        for ele_id in sorted(self.elements.keys()):
-            elem = self.elements[ele_id]
-            (ele_type, tags, nodes) = elem
-            print(ele_id, ' ', ele_type, ' ', len(tags), ' ',
-                  ' '.join([str(c) for c in tags]), ' ',
-                  ' '.join([str(c) for c in nodes]), sep="", file=mshfile)
-        print('$EndElements', file=mshfile)
+            print('$MeshFormat\n2.2 0 8\n$EndMeshFormat', file=mshfile)
+            print('$PhysicalNames\n%d' % len(self.physical), file=mshfile)
+            for name in sorted(self.physical.keys()):
+                value = self.physical[name]
+                region_id, dim = value
+                print('%d %d "%s"' % (dim, region_id, name), file=mshfile)
+            print('$EndPhysicalNames', file=mshfile)
+            print('$Nodes\n%d' % len(self.nodes), file=mshfile)
+            for node_id in sorted(self.nodes.keys()):
+                coord = self.nodes[node_id]
+                print(node_id, ' ', ' '.join([str(c) for c in coord]), sep="",
+                      file=mshfile)
+            print('$EndNodes', file=mshfile)
+            print('$Elements\n%d' % len(self.elements), file=mshfile)
+            for ele_id in sorted(self.elements.keys()):
+                elem = self.elements[ele_id]
+                (ele_type, tags, nodes) = elem
+                print(ele_id, ' ', ele_type, ' ', len(tags), ' ',
+                      ' '.join([str(c) for c in tags]), ' ',
+                      ' '.join([str(c) for c in nodes]), sep="", file=mshfile)
+            print('$EndElements', file=mshfile)
 
-    def write_binary(self, filename=None):
+    def write_binary(self, file_name=None):
         """Dump the mesh out to a Gmsh 2.0 msh file."""
+        if file_name is None:
+            file_name = self.filename
 
-        if not filename:
-            filename = self.filename
-
-        mshfile = open(filename, 'wr')
-
-        mshfile.write("$MeshFormat\n2.2 1 8\n")
-        mshfile.write(struct.pack('@i', 1))
-        mshfile.write("\n$EndMeshFormat\n")
-        mshfile.write("$Nodes\n%d\n" % (len(self.nodes)))
-        for node_id, coord in self.nodes.items():
-            mshfile.write(struct.pack('@i', node_id))
-            mshfile.write(struct.pack('@3d', *coord))
-        mshfile.write("\n$EndNodes\n")
-        mshfile.write("$Elements\n%d\n" % (len(self.elements)))
-        for ele_id, elem in self.elements.items():
-            (ele_type, tags, nodes) = elem
-            mshfile.write(struct.pack('@i', ele_type))
+        with open(file_name, 'w') as mshfile:
+            mshfile.write("$MeshFormat\n2.2 1 8\n")
             mshfile.write(struct.pack('@i', 1))
-            mshfile.write(struct.pack('@i', len(tags)))
-            mshfile.write(struct.pack('@i', ele_id))
-            for c in tags:
-                mshfile.write(struct.pack('@i', c))
-            for c in nodes:
-                mshfile.write(struct.pack('@i', c))
-        mshfile.write("\n$EndElements\n")
+            mshfile.write("\n$EndMeshFormat\n")
+            mshfile.write("$Nodes\n%d\n" % (len(self.nodes)))
+            for node_id, coord in self.nodes.items():
+                mshfile.write(struct.pack('@i', node_id))
+                mshfile.write(struct.pack('@3d', *coord))
+            mshfile.write("\n$EndNodes\n")
+            mshfile.write("$Elements\n%d\n" % (len(self.elements)))
+            for ele_id, elem in self.elements.items():
+                (ele_type, tags, nodes) = elem
+                mshfile.write(struct.pack('@i', ele_type))
+                mshfile.write(struct.pack('@i', 1))
+                mshfile.write(struct.pack('@i', len(tags)))
+                mshfile.write(struct.pack('@i', ele_id))
+                for c in tags:
+                    mshfile.write(struct.pack('@i', c))
+                for c in nodes:
+                    mshfile.write(struct.pack('@i', c))
+            mshfile.write("\n$EndElements\n")
 
-        mshfile.close()
 
     def write_element_data(self, f, ele_ids, name, values):
         """
@@ -349,17 +354,17 @@ class GmshIO:
             f.write("{:d} {}\n".format(int(ele_id), value_line))
         f.write('$EndElementData\n')
 
-    def write_fields(self, msh_file, ele_ids, fields):
+    def write_fields(self, file_name, ele_ids, fields):
         """
-        Creates input data msh file for Flow model.
-        :param msh_file: Target file (or None for current mesh file)
+        Append the (element) field data to the `file_name` file.
+        :param file_name: Target file (or None for current mesh file)
         :param ele_ids: Element IDs in computational mesh corrsponding to order of
         field values in element's barycenter.
         :param fields: {'field_name' : values_array, ..}
         """
-        if not msh_file:
-            msh_file = open(self.filename, 'w')
-        with open(msh_file, "w") as fout:
+        if not file_name:
+            file_name = self.filename
+        with open(file_name, "a") as fout:
             fout.write('$MeshFormat\n2.2 0 8\n$EndMeshFormat\n')
             for name, values in fields.items():
                 self.write_element_data(fout, ele_ids, name, values)

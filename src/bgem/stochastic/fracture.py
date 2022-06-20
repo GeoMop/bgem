@@ -73,7 +73,7 @@ class Fracture:
     # fracture normal
     shape_angle: float
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
-    region: Union[str, int] = "fracture"
+    region_id: int # Union[str, int] = "fracture"
     # name or ID of the physical group
     aspect: float = 1
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
