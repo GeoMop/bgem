@@ -356,8 +356,29 @@ x = FieldExpr("x",[])
 y = FieldExpr("y",[])
 z = FieldExpr("z",[])
 
-# @field_function
-# def AttractorAnisoCurve
+
+def attractor_aniso_curve(curves:'ObjectSet', dist_range=(0.1, 0.5), h_normal= (0.05, 0.5), h_tangent=(0.5, 0.5), sampling=20):
+    """
+    curves : ObjectSet, its 1d tags are passed to the field.
+    dist_range : (float, float), below and above this range the minimum mesh size and maximum mesh size is applied respectively
+    sampling : Number of sampling points on each curve
+    h_normal : (float, float), Normal direction mesh step (h_min, h_max) out of the distance range.
+    h_tangent : (float, float), Tangential direction mesh step (h_min, h_max) out of the distance range.
+    Requires: Mesh.Algorithm = 7; // BAMG
+    TODO: force automatically
+    """
+    print("Warning: Anisotropic mesh size fields requires Mesh.Algorithm = 7; // BAMG.")
+    return Field('AttractorAnisoCurve',
+                 CurvesList=Par.Numbers(curves.split_by_dimension()[1].tags),
+                 DistMax=Par.Number(dist_range[1]),
+                 DistMin=Par.Number(dist_range[0]),
+                 Sampling=Par.Number(sampling),
+                 SizeMaxNormal=Par.Number(h_normal[1]),
+                 SizeMaxTangent=Par.Number(h_tangent[1]),
+                 SizeMinNormal=Par.Number(h_normal[0]),
+                 SizeMinTangent=Par.Number(h_tangent[0]))
+
+
 
 # @field_function
 # AutomaticMeshSizeField
@@ -568,8 +589,4 @@ def threshold(field:Field, lower_bound:Tuple[float, float],
 
 
 
-
-
-
-
-
+"MathEvalAniso"
