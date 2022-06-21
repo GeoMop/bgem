@@ -342,9 +342,9 @@ class VonMisesOrientation:
     X = east, Y = north
     """
 
-    trend: float
+    trend: float = 0
     # azimuth (0, 360) of the fractures normal
-    concentration: float
+    concentration: float = 0
     # concentration parameter, 0 = uniformely dispersed, 1 = exect orientation
 
     def sample_axis_angle(self, size=1):
