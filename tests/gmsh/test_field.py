@@ -28,7 +28,7 @@ def make_test_mesh(model, obj_set: List['ObjectSet'], field, min_step=0.5):
     model.write_brep(brep_fname)
     model.mesh_options.CharacteristicLengthMin = min_step
     model.mesh_options.CharacteristicLengthMax = 1000
-    model.remove_duplicate_entities()
+    #model.remove_duplicate_entities()
     model.make_mesh(obj_set, dim=dim)
     mesh_fname = sandbox_fname(mesh_name, "msh2")
     model.write_mesh(mesh_fname, MeshFormat.msh2)
