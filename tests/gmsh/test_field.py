@@ -128,6 +128,7 @@ def test_eval_expr():
         return 6
     apply_field(f, ref_size, dim=2, tolerance=0.38, max_mismatch=0)
 
+@pytest.mark.skip
 def test_attractor_aniso():
     """
     Test anisotropic attractor field for the axis Z from z=-100 to z=100.
