@@ -62,7 +62,7 @@ class Par:
     def String(x):
         """
         Make an argument for a parameter of the type String.
-        (i.e. any value convertible to double).
+        (i.e. any value convertible to double).Your mesh must contains at least points.
         """
         return Par(Par._set_string, x)
 
@@ -364,7 +364,8 @@ def attractor_aniso_curve(curves:'ObjectSet', dist_range=(0.1, 0.5), h_normal= (
     sampling : Number of sampling points on each curve
     h_normal : (float, float), Normal direction mesh step (h_min, h_max) out of the distance range.
     h_tangent : (float, float), Tangential direction mesh step (h_min, h_max) out of the distance range.
-    Requires: Mesh.Algorithm = 7; // BAMG
+    Requires: Mesh.Algorithm = Algorithm.BAMG; // BAMG = 7 in 2D
+              Mesh.Algorithm3D = Algorithm3D.MMG3D; // MMG3D = 7 in 3D
     TODO: force automatically
     """
     print("Warning: Anisotropic mesh size fields requires Mesh.Algorithm = 7; // BAMG.")
