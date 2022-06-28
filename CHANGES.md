@@ -1,16 +1,16 @@
 # Release 0.3.0
-Bspline
+## Bspline
 - improved BREP writer, many fixes, more robust
 - bspline basis, new methods for the knot vector: interval lengths, interval centers
 - bspline_approx - significantly faster, adaptive approximation, automatic detection of boundng rectangle
 - bspline_plot - allow passing various style arguments
 - preliminary Bspline surfaces intersection algorithm
+- extrude algorithm
 
-Geometry
+## Geometry
 - Improved, but still not adaptive approximation of the intersection curves.
 
-
-GMSH
+## GMSH
 - based directly on gmsh api, version 4.6.0
 - point and line primitives
 - catching and better reporting the GMSH exceptions
@@ -18,14 +18,20 @@ GMSH
 - improved fragmentation
 - better mesh_step propagations during operations 
 - fields - support of FieldExpr, Distance, Threshold, ... tested
-- gmsh_io - reading of the physical names, still only GMSH 2 format
-- improved robustnes of the heal_mesh
+- gmsh_io - modified API, read/write through GMSH library 
+            with exception of the data write (append to the file not supported by GMSH lib)
+- improved robustnes of the heal_mesh, move_all function
 
-Polygons
+## Polygons
 - fixed some bugs in the topology operations
 - support for deformability of the Points, points with higherr deformability are attracted 
   to the points of lower deformability during the regularization
 - new mechanism to track last polygon splitting operations
+
+## Stochastic (work in progress)
+- fracture.py : DFN stochastic fractures model
+
+
 
 
 

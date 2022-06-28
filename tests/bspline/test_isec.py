@@ -126,6 +126,7 @@ class IntersectTest:
 
 
     def plot(self):
+        return
 
         myplot = bp.Plotting((bp.PlottingPlotly()))
         myplot.plot_surface_3d(self.surfapprox.surfz, poles=False)

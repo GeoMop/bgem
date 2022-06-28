@@ -41,7 +41,7 @@ class Algorithm2d(enum.IntEnum):
     Automatic = 2
     Delaunay = 5
     FrontalDelaunay = 6
-    BAMG = 7
+    BAMG = 7  # Anisotropic
     FrontalDelaunayQuads = 8
     ParalelogramsPacking = 9
 
@@ -49,7 +49,7 @@ class Algorithm2d(enum.IntEnum):
 class Algorithm3d(enum.IntEnum):
     Delaunay = 1
     Frontal = 4
-    MMG3D = 7
+    MMG3D = 7   # Anisotropic
     RTree = 9
     HXT = 10
 

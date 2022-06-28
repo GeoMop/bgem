@@ -42,7 +42,7 @@ setuptools.setup(
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
     
-    packages=['bgem', 'bgem.polygons', 'bgem.bspline', 'bgem.gmsh', 'bgem.external', 'bgem.geometry'], #setuptools.find_packages(where='src'),
+    packages=['bgem', 'bgem.polygons', 'bgem.bspline', 'bgem.gmsh', 'bgem.external', 'bgem.geometry', 'bgem.stochastic'], #setuptools.find_packages(where='src'),
     package_dir={'': 'src'},
     #py_modules=[os.path.splitext(os.path.basename(path))[0] for path in glob.glob('src/*.py')],
     # package_data={
@@ -56,7 +56,7 @@ setuptools.setup(
     include_package_data=True,
     zip_safe=False,
     #install_requires=['numpy', 'scipy', 'bih', 'gmsh-sdk<=4.5.1'],
-    install_requires=['numpy', 'pandas', 'scipy', 'bih', 'gmsh>=4.6.0'],
+    install_requires=['numpy>=1.13.4', 'pandas', 'scipy', 'bih', 'gmsh>=4.10.4'],
     # incompatible changes in SDK in release 4.6.0 to be changed in the new release of bgem
     python_requires='>=3',
     # extras_require={
