@@ -518,7 +518,7 @@ class GeometryOCC:
             print("fr: ", i, "tag: ", shape.dim_tags)
             shape = shape.scale([fr.rx, fr.ry, 1]) \
                 .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
-                .translate(fr.centre) \
+                .translate(fr.center) \
                 .set_region(fr.region)
 
             shapes.append(shape)
@@ -678,6 +678,14 @@ class GeometryOCC:
             self._raise_gmsh_exception(gmsh_exceptions.FragmentationError, msg)
 
         self._need_synchronize = True
+
+    def all(self):
+        """
+        Return all model entities as a single ObjectSet.
+        """
+        all_dimtags = gmsh.model.getEntities()
+        regions = [Region.default_region[dim] for dim, tag in all_dimtags]
+        return ObjectSet(self, all_dimtags, regions)
 
     def keep_only(self, *object_sets):
         self.synchronize()
@@ -854,7 +862,7 @@ class ObjectSet:
         except ValueError as err:
             message = "\nExtrusion failed!\ndimtags: {}".format(str(self.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
-            self.raise_gmsh_exception(gerr, err)
+            self._raise_gmsh_exception(gerr, err)
 
         regions = [Region.default_region[dim] for dim, tag in outDimTags]
         all_obj = ObjectSet(self.factory, outDimTags, regions)
@@ -876,7 +884,7 @@ class ObjectSet:
         except ValueError as err:
             message = "\nRevolving failed!\ndimtags: {}".format(str(self.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
-            self.raise_gmsh_exception(gerr, err)
+            self._raise_gmsh_exception(gerr, err)
 
         regions = [Region.default_region[dim] for dim, tag in outDimTags]
         all_obj = ObjectSet(self.factory, outDimTags, regions)
@@ -914,7 +922,7 @@ class ObjectSet:
         except ValueError as err :
             message = "\nGetting boundary failed!\nobj dimtags: {}".format(str(self.dim_tags[:10]))
             gerr = gmsh_exceptions.GetBoundaryError(message)
-            self.raise_gmsh_exception(gerr, err)
+            self._raise_gmsh_exception(gerr, err)
         regions = [Region.default_region[dim] for dim, tag in dimtags]
         return ObjectSet(self.factory, dimtags, regions)
 
@@ -938,7 +946,8 @@ class ObjectSet:
         """
         Split objects in ObjectSet into ObjectSets of same dimension.
         :return: list of ObjectSets
-        TODO: Return Group
+        TODO: add parameter dim: Union[Int,List[Int]] specify dimension to get
+        Rename to 'get_dim'.
         """
         dimtags = [[], [], [], []]
         regions = [[], [], [], []]
@@ -1019,7 +1028,7 @@ class ObjectSet:
         except ValueError as err:
             message = "\nobj dimtags: {} ...".format(str(self.dim_tags[:10]))
             gerr = gmsh_exceptions.GetBoundaryError(message)
-            self.raise_gmsh_exception(gerr, err)
+            self._raise_gmsh_exception(gerr, err)
         nodes = [(dim, tag) for dim, tag in dimtags if dim == 0]
         gmsh.model.mesh.setSize(nodes, step)
         return self
@@ -1041,7 +1050,7 @@ class ObjectSet:
             if len(dimtag_map) > 1:
                 message = "\nCannot select by intersect, insufficient fragmentation:\n{}".format(self.dim_tags)
                 gerr = gmsh_exceptions.BoolOperationError(message)
-                self.raise_gmsh_exception(gerr, err)
+                self._raise_gmsh_exception(gerr, None)
             if len(dimtag_map) == 1:
                 isec.append(dimtagreg)
         if isec:
@@ -1092,7 +1101,7 @@ class ObjectSet:
         except ValueError as err :
             message = "\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]), str(tool_objects.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
-            self.raise_gmsh_exception(gerr, err)
+            self._raise_gmsh_exception(gerr, err)
 
         # assign regions
         assert len(self.regions) == len(self.dim_tags), (len(self.regions), len(self.dim_tags))
@@ -1154,7 +1163,7 @@ class ObjectSet:
             message = "Fusion failed!\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]),
                                                                    str(tool_objects.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
-            self.raise_gmsh_exception(gerr, err)
+            self._raise_gmsh_exception(gerr, err)
 
         # assign regions
         assert len(self.regions) == len(self.dim_tags), (len(self.regions), len(self.dim_tags))

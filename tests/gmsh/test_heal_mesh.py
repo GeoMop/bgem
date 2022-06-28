@@ -59,3 +59,15 @@ def test_check_flat_quad_degen():
     hm.gamma_tol = 0.01
     ele = hm._make_element(0)
     hm._check_flat_tetra(ele)
+
+def test_move_all():
+    h = 1
+    nodes = np.array([[0, 0, 0], [1, 1, 0], [0, 1, h], [1, 0, h]], dtype=float)
+    mesh_io = gmsh_io.GmshIO()
+    for inn, n in enumerate(nodes):
+        mesh_io.nodes[inn] = n
+    mesh_io.elements[0] = (4, (1,2,3), [0,1,2,3])
+
+    hm = heal_mesh.HealMesh(mesh_io)
+    hm.move_all([1,2,3])
+    assert np.allclose(hm.mesh.nodes[0], [1,2,3])

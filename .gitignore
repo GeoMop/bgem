@@ -58,7 +58,7 @@ tutorials/**/*.msh2
 tests/**/*.brep
 tutorials/**/*.brep
 **/sandbox/**
-
+!tests/*/ref_brepwriter/*_ref.brep
 # Sphinx documentation
 docs/_build/
 
