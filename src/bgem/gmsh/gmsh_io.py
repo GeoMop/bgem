@@ -51,8 +51,8 @@ class GmshIO:
         """Initialise Gmsh data structure"""
         self.reset()
         self.filename = filename
-        if self.filename:
-            self.read()
+        if self.filename is not None:
+            self._read()
 
     def reset(self):
         """Reinitialise Gmsh data structure"""
@@ -62,44 +62,7 @@ class GmshIO:
         self.node_data = {}
         self.element_data = {}
         self.element_node_data = {}
-    def read_physical_names(self, file_name):
-        if file_name is None:
-            file_name = self.filename
-        with open(file_name, 'r') as mshfile:
-            self._read_physical_names(mshfile)
-        return self.physical
 
-    
-
-
-    def _read_physical_names(self, mshfile=None):
-        """Read physical names from a Gmsh .msh file.
-
-        Reads Gmsh format 1.0 and 2.0 mesh files,
-        reads only '$PhysicalNames' section.
-        """
-
-        if not mshfile:
-            mshfile = open(self.filename, 'r')
-
-        readmode = 0
-        print('Reading %s' % mshfile.name)
-        line = 'a'
-        while line:
-            line = mshfile.readline()
-            line = line.strip()
-
-            if line.startswith('$'):
-                if line == '$PhysicalNames':
-                    readmode = 5
-                else:
-                    readmode = 0
-            elif readmode == 5:
-                columns = line.split()
-                if len(columns) == 3:
-                    self.physical[str(columns[2]).strip('\"')] = (int(columns[1]), int(columns[0]))
-
-        return self.physical
 
     def _read_nodes(self):
         # nodes
@@ -157,7 +120,7 @@ class GmshIO:
                     data_dict[name] = {}
                 data_dict[name][step] = ModelDataItem(time, tags, data)
 
-    def read(self):
+    def _read(self):
         gmsh.initialize()
         gmsh.open(self.filename)
 
@@ -168,21 +131,7 @@ class GmshIO:
 
         gmsh.clear()
         gmsh.finalize()
-    def read(self, file_name=None):
-        """Read a Gmsh .msh file.
 
-        Reads Gmsh format 1.0 and 2.0 mesh files, storing the nodes and
-        elements in the appropriate dicts.
-        """
-        if file_name is None:
-            file_name = self.filename
-
-        with open(file_name, 'r') as mshfile:
-            print('Reading %s' % mshfile.name)
-            self._read(mshfile)
-            print('  %d Nodes' % len(self.nodes))
-            print('  %d Elements' % len(self.elements))
-        self.read_physical_names(file_name)
     def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
         """
         Returns ids of regions given by names.
@@ -228,6 +177,7 @@ class GmshIO:
             filename = self.filename
 
         self.write(filename, binary=True)
+
     def _write_nodes(self):
         # nodes
         max_entity_tag = 0

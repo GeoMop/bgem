@@ -1386,8 +1386,7 @@ class LayerGeometry():
 
     def modify_mesh(self):
         self.tmp_msh_file = self.filename_base + ".tmp.msh"
-        self.mesh = gmsh_io.GmshIO()
-        self.mesh.read(self.tmp_msh_file)
+        self.mesh = gmsh_io.GmshIO(self.tmp_msh_file)
 
         # deform mesh, nontrivial evaluation of Z for the interface mesh
         #self.deform_mesh()
