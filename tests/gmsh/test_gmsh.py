@@ -12,6 +12,7 @@ def test_line():
     l = gen.line([0,0,0], [1,1,1])
     print(l)
 
+@pytest.mark.skip
 def test_exceptions():
     """
     Test exceptions.
