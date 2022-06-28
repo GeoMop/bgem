@@ -28,6 +28,12 @@ library and partly due to generic API lacking the Python idioms. In particular, 
 - For Fields related to the geometic entites these must be the final geometric entities, their fragmentation by boolean operations 
   leads to spurious results. 
 
+BGEM tries to overcome these difficulties by two approaches:
+- Own BREP construction tool supporting only BSplines and planes/lines, 
+  strictly conserver uniqueness of the entities. No support for boolean operations
+  yet.
+- Wrapping functions for the GMSH library (which uses OCC in turn). Trying to eliminate some of 
+  the drawbacks by tracking entities created by OCC.
 
 ## Features:
 ### bgem.bspline
@@ -53,7 +59,7 @@ Decomposition of the plane into disjoint polygons by line segments.
 - support for assignment of regions (or other data) to the shapes (points, segments, polygons)
 - support for undo/redo of the operations
 
-### bgem.dfn
+### bgem.stochastic
 Stochastic discrete fracture network.
 - stochastic description and realization of raw a fracture set
 - (in progress) calculating intersections
@@ -99,7 +105,7 @@ Jan Březina, Jiří Kopal, Radek Srb, Jana Ehlerová, Jiří Hnídek
 [Patrikalakis-Maekawa-Cho](http://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/mathe.html)
 
 
-## Similar libraries (for B-splines]
+## Similar libraries (for B-splines)
 
 - [NURBS++](http://libnurbs.sourceforge.net/old/documentation.shtml) - unmantained, last updates from 2002, seems there is no support for intersections
 - [libnurbs](https://sourceforge.net/projects/libnurbs/) - effort to add intersections and other features to the [openNURBBS](https://www.rhino3d.com/opennurbs)
