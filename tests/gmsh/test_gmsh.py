@@ -6,6 +6,7 @@ from bgem.gmsh import gmsh
 from fixtures import sandbox_fname
 from bgem.gmsh import gmsh_exceptions
 
+@pytest.mark.skip
 def test_exceptions():
     """
     Test exceptions.
