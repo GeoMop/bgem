@@ -6,6 +6,12 @@ from bgem.gmsh import gmsh
 from fixtures import sandbox_fname
 from bgem.gmsh import gmsh_exceptions
 
+def test_line():
+    mesh_name = "square_mesh"
+    gen = gmsh.GeometryOCC(mesh_name, verbose=True, gmsh_exceptions=True)
+    l = gen.line([0,0,0], [1,1,1])
+    print(l)
+
 @pytest.mark.skip
 def test_exceptions():
     """
@@ -15,14 +21,14 @@ def test_exceptions():
     mesh_name = "square_mesh"
     gen = gmsh.GeometryOCC(mesh_name, verbose=True, gmsh_exceptions=True)
 
-    square = gen.rectangle([2, 2], [5, 0, 0])
-    with pytest.raises(gmsh_exceptions.FragmentationError, match=r".* duplicate .*"):
-        gen.remove_duplicate_entities()
+    #square = gen.rectangle([2, 2], [5, 0, 0])
+    #with pytest.raises(gmsh_exceptions.FragmentationError, match=r".* duplicate .*"):
+    #    gen.remove_duplicate_entities()
 
-    gen.gmsh_exceptions = False
+    #gen.gmsh_exceptions = False
     # we cannot check warning type due to inline creation of the warning type in gmsh_exceptions.make_warning
-    with pytest.warns(Warning, match=r".* duplicate .*"):
-        gen.remove_duplicate_entities()
+    #with pytest.warns(Warning, match=r".* duplicate .*"):
+    #    gen.remove_duplicate_entities()
 
 def test_revolve_square():
     """

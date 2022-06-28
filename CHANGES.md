@@ -1,16 +1,33 @@
-# Release 0.2.0
-- ObjectSet.mesh_step can be used to associate a mesh step with a the object set.
-  Setting the mesh step is postponed right before the mesh is created otherwise the mesh step is forgotten by GMSH
-  during later geometric operations.
-- GeometryOCC new methods:
-  operations: extrude, revolve
-  primitives: circle, disc, cylinder_discrete, disc_discrete
-- Complex geometry of the Greet experiment is presented as a tutorial 'tutorials/01_Greet_experiment'.
+# Release 0.3.0
+Bspline
+- improved BREP writer, many fixes, more robust
+- bspline basis, new methods for the knot vector: interval lengths, interval centers
+- bspline_approx - significantly faster, adaptive approximation, automatic detection of boundng rectangle
+- bspline_plot - allow passing various style arguments
+- preliminary Bspline surfaces intersection algorithm
+
+Geometry
+- Improved, but still not adaptive approximation of the intersection curves.
 
 
-# Release 0.1.1
+GMSH
+- based directly on gmsh api, version 4.6.0
+- point and line primitives
+- catching and better reporting the GMSH exceptions
+- import BREP
+- improved fragmentation
+- better mesh_step propagations during operations 
+- fields - support of FieldExpr, Distance, Threshold, ... tested
+- gmsh_io - reading of the physical names, still only GMSH 2 format
+- improved robustnes of the heal_mesh
 
-- imporoved testing and publishing actions
+Polygons
+- fixed some bugs in the topology operations
+- support for deformability of the Points, points with higherr deformability are attracted 
+  to the points of lower deformability during the regularization
+- new mechanism to track last polygon splitting operations
+
+
 
 ### bspline
 
@@ -20,6 +37,18 @@
 ### added geometry subpackage
 Creation of a layered BREP geometry from the LayerEditor format.
 
+# Release 0.2.0
+- ObjectSet.mesh_step can be used to associate a mesh step with a the object set.
+  Setting the mesh step is postponed right before the mesh is created otherwise the mesh step is forgotten by GMSH
+  during later geometric operations.
+- GeometryOCC new methods:
+  operations: extrude, revolve
+  primitives: circle, disc, cylinder_discrete, disc_discrete
+- Complex geometry of the Greet experiment is presented as a tutorial 'tutorials/01_Greet_experiment'.
+
+# Release 0.1.1
+
+- imporoved testing and publishing actions
 
 # Release 0.1.0
 

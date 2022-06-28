@@ -4,6 +4,8 @@ import sys
 from typing import *
 import numpy as np
 from gmsh import model as gmsh_model
+from bgem.gmsh.gmsh import ObjectSet
+
 gmsh_field = gmsh_model.mesh.field
 
 
@@ -255,31 +257,6 @@ class Field:
     def __ge__(self, other):
         return FieldExpr("step({0}-{1})", [self, other])
 
-# @field_function
-# def math_eval(expr) -> Field:
-#     """
-#     Temporary solution.
-#
-#     Usage:
-#     dist = field.distance(nodes)
-#     box = field.box(...)
-#     formula = f'1/F{dist} + F{box}'
-#     f = field.math_eval(formula)
-#
-#          addfunc("rand", p_rand, 0); // rand()
-#
-#          addfunc("sum", p_sum, UNDEFARGS);  // sum(1,2,...)
-#
-#          addfunc("max", p_max, UNDEFARGS);
-#
-#          addfunc("min", p_min, UNDEFARGS);
-#
-#          addfunc("med", p_med, UNDEFARGS);  // average !!
-#
-#     """
-#     id = gmsh_field.add('MathEval')
-#     gmsh_field.setString(id, 'F', expr)
-#     return id
 
 """
 Field functions.
@@ -329,9 +306,6 @@ for pyfn, gmsh_fn in variadic_functions:
     setattr(current_module, pyfn, body)
 
 
-
-
-
 class FieldExpr(Field):
     def __init__(self, expr_fmt, inputs):
         self._id = Field.unset
@@ -346,7 +320,8 @@ class FieldExpr(Field):
         input_exprs = [in_field._expand(model) for in_field in self._inputs]
         variadic = "(" + ",".join(input_exprs) + ")"
         eval_expr = self._expr.format(*input_exprs, variadic=variadic)
-        print("expr: ", eval_expr)
+
+        #print("expr: ", eval_expr)
         return eval_expr
 
     def reset_id(self):
@@ -363,12 +338,14 @@ class FieldExpr(Field):
         expr = self._make_math_eval_expr(model)
         print("construct MathEval expr: ", expr)
         field = Field("MathEval",
-                      F=Par.String(expr))
+                      F = Par.String(expr))
         return field.construct(model)
 
         # substitute all FieldExpr and form the expression
 
         # creata MathEval
+
+
 
 """
 Predefined coordinate fields.
@@ -429,42 +406,56 @@ def constant(value):
 #@field_function
 #Cylinder
 
-def distance_nodes(nodes:List[int], coordinate_fields:Tuple[Field,Field,Field]=(None, None, None)):
+def distance(entity_group: Union["ObjectSet", List["ObjectSet"]], sampling=20):
     """
-    Distance from a set of 'nodes' given by their tags.
-    Optional coordinate_fields = ( field_x, field_y, field_z),
-    gives fields used as X,Y,Z coordinates (not clear how exactly these curved coordinates are used).
+     Distance from a set of geometric entities 'entity_group'. Curves and surfaces are internaly replaced by the sets of nodes
+     of size 'sampling' per entity. The field is evaluated with respect to these points.
+     Approximately linear complexity with respect to the total number of sampling points.
+     This is quite limiting as for detailed mesh we need lot of points, which significantly increase the meshing time.
+     TODO:
+     - unify bgem interface for passing group of objects
+     - scale the sampling by the entity size (e.g. given by a sort of bounding box)
+     - modify GMSH to use bounding boxes tree to get log(N) complexity
+    """
+    entity_group = ObjectSet.group(entity_group)
+    dim_entities = [[], [], []]
+    for dim, tag in entity_group.dim_tags:
+        dim_entities[dim].append(tag)
+    return _distance_field(dim_entities, sampling)
 
-    TODO: specify nodes etc. as dim tags
-    """
-    fx, fy, fz = coordinate_fields
+def _distance_field(dim_entities, sampling):
     return Field('Distance',
-                 NodesList=Par.Numbers(nodes),
-                 FieldX=Par.Field(fx),
-                 FieldY=Par.Field(fy),
-                 FieldZ=Par.Field(fz))
+                 PointsList=Par.Numbers(dim_entities[0]),
+                 CurvesList=Par.Numbers(dim_entities[1]),
+                 SurfacesList=Par.Numbers(dim_entities[2]),
+                 Sampling=Par.Number(sampling),
+                 )
 
 
+def distance_nodes(nodes:List[int]) -> Field:
+    """
+     Distance from a set of nodes given by their tags.
+    """
+    #nodes = [(0, tag) for tag in nodes]
+    return _distance_field([nodes, [], []], 0)
 
-# def distance_edges(curves, nodes_per_edge=8, coordinate_fields=None) -> Field:
-#     """
-#     Distance from a set of curves given by their tags. Curves are replaced by 'node_per_edge' nodes
-#     and DistanceNodes is applied.
-#     Optional coordinate_fields = ( field_x, field_y, field_z),
-#     gives fields used as X,Y,Z coordinates (not clear how exactly these curved coordinates are used).
-#     """
-#     id = gmsh_field.add('Distance')
-#     gmsh_field.setNumbers(id, "EdgesList", curves)
-#     gmsh_field.setNumber(id, "NNodesByEdge", nodes_per_edge)
-#     if coordinate_fields:
-#         fx, fy, fz = coordinate_fields
-#         gmsh_field.setNumber(id, "FieldX", fx)
-#         gmsh_field.setNumber(id, "FieldY", fy)
-#         gmsh_field.setNumber(id, "FieldZ", fz)
-#     return id
+def distance_edges(curves, sampling=20) -> Field:
+    """
+    Distance from a set of curves given by their tags. Curves are internaly replaced by a set of nodes
+    of size 'sampling' and DistanceNodes is applied.
+    """
+    #curves = [(1, tag) for tag in curves]
+    return _distance_field([[], curves, []], sampling)
 
-# @field_function
-# def distance_surfaces(curves, nodes_per_edge=8, coordinate_fields=None) -> Field:
+def distance_surfaces(surfaces, sampling=20) -> Field:
+    """
+     Distance from a set of surfaces given by their tags. Surfaces are internaly replaced by a set of  nodes
+     of size 'sampling' and DistanceNodes is applied.
+    """
+    #surfaces = [(2, tag) for tag in surfaces]
+    return _distance_field([[], [], surfaces], sampling)
+
+
 
 # @field_function
 # def Frustum
@@ -498,7 +489,6 @@ def minimum(*fields: Field) -> Field:
     Automatically wrap constants as a constant field.
     """
     return Field('Min', FieldsList=Par.Fields(fields))
-
 
 # MaxEigenHessian
 

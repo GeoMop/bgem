@@ -1,5 +1,5 @@
 import itertools
-from typing import TypeVar, Tuple, Optional, List
+from typing import *
 from collections import defaultdict
 import enum
 import attr
@@ -9,7 +9,6 @@ import re
 import warnings
 
 from bgem.gmsh import gmsh_exceptions
-from bgem.gmsh.field import Field
 from bgem.gmsh import options as gmsh_options
 
 
@@ -307,12 +306,33 @@ class GeometryOCC:
         self._need_synchronize = True
         return self.object(0, point_tag)
 
+    def _get_point(self, a):
+        """
+        If 'a' is a point dim tag, i.e. (0, tag), return the dim tag.
+        If 'a' is a ObjectSet containing a point return its dimtag.
+        If 'a' are coordi
+        Take either a point dimtag or point coordi
+        a: tuple(float, float, float)
+        Add a point with given coordinates or
+
+        a: ObjectSet containg a single point.
+        return: the point (dim, id)
+        """
+        if isinstance(a, (tuple, list)):
+            a = self.point(a)
+        assert isinstance(a, ObjectSet) and len(a.dim_tags) == 1, a
+        dim, tag = a.dim_tags[0]
+        assert dim == 0
+        return tag
+
+
     def line(self, a, b):
         """
         Make line between points a,b.
         return: Object set with a single dimtag.
         """
-        point_ids = [self.model.addPoint(*p) for p in [a,b]]
+        point_ids = [self._get_point(p) for p in [a,b]]
+        #point_ids = [self.model.addPoint(*p) for p in [a, b]]
         res = self.model.addLine(*point_ids)
         self._need_synchronize = True
         return self.object(1, res)
@@ -476,27 +496,6 @@ class GeometryOCC:
             self.model.synchronize()
             self._need_synchronize = False
 
-    def group(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
-        """
-        Group any number of ObjectSets into a single one.
-        :param obj_list:
-        :return:
-        """
-        if len(obj_list) == 1:
-            return obj_list[0]
-        all_dim_tags = [dim_tag
-                        for obj in obj_list
-                        for dim_tag in obj.dim_tags]
-        regions = [reg
-                   for obj in obj_list
-                   for reg in obj.regions]
-        mesh_step_size = [step
-                          for obj in obj_list
-                          for step in obj.mesh_step_size]
-
-        g = ObjectSet(self, all_dim_tags, regions)
-        g.mesh_step_size = mesh_step_size
-        return g
 
     def make_rectangle(self, scale) -> int:
         # Vertices of the rectangle
@@ -618,7 +617,7 @@ class GeometryOCC:
 
 
 
-    def set_mesh_step_field(self, field: Field) -> None:
+    def set_mesh_step_field(self, field: 'Field') -> None:
         field.reset_id()
         id = field.construct(self)
         gmsh.model.mesh.field.setAsBackgroundMesh(id)
@@ -631,7 +630,8 @@ class GeometryOCC:
         2. OPTIONAL remove other shapes then specified
         3. call meshing
         4. remove duplicate nodes using tolerance Geometry.Tolerance.
-                
+
+        TODO: change parameters, to 8objects instead of  the list
         :param dim: Set highest dimension to mesh.
         :param eliminate:
         """
@@ -717,6 +717,8 @@ class GeometryOCC:
         gmsh.finalize()
 
 
+    def group(self, *obj_list: Union['ObjectSet', List['ObjectSet']]) -> 'ObjectSet':
+        return ObjectSet.group(*obj_list)
 
 
 
@@ -724,7 +726,54 @@ class GeometryOCC:
 class ObjectSet:
     default_mesh_step = 0
 
-    def __init__(self, factory: GeometryOCC, dim_tags: List[DimTag], regions: List[Region]) -> None:
+    @staticmethod
+    def group(*obj_list: 'ObjectSet') -> 'ObjectSet':
+        """
+        Group any number of ObjectSets into a single one.
+        :param obj_list:
+        :return:
+        """
+
+        assert len(obj_list) > 0
+        new_obj_list = []
+        model = set()
+        for item in obj_list:
+            if isinstance(item, ObjectSet):
+                new_obj_list.append(item)
+                model.add(item.factory)
+            else:
+                raise Exception(f"group: Wrong argument of type {type(item)}, expecting ObjectSet..")
+
+        assert len(model) == 1
+        model = list(model)[0]
+
+        # for obj in new_obj_list:
+        #     if iobj
+
+
+        # Wrap dim_tags
+        # for obj in new_obj_list
+        # elif isinstance(item, tuple):
+        # assert len(item) == 2
+        # new_obj_list.append(ObjectSet([item]))
+
+        if len(new_obj_list) == 1:
+            return new_obj_list[0]
+        all_dim_tags = [dim_tag
+                        for obj in new_obj_list
+                        for dim_tag in obj.dim_tags]
+        regions = [reg
+                   for obj in new_obj_list
+                   for reg in obj.regions]
+        mesh_step_size = [step
+                          for obj in new_obj_list
+                          for step in obj.mesh_step_size]
+
+        g = ObjectSet(model, all_dim_tags, regions)
+        g.mesh_step_size = mesh_step_size
+        return g
+
+    def __init__(self, factory: 'GeometryOCC', dim_tags: List[DimTag], regions: List[Region]) -> None:
         self.factory = factory
         self.dim_tags = dim_tags
         if len(regions) == 1:
@@ -734,6 +783,9 @@ class ObjectSet:
             self.regions = regions
         self.mesh_step_size = [self.default_mesh_step for _ in dim_tags]
 
+    def __repr__(self):
+        return f"ObjectSet[{self.dim_tags}]"
+
     @property
     def tags(self):
         return [tag for dim, tag in self.dim_tags]
@@ -741,6 +793,10 @@ class ObjectSet:
     @property
     def size(self):
         return len(self.dim_tags)
+
+    def max_dim(self):
+        dims = [d for d, t in self.dim_tags]
+        return max(dims, default=1)
 
     def set_region(self, region):
         """
