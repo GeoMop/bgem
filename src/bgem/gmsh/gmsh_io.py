@@ -1,6 +1,7 @@
 """Module containing an expanded python gmsh class"""
 from __future__ import print_function
 
+import os.path
 import struct
 import numpy as np
 import enum
@@ -37,6 +38,7 @@ class GmshIO:
     Members:
     nodes -- A dict of the form { nodeID: [ xcoord, ycoord, zcoord] }
     elements -- A dict of the form { elemID: (type, [tags], [nodeIDs]) }
+                Usual tags: (physical_tag, enityt_tag)
     physical -- A dict of the form { name: (id, dim) }
 
     Methods:
@@ -244,11 +246,23 @@ class GmshIO:
                         n_comp = first_el_value_shape
                     self._write_model_data(f_handle, data_type, data_item.tags, name, data_item.values, data_item.time, step, n_comp)
 
-    def write(self, filename, binary=False):
+    def write(self, filename, binary=False, format='auto'):
+        """
+        :param filename: output path
+        :param binary:
+        :param format: auto, msh1, msh2, msh22, msh3, msh4, msh40, msh41, msh,
+            unv, vtk, wrl, mail, stl, p3d, mesh, bdf, cgns, med, diff, ir3, inp,
+            ply2, celum, su2, x3d, dat, neu, m, key, off
+        TOOD: find a way to distinguish particular GMSH file format.
+        Seems that only working is usage of particular extension.
+        :return:
+        """
+        argv = []
         if binary:
-            argv = ["", "-bin"]
-        else:
-            argv = []
+            argv.append("-bin")
+        argv.extend(["-format", format])
+        #gmsh.setMesh.Format
+
         gmsh.initialize(argv=argv)
 
         model_name = "model"
@@ -320,10 +334,11 @@ class GmshIO:
                 value_line = " ".join([str(val) for val in value_row])
                 f.write(f"{int(ele_id):d} {n_values} {value_line}\n")
         else:
+            if len(values.shape) == 1:
+                values = values[:, None]
             for ele_id, value_row in zip(ele_ids, values):
-                value_line = " ".join([str(val) for val in value_row])
+                value_line = " ".join([str(val) for val in value_row.ravel()])
                 f.write(f"{int(ele_id):d} {value_line}\n")
-
         f.write('$End{}\n'.format(data_type))
 
     def write_element_data(self, f, ele_ids, name, values, time=0, time_idx=0):
@@ -369,7 +384,7 @@ class GmshIO:
         if not file_name:
             file_name = self.filename
         with open(file_name, "a") as fout:
-            fout.write('$MeshFormat\n2.2 0 8\n$EndMeshFormat\n')
+            #fout.write('$MeshFormat\n2.2 0 8\n$EndMeshFormat\n')
             for name, values in fields.items():
                 self.write_element_data(fout, ele_ids, name, values)
 
