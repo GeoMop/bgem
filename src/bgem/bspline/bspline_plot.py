@@ -7,9 +7,9 @@ plot_lib = "plotly"
 import plotly.offline as pl
 import plotly.graph_objs as go
 
+from mpl_toolkits.mplot3d import Axes3D     # needed for usage of 3d projection
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from mpl_toolkits.mplot3d import Axes3D
 
 import numpy as np
 
