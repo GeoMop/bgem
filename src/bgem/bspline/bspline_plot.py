@@ -89,7 +89,7 @@ class PlottingMatplot:
         self.fig_2d = plt.figure(1)
         self.fig_3d = plt.figure(2)
         #self.ax_3d = self.fig_3d.gca(projection='3d')
-        self.ax_3d = self.add_subplot(projection='3d')
+        self.ax_3d = self.fig_3d.add_subplot(projection='3d')
 
     def add_curve_2d(self, X, Y, **kwargs):
         plt.figure(1)
