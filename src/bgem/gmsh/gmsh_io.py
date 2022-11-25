@@ -65,6 +65,35 @@ class GmshIO:
         self.element_data = {}
         self.element_node_data = {}
 
+    def normalize(self):
+        """
+        Due to GMSH bug the API did not preserve node and element IDs
+        in MSH2 format. As workaround we write the mash and read it from the GMSH model
+        to normalize the IDs.
+        """
+        gmsh.initialize(argv=[])
+        model_name = "model"
+        gmsh.model.add(model_name)
+        self._write_nodes()
+        physical_dict = self._write_elements()
+        self._write_physical(physical_dict)
+        fname = "__auxiliary_normalize_mesh.msh2"
+        gmsh.write(fname)
+        gmsh.clear()
+        gmsh.finalize()
+
+        self.reset()
+        gmsh.initialize()
+        gmsh.open(fname)
+        self._read_nodes()
+        self._read_elements()
+        self._read_physical()
+        # write views
+        # for view_tag in gmsh.view.getTags():
+        #     gmsh.view.write(view_tag, filename)
+
+        gmsh.clear()
+        gmsh.finalize()
 
     def _read_nodes(self):
         # nodes
