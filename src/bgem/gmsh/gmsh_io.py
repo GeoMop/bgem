@@ -209,6 +209,9 @@ class GmshIO:
 
         self.write(filename, binary=True)
 
+    def set_preserve_ids(self):
+        gmsh.option.setNumber("PreserveNumberingMsh2", 1)
+
     def _write_nodes(self):
         # nodes
         max_entity_tag = 0
@@ -291,8 +294,9 @@ class GmshIO:
             argv.append("-bin")
         argv.extend(["-format", format])
         #gmsh.setMesh.Format
-
         gmsh.initialize(argv=argv)
+        #if format == 'msh2':
+        #    self.set_preserve_ids()
 
         model_name = "model"
         gmsh.model.add(model_name)

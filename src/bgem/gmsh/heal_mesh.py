@@ -224,7 +224,7 @@ class HealMesh:
         self.max_node_id = max(self.mesh.nodes.keys())
 
         base, ext = os.path.splitext(mesh_file)
-        self.healed_mesh_name = base + "_healed.msh"
+        self.healed_mesh_name = base + "_healed.msh2"
 
         self.modified_elements = set()
         aabb_min = np.full(3, +np.inf)
@@ -881,7 +881,7 @@ class HealMesh:
             rel_dist = np.linalg.norm(inner_node - x_proj) / np.linalg.norm(e_vec)
             projections.append((rel_dist, i, t_proj, x_proj))
         rel_dist, i, t, x = min(projections)
-        assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
+        #assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
 
         # nondegenerate triangle case, split elements connected to the outer face
         print("  flat tria case")
