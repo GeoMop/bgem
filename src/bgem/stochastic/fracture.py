@@ -75,6 +75,8 @@ class Fracture:
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
     region_id: int # Union[str, int] = "fracture"
     # name or ID of the physical group
+    i_family: int
+    # index of the group
     aspect: float = 1
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
     _rotation_axis: np.array = attr.ib(init=False, default=None)
@@ -936,7 +938,7 @@ class Population:
             pos_distr = UniformBoxPosition([size, size, size])
 
         fractures = []
-        for f in self.families:
+        for ifam, f in enumerate(self.families):
             name = f.name
             diams = f.size.sample(self.volume, force_nonempty=keep_nonempty)
             fr_normals = f.orientation.sample_normal(size=len(diams))
@@ -946,7 +948,7 @@ class Population:
             for r, normal, sa in zip(diams, fr_normals, shape_angle):
                 #axis, angle = aa[:3], aa[3]
                 center = pos_distr.sample()
-                fractures.append(Fracture(self.shape_class, r, center, normal[None,:], sa, name, 1))
+                fractures.append(Fracture(self.shape_class, r, center, normal[None,:], sa, name, ifam, 1))
         return fractures
 
 
