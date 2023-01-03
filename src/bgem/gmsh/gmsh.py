@@ -10,6 +10,7 @@ import warnings
 
 from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
+from bgem.gmsh import gmsh_io
 
 
 
@@ -731,7 +732,7 @@ class GeometryOCC:
         gmsh.fltk.run()
 
     def __del__(self):
-        gmsh.finalize()
+        gmsh_io.gmsh_finalize()
 
 
     def group(self, *obj_list: Union['ObjectSet', List['ObjectSet']]) -> 'ObjectSet':

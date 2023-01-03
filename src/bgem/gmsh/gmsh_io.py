@@ -1,11 +1,19 @@
 """Module containing an expanded python gmsh class"""
 from __future__ import print_function
-
+import threading
 import os.path
 import struct
 import numpy as np
 import enum
 import gmsh
+
+
+def gmsh_finalize():
+    # Prevent error when setting signal out of the mian thread
+    gmsh.clear()
+    if threading.current_thread() is not threading.main_thread():
+        gmsh.oldsig = None
+    gmsh.finalize()
 
 
 # class ElementType(enum.IntEnum):
@@ -79,8 +87,7 @@ class GmshIO:
         self._write_physical(physical_dict)
         fname = "__auxiliary_normalize_mesh.msh2"
         gmsh.write(fname)
-        gmsh.clear()
-        gmsh.finalize()
+        gmsh_finalize()
 
         self.reset()
         gmsh.initialize()
@@ -92,8 +99,7 @@ class GmshIO:
         # for view_tag in gmsh.view.getTags():
         #     gmsh.view.write(view_tag, filename)
 
-        gmsh.clear()
-        gmsh.finalize()
+        gmsh_finalize()
 
     def _read_nodes(self):
         # nodes
@@ -153,6 +159,8 @@ class GmshIO:
 
     def _read(self):
         gmsh.initialize()
+        if not os.path.isfile(self.filename):
+            raise FileNotFoundError(self.filename)
         gmsh.open(self.filename)
 
         self._read_nodes()
@@ -160,8 +168,8 @@ class GmshIO:
         self._read_physical()
         self._read_all_data()
 
-        gmsh.clear()
-        gmsh.finalize()
+        gmsh_finalize()
+
 
     def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
         """
@@ -325,10 +333,7 @@ class GmshIO:
         # write views
         # for view_tag in gmsh.view.getTags():
         #     gmsh.view.write(view_tag, filename)
-
-        gmsh.clear()
-        gmsh.finalize()
-
+        gmsh_finalize()
         # data
         assert not binary
         with open(filename, "a") as f:
