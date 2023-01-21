@@ -970,7 +970,7 @@ class Population:
         fractures = []
         for ifam, f in enumerate(self.families):
             name = f.name
-            diams = f.size.sample(self.volume, force_nonempty=keep_nonempty)
+            diams = f.size.sample(self.volume)
             fr_normals = f.orientation.sample_normal(size=len(diams))
             #fr_axis_angle = f.orientation.sample_axis_angle(size=len(diams))
             shape_angle = f.shape_angle.sample_angle(len(diams))
