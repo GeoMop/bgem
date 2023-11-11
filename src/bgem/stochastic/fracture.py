@@ -3,9 +3,10 @@ Module for statistical description of the fracture networks.
 It provides appropriate statistical models as well as practical sampling methods.
 """
 
-from typing import Union, List, Tuple, Any
+from typing import *
 import numpy as np
-import attr
+#import attr
+import attrs
 import math
 import json
 
@@ -58,7 +59,7 @@ class ConvexPolygon:
         return points
 
 
-@attr.s(auto_attribs=True)
+@attrs.define
 class Fracture:
     """
     Single fracture sample.
@@ -75,19 +76,23 @@ class Fracture:
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
     region_id: int # Union[str, int] = "fracture"
     # name or ID of the physical group
+    i_family: int
+    # index of the group
     aspect: float = 1
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
-    _rotation_axis: np.array = attr.ib(init=False, default=None)
+    region: Any = None
+    # auxiliary, TODO: Separate generation of fractures and fracture shapes.
+    _rotation_axis: np.array = attrs.field(init=False, default=None)
     # axis of rotation
-    _rotation_angle: float = attr.ib(init=False, default=None)
+    _rotation_angle: float = attrs.field(init=False, default=None)
     # angle of rotation around the axis (?? counterclockwise with axis pointing up)
-    _distance: float = attr.ib(init=False, default=None)
+    _distance: float = attrs.field(init=False, default=None)
     # absolute term in plane equation
-    _plane_coor_system: np.array = attr.ib(init=False, default=None)
+    _plane_coor_system: np.array = attrs.field(init=False, default=None)
     # local coordinate system
-    _vertices: np.array = attr.ib(init=False, default=None)
+    _vertices: np.array = attrs.field(init=False, default=None)
     # coordinates of the vertices
-    _ref_vertices: np.array = attr.ib(init=False, default=None)
+    _ref_vertices: np.array = attrs.field(init=False, default=None)
     # local coordinates of the vertices (xy - plane)
 
 
@@ -335,7 +340,7 @@ def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
 
 
 
-@attr.s(auto_attribs=True)
+@attrs.define
 class VonMisesOrientation:
     """
     Distribution for random orientation in 2d.
@@ -368,9 +373,17 @@ class VonMisesOrientation:
             else:
                 return np.random.vonmises(mu=trend, kappa=self.concentration, size=size)
 
+    def sample_normal(self, size=1):
+        """
+        Draw samples for the fracture normals.
+        :param size: number of samples
+        :return: array (n, 3)
+        """
+        angle = self.sample_angle(size)
+        return np.stack([np.cos(angle), np.sin(angle), np.zeros_like(angle)], axis=1)
 
 
-@attr.s(auto_attribs=True)
+@attrs.define
 class FisherOrientation:
     """
     Distribution for random orientation in 3d.
@@ -483,7 +496,7 @@ class FisherOrientation:
 
 
 
-@attr.s(auto_attribs=True)
+@attrs.define
 class PowerLawSize:
     """
     Truncated Power Law distribution for the fracture size 'r'.
@@ -505,7 +518,7 @@ class PowerLawSize:
     intensity: float
     # number of fractures with size in the size_range per unit volume (denoted as P30 in SKB reports)
 
-    sample_range: (float, float) = attr.ib()
+    sample_range: (float, float) = attrs.field(init=False)
     # range used for sampling., not part of the statistical description
     # default initiaizer:
     @sample_range.default
@@ -651,7 +664,7 @@ class PowerLawSize:
 #     size_max:
 #     def sample(self, box_min, box_max):
 
-@attr.s(auto_attribs=True)
+@attrs.define
 class UniformBoxPosition:
     dimensions: List[float]
     center: List[float] = [0, 0, 0]
@@ -668,7 +681,7 @@ class UniformBoxPosition:
         return pos
 
 
-@attr.s(auto_attribs=True)
+@attrs.define
 class ConnectedPosition:
     """
     Generate a fracture positions in such way, that all fractures are connected to some of the initial surfaces.
@@ -819,36 +832,81 @@ class ConnectedPosition:
         return np.stack((u_vec, v_vec, w_vec, center), axis=1)
 
 
-@attr.s(auto_attribs=True)
+@attrs.define
 class FrFamily:
     """
-    Describes a single fracture family with defined orientation and shape distributions.
+    Describes a single fracture family with defined distribution of:
+     - normal orientation
+     - shape orientation
+     - size orientation
+     - position distribution
+     - more complex correlation structure,
+     e.g. large fractures with independent orientations smaller with correlated orientations
+     needs more general sampling paradigm
     """
-    name: str
     orientation: FisherOrientation
     size: PowerLawSize
     shape_angle: VonMisesOrientation
+    position:
+    correlation: None
+
+    @staticmethod
+    def from_cfg_3d(family):
+        fisher_orientation = FisherOrientation(family["trend"], family["plunge"], family["concentration"])
+        size_range = (family["r_min"], family["r_max"])
+        power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
+        assert np.isclose(family["p_32"], power_law_size.mean_area())
+        shape_angle = VonMisesOrientation(trend=0, concentration=0)
+        return FrFamily(family["name"], fisher_orientation, power_law_size, shape_angle)
+
+    @staticmethod
+    def from_cfg_2d(family):
+        orientation = FisherOrientation(0, 90, np.inf)
+        size_range = (family["r_min"], family["r_max"])
+        power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
+        assert np.isclose(family["p_32"], power_law_size.mean_area())
+        shape_angle = VonMisesOrientation(family["trend"], family["concentration"])
+        return FrFamily(family["name"], orientation, power_law_size, shape_angle)
 
 
 
+@attrs.define
 class Population:
     """
+    B
     Data class to describe whole population of fractures, several families.
     Supports sampling across the families.
     """
+    # Attributes
+    domain: Tuple[float, float, float]
+    # dimensions of the box domain, one dimension is 0 for 2d population
+    families: List[FrFamily]
+    #
+    shape_class: LineShape = SquareShape
 
-    def initialize(self, families):
+    @property
+    def volume(self):
+        return np.product([l if l>0 else 1.0 for l in self.domain])
+
+    @classmethod
+    def initialize_3d(cls, families: List[Dict[str, Any]], box):
+        """
+        Load families from a list of dict, with keywords: [ name, trend, plunge, concentration, power, r_min, r_max, p_32 ]
+        Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
+        """
+        families = [FrFamily.from_cfg_3d(family) for family in families]
+        return cls(box, families)
+
+    @classmethod
+    def initialize_2d(cls, families: List[Dict[str, Any]], box):
         """
         Load families from a list of dict, with keywords: [ name, trend, plunge, concentration, power, r_min, r_max, p_32 ]
         Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         :param families json_file: JSON file with families data
         """
-        for family in families:
-            fisher_orientation = FisherOrientation(family["trend"], family["plunge"], family["concentration"])
-            size_range = (family["r_min"], family["r_max"])
-            power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
-            assert np.isclose(family["p_32"], power_law_size.mean_area())
-            self.add_family(family["name"], fisher_orientation, power_law_size)
+        families = [FrFamily.from_cfg_2d(family) for family in families]
+        assert len(box) == 3 and sum((l > 0 for l in box)) == 2
+        return cls(box, families)
 
     def init_from_json(self, json_file):
         """
@@ -858,7 +916,7 @@ class Population:
         with open(json_file) as f:
             self.initialize(json.load(f))
 
-    def init_from_yaml(self, yaml_file):
+    def init_from_yaml(self, yaml_file:str) -> Population:
         """
         Load families from a YAML file. Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         :param json_file: YAML file with families data
@@ -866,28 +924,9 @@ class Population:
         with open(yaml_file) as f:
             self.initialize(json.load(f))
 
-    def __init__(self, volume, shape_class=SquareShape):
-        """
-        :param volume: Orientation stochastic model
-        """
-        self.volume = volume
-        self.shape_class = shape_class
-        self.families = []
 
-    def add_family(self, name, orientation, shape, shape_angle=None):
-        """
-        Add fracture family
-        :param name: str, Fracture family name
-        :param orientation: FisherOrientation instance
-        :param shape_angle: Uniform or VonMises
-        :param shape: PowerLawSize instance
 
-        TODO: unify orientation and shape angle
-        :return:
-        """
-        if shape_angle is None:
-            shape_angle = VonMisesOrientation(trend=0, concentration=0) # uniform distribution by default
-        self.families.append(FrFamily(name, orientation, shape, shape_angle))
+
 
     def mean_size(self):
         sizes = [family.size.mean_size(self.volume) for family in self.families]
@@ -901,10 +940,12 @@ class Population:
         :param sample_size: If provided, the None bound is changed to achieve given mean number of fractures.
                             If neither of the bounds is None, the lower one is reset.
         :return:
+        TODO: split fracture population (stochastic model) and fracture generator with
+        particular sample size and domain. Make both objects frozen.
         """
         min_size, max_size = sample_range
         for f in self.families:
-            r_min, r_max = f.size.sample_range
+            r_min, r_max = f.size.diam_range
             if min_size is not None:
                 r_min = min_size
             if max_size is not None:
@@ -924,7 +965,7 @@ class Population:
                     f.size.set_lower_bound_by_intensity(family_intensity)
 
 
-    def sample(self, pos_distr=None, keep_nonempty=False):
+    def sample(self, pos_distr=None, keep_nonempty=False) -> List[Fracture]:
         """
         Provide a single fracture set  sample from the population.
         :param pos_distr: Fracture position distribution, common to all families.
@@ -936,9 +977,9 @@ class Population:
             pos_distr = UniformBoxPosition([size, size, size])
 
         fractures = []
-        for f in self.families:
+        for ifam, f in enumerate(self.families):
             name = f.name
-            diams = f.size.sample(self.volume, force_nonempty=keep_nonempty)
+            diams = f.size.sample(self.volume)
             fr_normals = f.orientation.sample_normal(size=len(diams))
             #fr_axis_angle = f.orientation.sample_axis_angle(size=len(diams))
             shape_angle = f.shape_angle.sample_angle(len(diams))
@@ -946,7 +987,7 @@ class Population:
             for r, normal, sa in zip(diams, fr_normals, shape_angle):
                 #axis, angle = aa[:3], aa[3]
                 center = pos_distr.sample()
-                fractures.append(Fracture(self.shape_class, r, center, normal[None,:], sa, name, 1))
+                fractures.append(Fracture(self.shape_class, r, center, normal[None,:], sa, name, ifam, 1))
         return fractures
 
 
