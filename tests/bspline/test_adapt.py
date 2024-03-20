@@ -44,8 +44,8 @@ class SurfApprox:
                 fc[i + j * self.y_n_samples, 0:2] = [i / self.x_n_samples * self.x_length, j / self.y_n_samples * self.y_length]
                 fc[i + j * self.y_n_samples, 2] = self.surfzf(fc[i + j * self.y_n_samples, 0:2])
 
-        approx = bsa.SurfaceApprox(fc)
-        surfz = approx.compute_adaptive_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]))
+        approx = bsa.SurfaceApprox(bsa.SurfacePointSet(fc))
+        surfz = approx.compute_approximation(nuv=np.array([self.x_n_control_points, self.y_n_control_points]))
         err = approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf

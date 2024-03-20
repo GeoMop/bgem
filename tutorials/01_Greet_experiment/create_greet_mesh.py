@@ -4,6 +4,10 @@ import yaml
 import numpy as np
 
 '''
+Demonstrate creation of a more complex geometry using BGEM GSMH-OCC interface. 
+
+Main difficulty is the tilted tunnel.
+
 TODO: 
 Reports lot of unknown OpenCASCADE entities:
 (0,25) ... (0, 1511)
