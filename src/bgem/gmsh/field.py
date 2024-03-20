@@ -1,6 +1,7 @@
 
 import numbers
 import sys
+import math
 from typing import *
 import numpy as np
 from gmsh import model as gmsh_model
@@ -435,7 +436,6 @@ def distance(entity_group: Union["ObjectSet", List["ObjectSet"]], sampling=20):
      Approximately linear complexity with respect to the total number of sampling points.
      This is quite limiting as for detailed mesh we need lot of points, which significantly increase the meshing time.
      TODO:
-     - unify bgem interface for passing group of objects
      - scale the sampling by the entity size (e.g. given by a sort of bounding box)
      - modify GMSH to use bounding boxes tree to get log(N) complexity
     """
@@ -549,7 +549,43 @@ def minimum(*fields: Field) -> Field:
 # Structured
 
 
+def geometric(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
+    """
+    Geometric interpolation between points a = (x0, y0) and b = (x1, y1).
+    """
+    x = field
+    x0, y0 = a
+    x1, y1 = b
+    l0, l1 = math.log(y0), math.log(y1)
+    a = (l1 - l0) / (x1 - x0)
+    x_avg = (l1 * x0 - l0 * x1) / (l1 - l0)
+    return current_module.exp(a * (x - x_avg))
 
+
+def linear(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
+    """
+    Linear transformation of the scalar field given by two points.
+    Prescribed mapping a[0] to a[1], and b[0] to b[1].
+    """
+    x = field
+    x0, y0 = a
+    x1, y1 = b
+    a = (y1 - y0) / (x1 - x0)
+    x_avg = (y1 * x0 - y0 * x1) / (y1 - y0)
+    return a * (x - x_avg)
+
+def polynomial(field:Field, a:Tuple[float, float], b:Tuple[float, float], q: float = 1) -> Field:
+    """
+    Power interpolation, given by two points as for linear, but
+    apply power with exponent 'q'.
+    """
+    x = field
+    x0, y0 = a
+    x1, y1 = b
+    l0, l1 = y0 ** (1/q), y1 ** (1/q)
+    a = (l1 - l0) / (x1 - x0)
+    x_avg = (l1 * x0 - l0 * x1) / (l1 - l0)
+    return (a * (x - x_avg)) ** q
 
 def threshold(field:Field, lower_bound:Tuple[float, float],
               upper_bound:Tuple[float, float]=None, sigmoid:bool=False) -> Field:

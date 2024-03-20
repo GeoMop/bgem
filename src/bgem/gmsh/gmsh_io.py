@@ -1,10 +1,19 @@
 """Module containing an expanded python gmsh class"""
 from __future__ import print_function
-
+import threading
+import os.path
 import struct
 import numpy as np
 import enum
 import gmsh
+
+
+def gmsh_finalize():
+    # Prevent error when setting signal out of the mian thread
+    gmsh.clear()
+    if threading.current_thread() is not threading.main_thread():
+        gmsh.oldsig = None
+    gmsh.finalize()
 
 
 # class ElementType(enum.IntEnum):
@@ -37,6 +46,7 @@ class GmshIO:
     Members:
     nodes -- A dict of the form { nodeID: [ xcoord, ycoord, zcoord] }
     elements -- A dict of the form { elemID: (type, [tags], [nodeIDs]) }
+                Usual tags: (physical_tag, enityt_tag)
     physical -- A dict of the form { name: (id, dim) }
 
     Methods:
@@ -63,6 +73,33 @@ class GmshIO:
         self.element_data = {}
         self.element_node_data = {}
 
+    def normalize(self):
+        """
+        Due to GMSH bug the API did not preserve node and element IDs
+        in MSH2 format. As workaround we write the mash and read it from the GMSH model
+        to normalize the IDs.
+        """
+        gmsh.initialize(argv=[])
+        model_name = "model"
+        gmsh.model.add(model_name)
+        self._write_nodes()
+        physical_dict = self._write_elements()
+        self._write_physical(physical_dict)
+        fname = "__auxiliary_normalize_mesh.msh2"
+        gmsh.write(fname)
+        gmsh_finalize()
+
+        self.reset()
+        gmsh.initialize()
+        gmsh.open(fname)
+        self._read_nodes()
+        self._read_elements()
+        self._read_physical()
+        # write views
+        # for view_tag in gmsh.view.getTags():
+        #     gmsh.view.write(view_tag, filename)
+
+        gmsh_finalize()
 
     def _read_nodes(self):
         # nodes
@@ -122,6 +159,8 @@ class GmshIO:
 
     def _read(self):
         gmsh.initialize()
+        if not os.path.isfile(self.filename):
+            raise FileNotFoundError(self.filename)
         gmsh.open(self.filename)
 
         self._read_nodes()
@@ -129,8 +168,8 @@ class GmshIO:
         self._read_physical()
         self._read_all_data()
 
-        gmsh.clear()
-        gmsh.finalize()
+        gmsh_finalize()
+
 
     def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
         """
@@ -177,6 +216,9 @@ class GmshIO:
             filename = self.filename
 
         self.write(filename, binary=True)
+
+    def set_preserve_ids(self):
+        gmsh.option.setNumber("PreserveNumberingMsh2", 1)
 
     def _write_nodes(self):
         # nodes
@@ -244,12 +286,25 @@ class GmshIO:
                         n_comp = first_el_value_shape
                     self._write_model_data(f_handle, data_type, data_item.tags, name, data_item.values, data_item.time, step, n_comp)
 
-    def write(self, filename, binary=False):
+    def write(self, filename, binary=False, format='auto'):
+        """
+        :param filename: output path
+        :param binary:
+        :param format: auto, msh1, msh2, msh22, msh3, msh4, msh40, msh41, msh,
+            unv, vtk, wrl, mail, stl, p3d, mesh, bdf, cgns, med, diff, ir3, inp,
+            ply2, celum, su2, x3d, dat, neu, m, key, off
+        TOOD: find a way to distinguish particular GMSH file format.
+        Seems that only working is usage of particular extension.
+        :return:
+        """
+        argv = []
         if binary:
-            argv = ["", "-bin"]
-        else:
-            argv = []
+            argv.append("-bin")
+        argv.extend(["-format", format])
+        #gmsh.setMesh.Format
         gmsh.initialize(argv=argv)
+        #if format == 'msh2':
+        #    self.set_preserve_ids()
 
         model_name = "model"
         gmsh.model.add(model_name)
@@ -278,10 +333,7 @@ class GmshIO:
         # write views
         # for view_tag in gmsh.view.getTags():
         #     gmsh.view.write(view_tag, filename)
-
-        gmsh.clear()
-        gmsh.finalize()
-
+        gmsh_finalize()
         # data
         assert not binary
         with open(filename, "a") as f:
@@ -320,10 +372,11 @@ class GmshIO:
                 value_line = " ".join([str(val) for val in value_row])
                 f.write(f"{int(ele_id):d} {n_values} {value_line}\n")
         else:
+            if len(values.shape) == 1:
+                values = values[:, None]
             for ele_id, value_row in zip(ele_ids, values):
-                value_line = " ".join([str(val) for val in value_row])
+                value_line = " ".join([str(val) for val in value_row.ravel()])
                 f.write(f"{int(ele_id):d} {value_line}\n")
-
         f.write('$End{}\n'.format(data_type))
 
     def write_element_data(self, f, ele_ids, name, values, time=0, time_idx=0):
@@ -369,7 +422,7 @@ class GmshIO:
         if not file_name:
             file_name = self.filename
         with open(file_name, "a") as fout:
-            fout.write('$MeshFormat\n2.2 0 8\n$EndMeshFormat\n')
+            #fout.write('$MeshFormat\n2.2 0 8\n$EndMeshFormat\n')
             for name, values in fields.items():
                 self.write_element_data(fout, ele_ids, name, values)
 
