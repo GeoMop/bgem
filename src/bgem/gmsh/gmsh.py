@@ -10,6 +10,7 @@ import warnings
 
 from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
+from bgem.gmsh import gmsh_io
 
 
 
@@ -233,6 +234,9 @@ class GeometryOCC:
 
     @staticmethod
     def get_logger():
+        """
+        See: https://gmsh.info/dev/doc/texinfo/gmsh.html#Namespace-gmsh_002flogger
+        """
         return gmsh.logger
 
     def _raise_gmsh_exception(self, gmsh_err, msg):
@@ -529,17 +533,23 @@ class GeometryOCC:
     def fragment(self, *object_sets: 'ObjectSet') -> List['ObjectSet']:
         """
         Fragment given objects mutually return list of fragmented objects.
+        First perform copy of the intput dimtags.
         :param object_sets:
         :return:
         """
+
         cumulsizes = list(itertools.accumulate((o.size for o in object_sets)))
         all_dimtags = list(itertools.chain(*[o.dim_tags for o in object_sets]))
-
-        try:
-            new_tags, tags_map = self.model.fragment(all_dimtags, [], removeObject=True, removeTool=True)
-        except ValueError as err:
-            message = "Fragmentation failed!\nall dimtags: {}, ...".format(str(all_dimtags[:20]))
-            self._raise_gmsh_exception(gmsh_exceptions.BoolOperationError, message)
+        # copy_all_dimtags = ObjectSet(self, all_dimtags).copy()
+        if len(all_dimtags) == 1:
+            new_tags, tags_map = all_dimtags, [all_dimtags  ]
+        else:
+            try:
+                new_tags, tags_map = self.model.fragment(all_dimtags, [], removeObject=True, removeTool=True)
+                # list of new dimtags, list of
+            except ValueError as err:
+                message = "Fragmentation failed!\nall dimtags: {}, ...".format(str(all_dimtags[:20]))
+                self._raise_gmsh_exception(gmsh_exceptions.BoolOperationError, message)
 
         # assign regions
         new_sets = []
@@ -722,11 +732,14 @@ class GeometryOCC:
         gmsh.fltk.run()
 
     def __del__(self):
-        gmsh.finalize()
+        gmsh_io.gmsh_finalize()
 
 
     def group(self, *obj_list: Union['ObjectSet', List['ObjectSet']]) -> 'ObjectSet':
-        return ObjectSet.group(*obj_list)
+        if obj_list:
+            return ObjectSet.group(*obj_list)
+        else:
+            return ObjectSet(self, [], [])
 
 
 
@@ -741,8 +754,7 @@ class ObjectSet:
         :param obj_list:
         :return:
         """
-
-        assert len(obj_list) > 0
+        assert obj_list
         new_obj_list = []
         model = set()
         for item in obj_list:
@@ -781,9 +793,13 @@ class ObjectSet:
         g.mesh_step_size = mesh_step_size
         return g
 
+
     def __init__(self, factory: 'GeometryOCC', dim_tags: List[DimTag], regions: List[Region]) -> None:
         self.factory = factory
         self.dim_tags = dim_tags
+        # TODO: allow no region to be assigned, but that makes problem later in region operations
+        #if regions is None:
+        #    regions = [None]
         if len(regions) == 1:
             self.regions = [regions[0] for _ in dim_tags]
         else:
@@ -894,6 +910,9 @@ class ObjectSet:
         return all_obj.split_by_dimension()
 
     def copy(self) -> 'ObjectSet':
+        """
+        Problem: gmsh.model.occ.copy fails to copy boundary dimtags.
+        """
         copy_tags = self.factory.model.copy(self.dim_tags)
         self.factory._need_synchronize = True
         copy_obj = ObjectSet(self.factory, copy_tags, self.regions)

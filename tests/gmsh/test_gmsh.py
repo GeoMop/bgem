@@ -423,3 +423,22 @@ def check_min_mesh_step(dim, step_size, tolerance):
             print(f"Size mismatch, ele {ele_tag}, size: {ele_size}, ref size: {step_size}, rel_err: {rel_error}")
             n_match += 1
     return n_match
+
+def test_copy():
+    """
+    Test ObjectSet.copy of dimtags.
+    """
+    dimensions = [10, 20, 30]
+
+    # test gmsh loggger
+    gen = gmsh.GeometryOCC("test_copy", verbose=True)
+    gmsh_logger = gen.get_logger()
+    gmsh_logger.start()
+
+    # Main box
+    box = gen.box(dimensions).set_region("box")
+    dimtags = box.dim_tags
+    boundary = box.get_boundary()
+    boundary_copy = boundary.copy()
+    print(boundary)
+    print(boundary_copy)

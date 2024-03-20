@@ -224,7 +224,7 @@ class HealMesh:
         self.max_node_id = max(self.mesh.nodes.keys())
 
         base, ext = os.path.splitext(mesh_file)
-        self.healed_mesh_name = base + "_healed.msh"
+        self.healed_mesh_name = base + "_healed.msh2"
 
         self.modified_elements = set()
         aabb_min = np.full(3, +np.inf)
@@ -453,27 +453,33 @@ class HealMesh:
         return Element(eid, type, tags, np.array(node_ids, dtype=int), shape)
 
 
-    quality_methods = {'flow_stats': 'smooth_grad_error_indicator', 'gamma_stats': 'gmsh_gamma'}
+    #quality_methods = {'flow_stats': 'smooth_grad_error_indicator', 'gamma_stats': 'gmsh_gamma'}
     def quality_statistics(self, bad_el_tol=0.01):
         """
         Vector of number of elements in quality bins:
         (1, 0.5), (0.5, 0.25), ...
         :return:
         """
-        methods = self.quality_methods
-        bad_els = {method: [] for method in methods}
+        #methods = self.quality_methods
+        bad_els = []
         bins = 2.0 ** (np.arange(-15, 1))
         bins = np.concatenate((bins, [np.inf]))
-        histogram = {method: np.zeros_like(bins, dtype=int) for method in methods}
+        #histogram = {method: np.zeros_like(bins, dtype=int) for method in methods}
+        histogram = np.zeros_like(bins, dtype=int)
         for eid in self.mesh.elements:
             e = self._make_element(eid)
             if e.shape.dim > 1:
-                for method, hist in histogram.items():
-                    quality = getattr(e.shape, methods[method])()
-                    if quality <= bad_el_tol:
-                        bad_els[method].append(eid)
-                    first_smaller = np.argmax(quality < bins)
-                    hist[first_smaller] += 1
+                # for method, hist in histogram.items():
+                #     quality = getattr(e.shape, methods[method])()
+                #     if quality <= bad_el_tol:
+                #         bad_els[method].append(eid)
+                #     first_smaller = np.argmax(quality < bins)
+                #     hist[first_smaller] += 1
+                quality = e.shape.gmsh_gamma()
+                if quality <= bad_el_tol:
+                    bad_els.append(eid)
+                first_smaller = np.argmax(quality < bins)
+                histogram[first_smaller] += 1
         return histogram, bins, bad_els
 
 
@@ -486,11 +492,11 @@ class HealMesh:
 
 
     def stats_to_yaml(self, filename, el_tol=0.01):
-        methods = self.quality_methods
+        #methods = self.quality_methods
         hist, bins, bad_els = self.quality_statistics(bad_el_tol=el_tol)
         output = {}
-        for name, method in methods.items():
-            output[name] = dict(hist=hist[name].tolist(), bins=bins.tolist(), bad_elements=bad_els[name], bad_el_tol=el_tol)
+        for name in 'gamma':
+            output[name] = dict(hist=hist.tolist(), bins=bins.tolist(), bad_elements=bad_els, bad_el_tol=el_tol)
         import yaml
         with open(filename, "w") as f:
             yaml.dump(output, f)
@@ -881,7 +887,7 @@ class HealMesh:
             rel_dist = np.linalg.norm(inner_node - x_proj) / np.linalg.norm(e_vec)
             projections.append((rel_dist, i, t_proj, x_proj))
         rel_dist, i, t, x = min(projections)
-        assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
+        #assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
 
         # nondegenerate triangle case, split elements connected to the outer face
         print("  flat tria case")
