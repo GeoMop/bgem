@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from bgem.stochastic import dfn
 from bgem.upscale import fem, fields, fem_plot
 
 def basis_1():
@@ -110,8 +111,8 @@ def test_grid_assembly():
         N = 3
         g = fem.Grid(30, N, fem.Fe.Q1(dim, order))
         K_const = np.diag(np.arange(1, dim + 1))
-        K_const = fem.tn_to_voigt(K_const[:, :, None])
-        K_field = K_const.T * np.ones(g.n_elements)[:, None]
+        K_const = fem.tn_to_voigt(K_const[None, :, :])
+        K_field = K_const * np.ones(g.n_elements)[:, None]
         A = g.assembly_dense(K_field)
         n_dofs = (N+1)**dim
         assert A.shape == (n_dofs, n_dofs)
@@ -130,7 +131,7 @@ def test_solve_system():
         assert pressure.shape == (dim, *dim * [N + 1])
 
 
-#@pytest.mark.skip
+@pytest.mark.skip
 def test_solve_2d():
     dim = 2
     order = 1
@@ -139,10 +140,40 @@ def test_solve_2d():
     x = g.barycenters()[0, :]
     K_const = np.diag([1, 1])
     #K_const = np.ones((dim, dim))
-    K_const = fields.tn_to_voigt(K_const[:, :, None])
-    K_field = K_const.T * x[:, None]
+    K_const = fields.tn_to_voigt(K_const[None, :, :])
+    K_field = K_const * x[:, None]
     #K_field = K_const.T * np.ones_like(x)[:, None]
     p_grads = np.eye(dim)
     pressure = g.solve_system(K_field, p_grads)
     xy_grid = [np.linspace(0, g.size[i], g.ax_dofs[i]) for i in range(2)]
     fem_plot.plot_pressure_fields(*xy_grid, pressure)
+
+@pytest.mark.skip()
+def test_upsacale_2d():
+    K_const = np.diag([10, 100])
+    K_const = fields.tn_to_voigt(K_const[None, :, :])
+    K_field = K_const * np.ones((8, 8))[:, :, None]
+    K_eff = fem.upscale(K_field)
+    assert np.allclose(K_eff, K_const[0, :])
+
+
+def test_upscale_parallel_plates():
+    cube = [1, 1, 1]
+    for dim in [2, 3]:
+        plates = dfn.FractureSet.parallel_plates(
+            box = cube,
+            normal = [1, 0, 0]
+        )
+
+
+def single_fracture_distance_function():
+    """
+    Determine effective tensor as a function of the voxel center distance from
+    the fracture plane and angle.
+    lattitude : 0 - pi/4 : 9
+    longitude : 0 - pi/4, up to pi/2 for validation : 9
+    distance : 9 levels
+    :return: about 1000 runs, also test of perfromance
+    use 128^3 grid
+    """
+    pass

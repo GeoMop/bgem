@@ -3,8 +3,9 @@ Exact FEM based homogenization using regular d-dimansional grid.
 """
 from functools import cached_property
 import numpy as np
-from .fields import tn_to_voigt, voigt_coords
-
+from .fields import tn_to_voigt, voigt_to_tn, voigt_coords
+from .homogenization import equivalent_posdef_tensor
+#from bgem.stochastic import dfn
 
 def Q1_1d_basis(points):
     """
@@ -90,7 +91,7 @@ class Fe:
     """
 
     @classmethod
-    def Q1(cls, dim, order):
+    def Q1(cls, dim, order=1):
         order = order + 1
         points = np.linspace(0, 1, order)
         basis = Q1_1d_basis(points)
@@ -126,7 +127,9 @@ class Fe:
 
     def grad_eval(self, points):
         """
+        points: (dim, n_points)
         Evaluate gradients of all tensor product basis functions at given points.
+        return: shape (dim, n_basis_fn, n_points)
         """
         dim, n_points = points.shape
         assert dim == self.dim
@@ -183,7 +186,7 @@ class Grid:
         # natural numbering comes from flattened (ix, iy, iz) dof coordinates
         # calculation numbering puts Dirichlet DOFs at the begining
         self.el_dofs = None
-        # shape (n_local_dofs, n_elements), DOF indices in calculation numbering
+        # shape (n_elements, n_local_dofs), DOF indices in calculation numbering
 
         self.make_numbering(self.dim)
 
@@ -273,6 +276,7 @@ class Grid:
         #print(el_dofs)
         el_dofs = el_dofs[..., None] + ref_dofs[None, :]  # shape: nx, nY, nz, loc_dofs
         self.el_dofs = calc_map[el_dofs.reshape(-1, el_dofs.shape[-1])]
+        assert self.el_dofs.shape == (self.n_elements, self.fe.n_dofs)
 
     def barycenters(self):
         """
@@ -374,7 +378,7 @@ class Grid:
         return A
     def solve_system(self, K, p_grad_bc):
         """
-        :param K: array, shape: (n_voight, n_elements)
+        :param K: array, shape: (n_elements, n_voight)
         :param p_grad_bc: array, shape: (dim, n_vectors)
         usually n_vectors >= dim
         :return: pressure, shape: (n_vectors, n_dofs)
@@ -391,3 +395,50 @@ class Grid:
         pressure_natur[:, self.natur_map[:]] = pressure[:, :]
         return pressure_natur.reshape((n_rhs, *self.dofs_shape))
 
+    def field_grad(self, dof_vals):
+        """
+        Compute solution gradient in element barycenters.
+        :param dof_vals: (n_vec, n_dofs)
+        :return: (n_vec, n_el, dim)
+        """
+        el_dof_vals = dof_vals[:, self.el_dofs[:, :]]  # (n_vec, n_el, n_loc_dofs)
+        quads = np.full((self.dim, 1), 0.5)   # Zero order Gaussian quad. Integrates up to deg = 1.
+        grad_basis = self.fe.grad_eval(quads) # (dim, n_loc_dofs, 1)
+        grad_els = grad_basis[None,None,:, :,0] @ el_dof_vals[:,:, :, None]
+        return grad_els[:, :,:,0]
+
+def upscale(K, domain=None):
+    """
+
+    :param K: array (nx, ny, nz, n_voigt) or similar for dim=1, 2
+    :param domain: domain size array, default np.ones(dim)
+    :return: Effective tensor.
+    """
+    dim = len(K.shape) - 1
+    if domain is None:
+        domain = np.ones(dim)
+
+    order = 1
+    g = Grid(domain, K.shape[:-1], Fe.Q1(dim, order))
+    p_grads = np.eye(dim)
+    K_els = K.reshape((g.n_elements, -1))
+    pressure = g.solve_system(K_els, p_grads)
+    #xy_grid = [np.linspace(0, g.size[i], g.ax_dofs[i]) for i in range(2)]
+    #fem_plot.plot_pressure_fields(*xy_grid, pressure)
+    pressure_flat = pressure.reshape((len(p_grads), -1))
+    grad = g.field_grad(pressure_flat)   # (n_vectors, n_els, dim)
+    loads = np.average(grad, axis=1) # (n_vectors, dim)
+    full_K_els = voigt_to_tn(K_els)
+    responses_els =  grad[:, :, None, :] @ full_K_els[None, :, :, :]   #(n_vec, n_els, 1, dim)
+    responses = np.average(responses_els[:, :, 0, :], axis=1)
+    return equivalent_posdef_tensor(loads, responses)
+
+
+# def rasterize_dfn(fractures: dfn.FractureSet, step):
+#     """
+#     Rasterize given fracture to the grid with `step`
+#     :param fractures:
+#     :param step:
+#     :return:
+#     """
+#     pass
