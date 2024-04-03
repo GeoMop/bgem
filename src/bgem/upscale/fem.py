@@ -164,15 +164,17 @@ class Grid:
     """
     Regular grid, distribution of DOFs, System matrix assembly.
     """
-    def __init__(self, size, n_steps, fe: Fe):
+    def __init__(self, dimensions, n_steps, fe: Fe, origin=[0,0,0]):
         """
         dim - dimension 1, 2, 3
         size    - domain size (Lx, Ly, Lz) or just scalar L for a cube domain
         n_steps - number of elements in each axis (nx, ny, nz) or just `n` for isotropic division
         """
         self.dim = fe.dim
-        # Spatial dimension.
-        self.size = size * np.ones(self.dim)
+        # Ambient space dimension.
+        self.origin = origin * np.ones(self.dim)
+        # Absolute position of the node zero.
+        self.dimensions = dimensions * np.ones(self.dim)
         # Array with physital dimensions of the homogenization domain.
         self.n_steps = n_steps * np.ones(self.dim, dtype=np.int64)
         # Int Array with number of elements for each axis.
@@ -193,7 +195,7 @@ class Grid:
     @cached_property
     def step(self):
         # Array with step size in each axis.
-        return self.size / self.n_steps
+        return self.dimensions / self.n_steps
 
     @property
     def n_loc_dofs(self):
@@ -223,15 +225,6 @@ class Grid:
         # Array for computiong global dof index from dof int coords.
         return np.cumprod([1, *self.ax_dofs[:-1]])
 
-    @cached_property
-    def bc_coords(self):
-        bc_natur_indeces = self.natur_map[np.arange(self.n_bc_dofs, dtype=np.int64)]
-        return self.idx_to_coord(bc_natur_indeces)
-
-
-    @cached_property
-    def bc_points(self):
-        return self.bc_coords * self.step[:, None]
 
     def make_numbering(self, dim):
         # grid of integers, set to (-1)
@@ -280,11 +273,40 @@ class Grid:
 
     def barycenters(self):
         """
-        Barycenters of elements
-        :return: shape (dim, n_els)
+        Barycenters of elements.
+        n_els = prod( n_steps )
+        :return: shape (n_els, dim)
         """
         bary_axes = [self.step[i] * (np.arange(self.n_steps[i]) + 0.5) for i in range(self.dim)]
-        return np.stack(np.meshgrid(*bary_axes)).reshape(self.dim, -1)
+        return np.stack(np.meshgrid(*bary_axes), axis=-1).reshape(-1, self.dim) + self.origin[None, :]
+
+    def nodes(self):
+        """
+        Nodes of the grid.
+        n_nodes = prod( n_steps + 1 )
+        :return: shape (n_nodes, dim)
+        """
+        nodes_axes = [self.step[i] * (np.arange(self.n_steps[i] + 1)) for i in range(self.dim)]
+        return np.stack(np.meshgrid(*nodes_axes), axis=-1).reshape(-1, self.dim) + self.origin[None, :]
+
+    @cached_property
+    def bc_coords(self):
+        """
+        ?? todo transpose, refactor
+        :return:
+        """
+        bc_natur_indeces = self.natur_map[np.arange(self.n_bc_dofs, dtype=np.int64)]
+        return self.idx_to_coord(bc_natur_indeces)
+
+    @cached_property
+    def bc_points(self):
+        """
+        todo refactor
+        :return:
+        """
+        return self.bc_coords * self.step[None, :] + self.origin[None, :]
+
+
 
     def idx_to_coord(self, dof_natur_indices):
         """
@@ -293,15 +315,15 @@ class Grid:
         :return: integer coordinates: (dim, *dof_natur_indeces.shape)
         """
         indices = dof_natur_indices
-        coords = np.empty((self.dim, *dof_natur_indices.shape), dtype=np.int64)
+        coords = np.empty((*dof_natur_indices.shape, self.dim), dtype=np.int64)
         for i in range(self.dim-1, 0,  -1):
-            indices, coords[i] = np.divmod(indices, self.dof_to_coord[i])
-        coords[0] = indices
+            indices, coords[:, i] = np.divmod(indices, self.dof_to_coord[i])
+        coords[:, 0] = indices
         return coords
 
     def __repr__(self):
         msg = \
-            f"{self.fe} Grid: {self.n_steps} Domain: {self.size}\n" + \
+            f"{self.fe} Grid: {self.n_steps} Domain: {self.dimensions}\n" + \
             f"Natur Map:\n{self.natur_map}\n" + \
             f"El_DOFs:\n{self.el_dofs}\n"
         return msg
@@ -366,7 +388,7 @@ class Grid:
         """
         assert K_voight_tensors.shape == (self.n_elements, len(voigt_coords[self.dim]))
         laplace = self.laplace
-        # locmat_dofs, n_voight = laplace.shape
+        # n_voight, locmat_dofs  == laplace.shape
         # Use transpositions of intputs and output in order to enforce cache efficient storage.
         #loc_matrices = np.zeros((self.n_loc_dofs self.n_loc_dofs, self.n_elements))
         #np.matmul(.T[:, None, :], laplace[None, :, :], out=loc_matrices.reshape(-1, self.n_elements).T)
@@ -376,17 +398,22 @@ class Grid:
         # Use advanced indexing to add local matrices to the global matrix
         np.add.at(A, self.loc_mat_ij, loc_matrices)
         return A
+
+
     def solve_system(self, K, p_grad_bc):
         """
         :param K: array, shape: (n_elements, n_voight)
-        :param p_grad_bc: array, shape: (dim, n_vectors)
+                  cell at position (iX, iY, iZ) has index
+                  iX + n_steps[0] * ( iY + n_steps[1] * iZ)
+                  i.e. the X index is running fastest,
+        :param p_grad_bc: array, shape: (n_vectors, dim)
         usually n_vectors >= dim
         :return: pressure, shape: (n_vectors, n_dofs)
         """
-        d, n_rhs = p_grad_bc.shape
+        n_rhs, d = p_grad_bc.shape
         assert d == self.dim
         A = self.assembly_dense(K)
-        pressure_bc = p_grad_bc.T @ self.bc_points # (n_vectors, n_bc_dofs)
+        pressure_bc = p_grad_bc @ self.bc_points.T # (n_vectors, n_bc_dofs)
         B = pressure_bc @ A[:self.n_bc_dofs, self.n_bc_dofs:]  # (n_vectors, n_interior_dofs)
         pressure = np.empty((n_rhs, self.n_dofs))
         pressure[:, :self.n_bc_dofs] = pressure_bc

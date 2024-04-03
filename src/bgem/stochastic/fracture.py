@@ -133,7 +133,11 @@ class Fracture:
         return _rotation_axis
 
     def axis_angle(self):
-        axis_angle = normal_to_axis_angle(self.normal)[0,:]
+        axis, angle = normal_to_axis_angle(self.normal)
+        return axis, angle
+
+    def axis_angles(self):
+        axis_angle = normals_to_axis_angles([self.normal])[0,:]
         _rotation_axis = axis_angle[0:3]
         _rotation_angle = axis_angle[3]
         return _rotation_axis, _rotation_angle
@@ -306,7 +310,23 @@ def normal_to_axis_angle(normal): ## todo
 
     """
     z_axis = np.array([0, 0, 1], dtype=float)
-    norms = normal / np.linalg.norm(normal, axis=1)[:, None]
+    norms = normal / np.linalg.norm(normal)
+    cos_angle = np.dot(norms, z_axis)
+    angle = np.arccos(cos_angle)
+    # sin_angle = np.sqrt(1-cos_angle**2)
+
+    axis = np.cross(z_axis, norms)
+    ax_norm = max(np.linalg.norm(axis), 1e-200)
+    axis = axis / ax_norm
+    #return axes, angles
+    return axis, angle
+
+def normals_to_axis_angles(normals): ## todo
+    """
+
+    """
+    z_axis = np.array([0, 0, 1], dtype=float)
+    norms = normals / np.linalg.norm(normals, axis=1)[:, None]
     cos_angle = norms @ z_axis
     angles = np.arccos(cos_angle)
     # sin_angle = np.sqrt(1-cos_angle**2)
@@ -316,6 +336,7 @@ def normal_to_axis_angle(normal): ## todo
     axes = axes / ax_norm[:, None]
     #return axes, angles
     return np.concatenate([axes, angles[:, None]], axis=1)
+
 
 def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
     """
@@ -451,7 +472,7 @@ class FisherOrientation:
         """
         raw_normals = self._sample_standard_fisher(size)
         mean_norm = self._mean_normal()
-        axis_angle = normal_to_axis_angle(mean_norm[None, :])
+        axis_angle = normals_to_axis_angles(mean_norm[None, :])
         return rotate(raw_normals, axis_angle=axis_angle[0])
 
 
@@ -978,7 +999,7 @@ class Population:
             for r, normal, sa in zip(diams, fr_normals, shape_angle):
                 #axis, angle = aa[:3], aa[3]
                 center = pos_distr.sample()
-                fractures.append(Fracture(self.shape_class, r, center, normal[None,:], sa, name, ifam, 1))
+                fractures.append(Fracture(self.shape_class, r, center, normal, sa, name, ifam, 1))
         return fractures
 
 
@@ -1075,255 +1096,6 @@ def unit_square_vtxs():
         [-0.5, 0.5, 0]])
 
 
-
-
-class Fractures:
-    # regularization of 2d fractures
-    def __init__(self, fractures, epsilon):
-        self.epsilon = epsilon
-        self.fractures = fractures
-        self.points = []
-        self.lines = []
-        self.pt_boxes = []
-        self.line_boxes = []
-        self.pt_bih = None
-        self.line_bih = None
-        self.fracture_ids = []
-        # Maps line to its fracture.
-
-        self.make_lines()
-        self.make_bihs()
-
-    def make_lines(self):
-        # sort from large to small fractures
-        self.fractures.sort(key=lambda fr:fr.rx, reverse=True)
-        base_line = np.array([[-0.5, 0, 0], [0.5, 0, 0]])
-        for i_fr, fr in enumerate(self.fractures):
-            line = FisherOrientation.rotate(base_line * fr.rx, np.array([0, 0, 1]), fr.shape_angle)
-            line += fr.center
-            i_pt = len(self.points)
-            self.points.append(line[0])
-            self.points.append(line[1])
-            self.lines.append((i_pt, i_pt+1))
-            self.fracture_ids.append(i_fr)
-
-    def get_lines(self, fr_range):
-        lines = {}
-        fr_min, fr_max = fr_range
-        for i, (line, fr) in enumerate(zip(self.lines, self.fractures)):
-            if fr_min <= fr.rx < fr_max:
-                lines[i] = [self.points[p][:2] for p in line]
-        return lines
-
-    def make_bihs(self):
-        import bih
-        shift = np.array([self.epsilon, self.epsilon, 0])
-        for line in self.lines:
-            pt0, pt1 = self.points[line[0]], self.points[line[1]]
-            b0 = [(pt0 - shift).tolist(), (pt0 + shift).tolist()]
-            b1 = [(pt1 - shift).tolist(), (pt1 + shift).tolist()]
-            box_pt0 = bih.AABB(b0)
-            box_pt1 = bih.AABB(b1)
-            line_box = bih.AABB(b0 + b1)
-            self.pt_boxes.extend([box_pt0, box_pt1])
-            self.line_boxes.append(line_box)
-        self.pt_bih = bih.BIH()
-        self.pt_bih.add_boxes(self.pt_boxes)
-        self.line_bih = bih.BIH()
-        self.line_bih.add_boxes(self.line_boxes)
-        self.pt_bih.construct()
-        self.line_bih.construct()
-
-    def find_root(self, i_pt):
-        i = i_pt
-        while self.pt_map[i] != i:
-            i = self.pt_map[i]
-        root = i
-        i = i_pt
-        while self.pt_map[i] != i:
-            j = self.pt_map[i]
-            self.pt_map[i] = root
-            i = j
-        return root
-
-    def snap_to_line(self, pt, pt0, pt1):
-        v = pt1 - pt0
-        v /= np.linalg.norm(v)
-        t = v @ (pt - pt0)
-        if 0 < t < 1:
-            projected = pt0 + t * v
-            if np.linalg.norm(projected - pt) < self.epsilon:
-                return projected
-        return pt
-
-
-
-    def simplify(self):
-        self.pt_map = list(range(len(self.points)))
-        for i_pt, point in enumerate(self.points):
-            pt = point.tolist()
-            for j_pt_box in  self.pt_bih.find_point(pt):
-                if i_pt != j_pt_box and j_pt_box == self.pt_map[j_pt_box] and self.pt_boxes[j_pt_box].contains_point(pt):
-                    self.pt_map[i_pt] = self.find_root(j_pt_box)
-                    break
-        new_lines = []
-        new_fr_ids = []
-        for i_ln, ln in enumerate(self.lines):
-            pt0, pt1 = ln
-            pt0, pt1 = self.find_root(pt0), self.find_root(pt1)
-            if pt0 != pt1:
-                new_lines.append((pt0, pt1))
-                new_fr_ids.append(self.fracture_ids[i_ln])
-        self.lines = new_lines
-        self.fracture_ids = new_fr_ids
-
-        for i_pt, point in enumerate(self.points):
-            if self.pt_map[i_pt] == i_pt:
-                pt = point.tolist()
-                for j_line in self.line_bih.find_point(pt):
-                    line = self.lines[j_line]
-                    if i_pt != line[0] and i_pt != line[1] and self.line_boxes[j_line].contains_point(pt):
-                        pt0, pt1 = self.points[line[0]], self.points[line[1]]
-                        self.points[i_pt] = self.snap_to_line(point, pt0, pt1)
-                        break
-
-    def line_fragment(self, i_ln, j_ln):
-        """
-        Compute intersection of the two lines and if its position is well in interior
-        of both lines, benote it as the fragmen point for both lines.
-        """
-        pt0i, pt1i = (self.points[ipt] for ipt in self.lines[i_ln])
-        pt0j, pt1j = (self.points[ipt] for ipt in self.lines[j_ln])
-        A = np.stack([pt1i - pt0i, -pt1j + pt0j], axis=1)
-        b = -pt0i + pt0j
-        ti, tj = np.linalg.solve(A, b)
-        if self.epsilon <= ti <= 1 - self.epsilon and self.epsilon <= tj <= 1 - self.epsilon:
-            X = pt0i + ti * (pt1i - pt0i)
-            ix = len(self.points)
-            self.points.append(X)
-            self._fragment_points[i_ln].append((ti, ix))
-            self._fragment_points[j_ln].append((tj, ix))
-
-    def fragment(self):
-        """
-        Fragment fracture lines, update map from new line IDs to original fracture IDs.
-        :return:
-        """
-        new_lines = []
-        new_fracture_ids = []
-        self._fragment_points = [[] for l in self.lines]
-        for i_ln, line in enumerate(self.lines):
-            for j_ln in self.line_bih.find_box(self.line_boxes[i_ln]):
-                if j_ln > i_ln:
-                    self.line_fragment(i_ln, j_ln)
-            # i_ln line is complete, we can fragment it
-            last_pt = self.lines[i_ln][0]
-            fr_id = self.fracture_ids[i_ln]
-            for t, ix in sorted(self._fragment_points[i_ln]):
-                new_lines.append(last_pt, ix)
-                new_fracture_ids.append(fr_id)
-                last_pt = ix
-            new_lines.append(last_pt, self.lines[i_ln][1])
-            new_fracture_ids.append(fr_id)
-        self.lines = new_lines
-        self.fracture_ids = new_fracture_ids
-
-
-
-
-
-    # def compute_transformed_shapes(self):
-    #     n_frac = len(self.fractures)
-    #
-    #     unit_square = unit_square_vtxs()
-    #     z_axis = np.array([0, 0, 1])
-    #     squares = np.tile(unit_square[None, :, :], (n_frac, 1, 1))
-    #     center = np.empty((n_frac, 3))
-    #     trans_matrix = np.empty((n_frac, 3, 3))
-    #     for i, fr in enumerate(self.fractures):
-    #         vtxs = squares[i, :, :]
-    #         vtxs[:, 1] *= fr.aspect
-    #         vtxs[:, :] *= fr.r
-    #         vtxs = FisherOrientation.rotate(vtxs, z_axis, fr.shape_angle)
-    #         vtxs = FisherOrientation.rotate(vtxs, fr.rotation_axis, fr.rotation_angle)
-    #         vtxs += fr.centre
-    #         squares[i, :, :] = vtxs
-    #
-    #         center[i, :] = fr.centre
-    #         u_vec = vtxs[1] - vtxs[0]
-    #         u_vec /= (u_vec @ u_vec)
-    #         v_vec = vtxs[2] - vtxs[0]
-    #         u_vec /= (v_vec @ v_vec)
-    #         w_vec = FisherOrientation.rotate(z_axis, fr.rotation_axis, fr.rotation_angle)
-    #         trans_matrix[i, :, 0] = u_vec
-    #         trans_matrix[i, :, 1] = v_vec
-    #         trans_matrix[i, :, 2] = w_vec
-    #     self.squares = squares
-    #     self.center = center
-    #     self.trans_matrix = trans_matrix
-    #
-    # def snap_vertices_and_edges(self):
-    #     n_frac = len(self.fractures)
-    #     epsilon = 0.05  # relaitve to the fracture
-    #     min_unit_fr = np.array([0 - epsilon, 0 - epsilon, 0 - epsilon])
-    #     max_unit_fr = np.array([1 + epsilon, 1 + epsilon, 0 + epsilon])
-    #     cos_limit = 1 / np.sqrt(1 + (epsilon / 2) ** 2)
-    #
-    #     all_points = self.squares.reshape(-1, 3)
-    #
-    #     isec_condidates = []
-    #     wrong_angle = np.zeros(n_frac)
-    #     for i, fr in enumerate(self.fractures):
-    #         if wrong_angle[i] > 0:
-    #             isec_condidates.append(None)
-    #             continue
-    #         projected = all_points - self.center[i, :][None, :]
-    #         projected = np.reshape(projected @ self.trans_matrix[i, :, :], (-1, 4, 3))
-    #
-    #         # get bounding boxes in the loc system
-    #         min_projected = np.min(projected, axis=1)  # shape (N, 3)
-    #         max_projected = np.max(projected, axis=1)
-    #         # flag fractures that are out of the box
-    #         flag = np.any(np.logical_or(min_projected > max_unit_fr[None, :], max_projected < min_unit_fr[None, :]),
-    #                       axis=1)
-    #         flag[i] = 1  # omit self
-    #         candidates = np.nonzero(flag == 0)[0]  # indices of fractures close to 'fr'
-    #         isec_condidates.append(candidates)
-    #         # print("fr: ", i, candidates)
-    #         for i_fr in candidates:
-    #             if i_fr > i:
-    #                 cos_angle_of_normals = self.trans_matrix[i, :, 2] @ self.trans_matrix[i_fr, :, 2]
-    #                 if cos_angle_of_normals > cos_limit:
-    #                     wrong_angle[i_fr] = 1----
-    #                     print("wrong_angle: ", i, i_fr)
-    #
-    #                 # atract vertices
-    #                 fr = projected[i_fr]
-    #                 flag = np.any(np.logical_or(fr > max_unit_fr[None, :], fr < min_unit_fr[None, :]), axis=1)
-    #                 print(np.nonzero(flag == 0))
-
-
-def fr_intersect(fractures):
-    """
-    1. create fracture shape vertices (rotated, translated) square
-        - create vertices of the unit shape
-        - use FisherOrientation.rotate
-    2. intersection of a line with plane/square
-    3. intersection of two squares:
-        - length of the intersection
-        - angle
-        -
-    :param fractures:
-    :return:
-    """
-
-    # project all points to all fractures (getting local coordinates on the fracture system)
-    # fracture system axis:
-    # u_vec = vtxs[1] - vtxs[0]
-    # v_vec = vtxs[2] - vtxs[0]
-    # w_vec ... unit normal
-    # fractures with angle that their max distance in the case of intersection
-    # is not greater the 'epsilon'
 
 
 

@@ -175,18 +175,19 @@ class Transform:
         rotate, and then shift back.
         """
         matrix = Transform._identity_matrix()
-        center = np.array(center, dtype=float)
-        axis = np.array(axis, dtype=float)
-        axis /= np.linalg.norm(axis)
+        if angle != 0.0:
+            center = np.array(center, dtype=float)
+            axis = np.array(axis, dtype=float)
+            axis /= np.linalg.norm(axis)
 
-        W = np.array(
-            [[0, -axis[2], axis[1]],
-             [axis[2], 0, -axis[0]],
-             [-axis[1], axis[0], 0]])
-        M = np.eye(3) +  np.sin(angle) * W + 2 * np.sin(angle/2) ** 2 * W @ W
-        matrix[:, 3] -= center
-        matrix = M @ matrix
-        matrix[:, 3] += center
+            W = np.array(
+                [[0, -axis[2], axis[1]],
+                 [axis[2], 0, -axis[0]],
+                 [-axis[1], axis[0], 0]])
+            M = np.eye(3) +  np.sin(angle) * W + 2 * np.sin(angle/2) ** 2 * W @ W
+            matrix[:, 3] -= center
+            matrix = M @ matrix
+            matrix[:, 3] += center
         return Transform(matrix) @ self
 
     def scale(self, scale_vector, center=(0, 0, 0)):
