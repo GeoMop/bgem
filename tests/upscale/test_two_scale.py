@@ -22,12 +22,15 @@ logger = logging.getLogger()
 
 import numpy as np
 import attrs
+import pyvista as pv
+
 from bgem import stochastic
 from bgem.gmsh import gmsh, options
 from mesh_class import Mesh
 from bgem.core import call_flow, dotdict, workdir as workdir_mng
-from bgem.upscale import Grid, Fe
-import pyvista as pv
+from bgem.upscale import Grid, Fe, voigt_to_tn, tn_to_voigt
+import decovalex_dfnmap as dmap
+from scipy.interpolate import LinearNDInterpolator
 
 script_dir = Path(__file__).absolute().parent
 workdir = script_dir / "sandbox"
@@ -40,7 +43,7 @@ class FracturedMedia:
     dfn: List[stochastic.Fracture]
     fr_cross_section: np.ndarray    # shape (n_fractures,)
     fr_conductivity: np.ndarray     # shape (n_fractures,)
-    conductvity: float
+    conductivity: float
 
     @staticmethod
     def fracture_cond_params(dfn, unit_cross_section, bulk_conductivity):
@@ -55,6 +58,7 @@ class FracturedMedia:
         fr_r = np.array([fr.r for fr in dfn])
         fr_cross_section = unit_cross_section * fr_r
         fr_cond = permeability_to_conductivity * permeability_factor * fr_r ** 2
+        fr_cond = np.full_like(fr_r, 10)
         return FracturedMedia(dfn, fr_cross_section, fr_cond, bulk_conductivity)
 
 def fracture_set(seed, size_range, max_frac = None):
@@ -167,8 +171,7 @@ def fr_field(mesh, fractures, fr_values, bulk_value):
 #     pass
 
 @memory.cache
-def reference_solution(fr_media, target_grid, bc_gradient):
-    domain_dimensions = target_grid.size
+def reference_solution(fr_media: FracturedMedia, dimensions, bc_gradient):
     dfn = fr_media.dfn
     bulk_conductivity = fr_media.conductivity
 
@@ -176,7 +179,7 @@ def reference_solution(fr_media, target_grid, bc_gradient):
     workdir.mkdir(parents=True, exist_ok=True)
 
     # Input crssection and conductivity
-    mesh_file = ref_solution_mesh(workdir, domain_dimensions, dfn, fr_step=10, bulk_step=10)
+    mesh_file = ref_solution_mesh(workdir, dimensions, dfn, fr_step=7, bulk_step=7)
     full_mesh = Mesh.load_mesh(mesh_file, heal_tol = 0.001) # gamma
     fields = dict(
         conductivity=fr_field(full_mesh, dfn, fr_media.fr_conductivity, bulk_conductivity),
@@ -211,6 +214,38 @@ def reference_solution(fr_media, target_grid, bc_gradient):
     # projection of fields
     return flow_out
 
+def project_ref_solution_(flow_out, grid: Grid):
+    #     Velocity P0 projection
+    #     1. get array of barycenters (source points) and element volumes of the fine mesh
+    #     2. ijk cell coords of each source point
+    #     3. weights = el_volume / np.add.at(cell_vol_sum, ijk, el_volume)[ijk[:]]
+    #     4. np.add.at(cell_velocities, ijk, weights * velocities)
+    #     :return:
+    pvd_content = pv.get_reader(flow_out.hydro.spatial_file.path)
+    pvd_content.set_active_time_point(0)
+    dataset = pvd_content.read()[0] # Take first block of the Multiblock dataset
+    cell_centers_coords = dataset.cell_centers().points
+    grid_min_corner = -grid.dimensions / 2
+    centers_ijk_grid = (cell_centers_coords - grid_min_corner) // grid.step[None, :]
+    centers_ijk_grid = centers_ijk_grid.astype(np.int32)
+    assert np.alltrue(centers_ijk_grid < grid.shape[None, :])
+
+    grid_cell_idx = centers_ijk_grid[:, 0] + grid.shape[0] * (centers_ijk_grid[:, 1] + grid.shape[1] * centers_ijk_grid[:, 2])
+    sized = dataset.compute_cell_sizes()
+    cell_volume = np.abs(sized.cell_data["Volume"])
+    grid_sum_cell_volume = np.zeros(grid.n_elements)
+    np.add.at(grid_sum_cell_volume, grid_cell_idx, cell_volume)
+    weights = cell_volume[:] / grid_sum_cell_volume[grid_cell_idx[:]]
+
+    velocities = dataset.cell_data['velocity_p0']
+    grid_velocities = np.zeros((grid.n_elements, 3))
+    wv = weights[:, None] * velocities
+    for ax in [0, 1, 2]:
+        np.add.at(grid_velocities[:, ax], grid_cell_idx, wv[:, ax])
+
+    return grid_velocities.reshape((*grid.shape, 3))
+
+
 def project_ref_solution(flow_out, grid: Grid):
     #     Velocity P0 projection
     #     1. get array of barycenters (source points) and element volumes of the fine mesh
@@ -222,49 +257,76 @@ def project_ref_solution(flow_out, grid: Grid):
     pvd_content.set_active_time_point(0)
     dataset = pvd_content.read()[0] # Take first block of the Multiblock dataset
     cell_centers_coords = dataset.cell_centers().points
-    grid_min_corner = -grid.size / 2
-    centers_ijk_grid = (cell_centers_coords - grid_min_corner) // grid.step[None, :]
-    centers_ijk_grid = centers_ijk_grid.astype(np.int32)
-    assert np.alltrue(centers_ijk_grid < grid.n_steps[None, :])
-
-    grid_cell_idx = centers_ijk_grid[:, 0] + grid.n_steps[0] * (centers_ijk_grid[:, 1] + grid.n_steps[1]*centers_ijk_grid[:, 2])
-    sized = dataset.compute_cell_sizes()
-    cell_volume = np.abs(sized.cell_data["Volume"])
-    grid_sum_cell_volume = np.zeros(grid.n_elements)
-    np.add.at(grid_sum_cell_volume, grid_cell_idx, cell_volume)
-    weights = cell_volume[:] / grid_sum_cell_volume[grid_cell_idx[:]]
     velocities = dataset.cell_data['velocity_p0']
-    grid_velocities = np.zeros((grid.n_elements, 3))
-    wv = weights[:, None] * velocities
-    for ax in [0, 1, 2]:
-        np.add.at(grid_velocities[:, ax], grid_cell_idx, wv[:, ax])
-
-    return grid_velocities.reshape( (*grid.n_steps, 3))
+    interpolator = LinearNDInterpolator(cell_centers_coords, velocities, 0.0)
+    grid_velocities = interpolator(grid.barycenters())
+    return grid_velocities
 
 
-def homogenize(fr_media: FracturedMedia, grid:Grid):
+def homo_decovalex(fr_media: FracturedMedia, grid:Grid):
     """
     Homogenize fr_media to the conductivity tensor field on grid.
     :return: conductivity_field, np.array, shape (n_elements, n_voight)
     """
-
+    ellipses = [dmap.Ellipse(fr.normal, fr.center, fr.scale) for fr in fr_media.dfn]
+    d_grid = dmap.Grid.make_grid(grid.origin, grid.step, grid.dimensions)
+    fractures = dmap.map_dfn(d_grid, ellipses)
+    fr_transmissivity = fr_media.fr_conductivity * fr_media.fr_cross_section
+    k_iso_zyx = dmap.permIso(d_grid, fractures, fr_transmissivity, fr_media.conductivity)
+    k_iso_xyz = grid.cell_field_C_like(k_iso_zyx)
+    k_voigt = k_iso_xyz[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
+    return k_voigt
 
 
 def test_two_scale():
     # Fracture set
     domain_size = 100
-    fr_range = (30, domain_size)
+    #fr_range = (30, domain_size)
+    fr_range = (50, domain_size)
     dfn = fracture_set(123, fr_range)
-    fr_media = FracturedMedia.fracture_cond_params(dfn, 1e-4, 0.1)
+    fr_media = FracturedMedia.fracture_cond_params(dfn, 1e-4, 0.01)
 
 
     # Coarse Problem
-    steps = (10, 2, 5)
-    grid = Grid(domain_size, steps, Fe.Q1(dim=3))
+    steps = (50, 60, 70)
+    #steps = (3, 4, 5)
+    grid = Grid(domain_size, steps, Fe.Q(dim=3), origin=-domain_size / 2)
     bc_pressure_gradient = [1, 0, 0]
 
-    flow_out = reference_solution(fr_media, grid, bc_pressure_gradient)
-    ref_velocity_grid = project_ref_solution(flow_out, grid)
+    flow_out = reference_solution(fr_media, grid.dimensions, bc_pressure_gradient)
+    ref_velocity_grid = grid.cell_field_F_like(project_ref_solution(flow_out, grid).reshape((-1, 3)))
 
-    grid_permitivity = homogenize(fr_media, grid)
-    pressure_field = grid.solve_system(grid_permitivity, bc_pressure_gradient)
+    grid_permitivity = homo_decovalex(fr_media, grid)
+    pressure = grid.solve_system(grid_permitivity, np.array(bc_pressure_gradient)[None, :])
+    pressure_flat = pressure.reshape((1, -1))
+    #pressure_flat = (grid.nodes() @ bc_pressure_gradient)[None, :]
+
+    grad_pressure = grid.field_grad(pressure_flat)   # (n_vectors, n_els, dim)
+    grad_pressure = grad_pressure[0, :, :][:, :, None]  # (n_els, dim, 1)
+    velocity = -voigt_to_tn(grid_permitivity) @ grad_pressure    # (n_els, dim, 1)
+    #velocity = grad_pressure    # (n_els, dim, 1)
+    velocity = velocity[:, :, 0] # transpose
+    velocity_zyx = grid.cell_field_F_like(velocity)  #.reshape(*grid.n_steps, -1).transpose(2,1,0,3).reshape((-1, 3))
+    # Comparison
+    # origin = [0, 0, 0]
+
+    #pv_grid = pv.StructuredGrid()
+    xyz_range = [ np.linspace(grid.origin[ax], grid.origin[ax] + grid.dimensions[ax], grid.shape[ax] + 1, dtype=np.float32)
+                  for ax in [0, 1, 2]
+                ]
+
+    x, y, z = np.meshgrid(*xyz_range, indexing='ij')
+    pv_grid = pv.StructuredGrid(x, y, z)
+    #points = grid.nodes()
+    pv_grid_centers = pv_grid.cell_centers().points
+    print(grid.barycenters())
+    print(pv_grid_centers)
+
+    #pv_grid.dimensions = grid.n_steps + 1
+    pv_grid.cell_data['ref_velocity'] = ref_velocity_grid
+    pv_grid.cell_data['homo_velocity'] = velocity_zyx
+    pv_grid.cell_data['diff'] = velocity_zyx - ref_velocity_grid
+    pv_grid.cell_data['homo_cond'] = grid.cell_field_F_like(grid_permitivity)
+    pv_grid.point_arrays['homo_pressure'] = pressure_flat[0]
+
+    pv_grid.save(str(workdir / "test_result.vtk"))

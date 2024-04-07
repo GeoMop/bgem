@@ -134,11 +134,11 @@ def rasterize_dfn(homo_fns):
 
     # Coarse Problem
     steps = (10, 12, 14)
-    grid = Grid(domain_size, steps, Fe.Q1(dim=3), origin=-domain_size / 2)
+    grid = Grid(domain_size, steps, Fe.Q(dim=3), origin=-domain_size / 2)
     dfn = tst_fracture_set(grid.dimensions)
     fr_media = FracturedMedia.constant_fr(dfn, 10, 1, 0.01)
 
-    xyz_range = [ np.linspace(grid.origin[ax], grid.origin[ax] + grid.dimensions[ax], grid.n_steps[ax] + 1, dtype=np.float32)
+    xyz_range = [ np.linspace(grid.origin[ax], grid.origin[ax] + grid.dimensions[ax], grid.shape[ax] + 1, dtype=np.float32)
                   for ax in [0, 1, 2]
                 ]
 

@@ -299,6 +299,28 @@ class Grid:
         mesh_grid_array = np.stack(mesh_grid, axis=-1)
         return mesh_grid_array.reshape(-1, self.dim) + self.origin
 
+    def cell_field_C_like(self, cell_array_F_like):
+        """
+        :param cell_array: shape (n_elements, *value_dim) in F-like numbering
+        :return: Same values rearranged for a C-like indexing, Z index running the fastest
+        ... used in self
+        """
+        value_shape = cell_array_F_like.shape[1:]
+        grid_field = cell_array_F_like.reshape(*reversed(self.shape), *value_shape)
+        transposed = grid_field.transpose(*reversed(range(self.dim)))
+        return transposed.reshape(-1, *value_shape)
+
+    def cell_field_F_like(self, cell_array_C_like):
+        """
+        :param cell_array: shape (n_elements, *value_dim) in C-like numbering
+        :return: Same values rearranged for a F-like indexing, X index running the fastest
+        ... used in PyVista.
+        """
+        value_shape = cell_array_C_like.shape[1:]
+        grid_field = cell_array_C_like.reshape(*self.shape, *value_shape)
+        transposed = grid_field.transpose(*reversed(range(self.dim)),-1)
+        return transposed.reshape(-1, *value_shape)
+
     # def nodes(self):
     #     """
     #     Nodes of the grid.
