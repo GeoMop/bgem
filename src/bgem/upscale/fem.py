@@ -91,7 +91,7 @@ class Fe:
     """
 
     @classmethod
-    def Q1(cls, dim, order=1):
+    def Q(cls, dim, order=1):
         order = order + 1
         points = np.linspace(0, 1, order)
         basis = Q1_1d_basis(points)
@@ -151,6 +151,11 @@ class Fe:
         return result
 
     def ref_el_dofs(self):
+        """
+        Positions of the DOFs on the reference element.
+        ref_el_dofs[:, i] .. position of the i-th dofs
+        :return: ndarray shape (dim, n_dofs)
+        """
         n = self.n_dofs_1d
         grid_slice = tuple(self.dim * [slice(0, n)])
         return np.mgrid[grid_slice].reshape(self.dim, -1)
@@ -163,8 +168,9 @@ class Fe:
 class Grid:
     """
     Regular grid, distribution of DOFs, System matrix assembly.
+    Cells and dofs numbered as C-style numpy array, last dimension running the fastest.
     """
-    def __init__(self, dimensions, n_steps, fe: Fe, origin=[0,0,0]):
+    def __init__(self, dimensions, n_steps, fe: Fe, origin=0):
         """
         dim - dimension 1, 2, 3
         size    - domain size (Lx, Ly, Lz) or just scalar L for a cube domain
@@ -176,8 +182,8 @@ class Grid:
         # Absolute position of the node zero.
         self.dimensions = dimensions * np.ones(self.dim)
         # Array with physital dimensions of the homogenization domain.
-        self.n_steps = n_steps * np.ones(self.dim, dtype=np.int64)
-        # Int Array with number of elements for each axis.
+        self.shape = n_steps * np.ones(self.dim, dtype=np.int64)
+        # Int Array with number of elements for each axis, i.e. shape of the grid
         self.fe = fe
         # Tensor product finite element class.
 
@@ -195,7 +201,7 @@ class Grid:
     @cached_property
     def step(self):
         # Array with step size in each axis.
-        return self.dimensions / self.n_steps
+        return self.dimensions / self.shape
 
     @property
     def n_loc_dofs(self):
@@ -203,27 +209,37 @@ class Grid:
 
     @property
     def dofs_shape(self):
-        return self.n_steps * (np.array(self.fe.n_dofs_1d) - 1) + 1
+        """
+        Shape of DOFs grid.
+        :return:
+        """
+        return self.shape * (np.array(self.fe.n_dofs_1d) - 1) + 1
+
     @property
     def n_dofs(self):
         return np.prod(self.dofs_shape)
 
     @property
     def n_elements(self):
-        return np.prod(self.n_steps)
+        return np.prod(self.shape)
+
+    # @property
+    # def ax_dofs(self):
+    #     """
+    #     Number of dofs in each axis.
+    #     :return:
+    #     """
+    #     return self.n_steps * (self.fe.n_dofs_1d - 1) + 1  # shape (dim, )
 
     @property
-    def ax_dofs(self):
-        """
-        Number of dofs in each axis.
-        :return:
-        """
-        return self.n_steps * (self.fe.n_dofs_1d - 1) + 1  # shape (dim, )
-
-    @property
-    def dof_to_coord(self):
+    def dof_coord_coef(self):
         # Array for computiong global dof index from dof int coords.
-        return np.cumprod([1, *self.ax_dofs[:-1]])
+        #
+        # idx = sum(coord * coord_coef)
+        # 1D: [1]
+        # 2D: [ny, 1]
+        # 3D: [ny*nz, nz, 1]
+        return np.cumprod([1, *self.dofs_shape[:0:-1]])[::-1]
 
 
     def make_numbering(self, dim):
@@ -231,20 +247,20 @@ class Grid:
         # go through boundary, enumerate, skip filled values
         # go through internal nodes, enumerate remaining
         # reshape -> computation_from_natural
-        assert self.ax_dofs.shape == (self.dim,)
-        n_dofs = np.prod(self.ax_dofs)
+        assert self.dofs_shape.shape == (self.dim,)
+        n_dofs = np.prod(self.dofs_shape)
         # mark boundary dofs -1, interior dofs -2
-        calc_map = np.full(self.ax_dofs, -1, dtype=np.int64)
+        calc_map = np.full(self.dofs_shape, -1, dtype=np.int64)
         interior_slice = tuple(self.dim * [slice(1, -1)])
         calc_map[interior_slice] = -2
 
         # construct new numbering of dofs
-        indices = np.where(calc_map == -1)
-        self.n_bc_dofs = len(indices[0])
+        el_indices = np.where(calc_map == -1)
+        self.n_bc_dofs = len(el_indices[0])
         # print(self.n_bc_dofs, indices)
-        calc_map[indices] = np.arange(0, self.n_bc_dofs, dtype=np.int64)
-        indices = np.where(calc_map == -2)
-        calc_map[indices] = np.arange(self.n_bc_dofs, n_dofs, dtype=np.int64)
+        calc_map[el_indices] = np.arange(0, self.n_bc_dofs, dtype=np.int64)
+        el_indices = np.where(calc_map == -2)
+        calc_map[el_indices] = np.arange(self.n_bc_dofs, n_dofs, dtype=np.int64)
         calc_map = calc_map.flatten()
         self.natur_map = np.empty(len(calc_map), dtype=np.int64)
         self.natur_map[calc_map[:]] = np.arange(len(calc_map), dtype=np.int64)
@@ -255,19 +271,20 @@ class Grid:
         assert ref_dofs.shape == (self.dim, self.fe.n_dofs_1d ** self.dim)
 
         #print(ax.shape, ref_dofs.shape)
-        ref_dofs = (self.dof_to_coord[None, :] @ ref_dofs).ravel()
+        # Dof indices on the first cell.
+        cell_0_dofs = (self.dof_coord_coef[None, :] @ ref_dofs).ravel()
         #print(ref_dofs.shape)
 
         # Creating a meshgrid for each dimension
-        indices = np.meshgrid(*[np.arange(n) for n in self.n_steps], indexing='ij')
+        el_indices = np.meshgrid(*[np.arange(n) for n in self.shape], indexing='ij')
 
         # Calculating the tensor values based on the formula and axes
-        el_dofs = np.zeros(self.n_steps, dtype=np.int64)
+        el_dofs = np.zeros(self.shape, dtype=np.int64)
         o = self.fe.n_dofs_1d - 1
         for d in range(dim):
-            el_dofs += (self.dof_to_coord[d] * o ** (d + 1)) * indices[d]
+            el_dofs += (self.dof_coord_coef[d] * o ** (d + 1)) * el_indices[d]
         #print(el_dofs)
-        el_dofs = el_dofs[..., None] + ref_dofs[None, :]  # shape: nx, nY, nz, loc_dofs
+        el_dofs = el_dofs[..., None] + cell_0_dofs[None, :]  # shape: nx, nY, nz, loc_dofs
         self.el_dofs = calc_map[el_dofs.reshape(-1, el_dofs.shape[-1])]
         assert self.el_dofs.shape == (self.n_elements, self.fe.n_dofs)
 
@@ -277,17 +294,21 @@ class Grid:
         n_els = prod( n_steps )
         :return: shape (n_els, dim)
         """
-        bary_axes = [self.step[i] * (np.arange(self.n_steps[i]) + 0.5) for i in range(self.dim)]
-        return np.stack(np.meshgrid(*bary_axes), axis=-1).reshape(-1, self.dim) + self.origin[None, :]
+        bary_axes = [self.step[i] * (np.arange(self.shape[i]) + 0.5) for i in range(self.dim)]
+        mesh_grid = np.meshgrid(*bary_axes, indexing='ij')
+        mesh_grid_array = np.stack(mesh_grid, axis=-1)
+        return mesh_grid_array.reshape(-1, self.dim) + self.origin
 
-    def nodes(self):
-        """
-        Nodes of the grid.
-        n_nodes = prod( n_steps + 1 )
-        :return: shape (n_nodes, dim)
-        """
-        nodes_axes = [self.step[i] * (np.arange(self.n_steps[i] + 1)) for i in range(self.dim)]
-        return np.stack(np.meshgrid(*nodes_axes), axis=-1).reshape(-1, self.dim) + self.origin[None, :]
+    # def nodes(self):
+    #     """
+    #     Nodes of the grid.
+    #     n_nodes = prod( n_steps + 1 )
+    #     :return: shape (n_nodes, dim)
+    #     """
+    #     nodes_axes = [self.step[i] * (np.arange(self.n_steps[i] + 1)) for i in range(self.dim)]
+    #     mesh_grid = np.meshgrid(*nodes_axes, indexing='ij')
+    #     mesh_grid_array = np.stack(mesh_grid, axis=-1)
+    #     return mesh_grid_array.reshape(-1, self.dim) + self.origin
 
     @cached_property
     def bc_coords(self):
@@ -296,7 +317,7 @@ class Grid:
         :return:
         """
         bc_natur_indeces = self.natur_map[np.arange(self.n_bc_dofs, dtype=np.int64)]
-        return self.idx_to_coord(bc_natur_indeces)
+        return self.dof_idx_to_coord(bc_natur_indeces)
 
     @cached_property
     def bc_points(self):
@@ -308,22 +329,23 @@ class Grid:
 
 
 
-    def idx_to_coord(self, dof_natur_indices):
+    def dof_idx_to_coord(self, dof_natur_indices):
         """
-        Produce physical coordinates for given natural dof indices.
-        :param dof_natur_indices: np.int64 array
-        :return: integer coordinates: (dim, *dof_natur_indeces.shape)
+        Produce index coordinates (ix,iy,iz) for given natural dof indices.
+        :param dof_natur_indices: np.int64 array, shape (n_dofs,)
+        :return: integer coordinates: (len(dof_natur_indeces), self.dim)
         """
         indices = dof_natur_indices
         coords = np.empty((*dof_natur_indices.shape, self.dim), dtype=np.int64)
         for i in range(self.dim-1, 0,  -1):
-            indices, coords[:, i] = np.divmod(indices, self.dof_to_coord[i])
+            indices, coords[:, i] = np.divmod(indices, self.dofs_shape[i])
+            #indices, coords[:, i] = np.divmod(indices, self.dof_to_coord[i])
         coords[:, 0] = indices
         return coords
 
     def __repr__(self):
         msg = \
-            f"{self.fe} Grid: {self.n_steps} Domain: {self.dimensions}\n" + \
+            f"{self.fe} Grid: {self.shape} Domain: {self.dimensions}\n" + \
             f"Natur Map:\n{self.natur_map}\n" + \
             f"El_DOFs:\n{self.el_dofs}\n"
         return msg
@@ -403,9 +425,10 @@ class Grid:
     def solve_system(self, K, p_grad_bc):
         """
         :param K: array, shape: (n_elements, n_voight)
+                  K = array of shape (*self.shape, n_voight).reshape(-1, n_voight)
                   cell at position (iX, iY, iZ) has index
-                  iX + n_steps[0] * ( iY + n_steps[1] * iZ)
-                  i.e. the X index is running fastest,
+                  (iX * self.shape[1] + iY) * self.shape[2]  +  iZ
+                  i.e. the Z index is running fastest,
         :param p_grad_bc: array, shape: (n_vectors, dim)
         usually n_vectors >= dim
         :return: pressure, shape: (n_vectors, n_dofs)
@@ -428,7 +451,7 @@ class Grid:
         :param dof_vals: (n_vec, n_dofs)
         :return: (n_vec, n_el, dim)
         """
-        el_dof_vals = dof_vals[:, self.el_dofs[:, :]]  # (n_vec, n_el, n_loc_dofs)
+        el_dof_vals = dof_vals[:, self.natur_map[self.el_dofs[:, :]]]  # (n_vec, n_el, n_loc_dofs)
         quads = np.full((self.dim, 1), 0.5)   # Zero order Gaussian quad. Integrates up to deg = 1.
         grad_basis = self.fe.grad_eval(quads) # (dim, n_loc_dofs, 1)
         grad_els = grad_basis[None,None,:, :,0] @ el_dof_vals[:,:, :, None]
@@ -446,7 +469,7 @@ def upscale(K, domain=None):
         domain = np.ones(dim)
 
     order = 1
-    g = Grid(domain, K.shape[:-1], Fe.Q1(dim, order))
+    g = Grid(domain, K.shape[:-1], Fe.Q(dim, order))
     p_grads = np.eye(dim)
     K_els = K.reshape((g.n_elements, -1))
     pressure = g.solve_system(K_els, p_grads)
