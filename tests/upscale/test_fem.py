@@ -215,7 +215,7 @@ def test_solve_system():
         K_const = fem.tn_to_voigt(K_const[None, :, :])
         K_field = K_const * np.ones(g.n_elements)[:, None]
         p_grads = np.eye(dim)
-        pressure = g.solve_system(K_field, p_grads)
+        pressure = g.solve_direct(K_field, p_grads)
         assert pressure.shape == (dim, *dim * [N + 1])
 
 
@@ -232,7 +232,7 @@ def test_solve_2d():
     K_field = K_const * x[:, None]
     #K_field = K_const.T * np.ones_like(x)[:, None]
     p_grads = np.eye(dim)
-    pressure = g.solve_system(K_field, p_grads)
+    pressure = g.solve_direct(K_field, p_grads)
     xy_grid = [np.linspace(0, g.dimensions[i], g.dofs_shape[i]) for i in range(2)]
     fem_plot.plot_pressure_fields(*xy_grid, pressure)
 

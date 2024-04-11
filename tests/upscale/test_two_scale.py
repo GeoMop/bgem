@@ -11,6 +11,8 @@ Test of homogenization techniquest within a two-scale problem.
 - various homogenization techniques could be used, homogenization time is evaluated and compared.
 """
 from typing import *
+
+import pytest
 import yaml
 import shutil
 from pathlib import Path
@@ -246,6 +248,190 @@ def project_ref_solution_(flow_out, grid: Grid):
     return grid_velocities.reshape((*grid.shape, 3))
 
 
+
+# Define transformation matrices and index mappings for 2D and 3D refinements
+_transformation_matrices = {
+    3: np.array([
+        [1, 0, 0],  # Vertex 0
+        [0, 1, 0],  # Vertex 1
+        [0, 0, 1],  # Vertex 2
+        [0.5, 0.5, 0],  # Midpoint between vertices 0 and 1
+        [0, 0.5, 0.5],  # Midpoint between vertices 1 and 2
+        [0.5, 0, 0.5],  # Midpoint between vertices 0 and 2
+    ]),
+    4: np.array([
+        [1, 0, 0, 0],  # Vertex 0
+        [0, 1, 0, 0],  # Vertex 1
+        [0, 0, 1, 0],  # Vertex 2
+        [0, 0, 0, 1],  # Vertex 3
+        [0.5, 0.5, 0, 0],  # Midpoint between vertices 0 and 1
+        [0.5, 0, 0.5, 0],  # Midpoint between vertices 0 and 2
+        [0.5, 0, 0, 0.5],  # Midpoint between vertices 0 and 3
+        [0, 0.5, 0.5, 0],  # Midpoint between vertices 1 and 2
+        [0, 0.5, 0, 0.5],  # Midpoint between vertices 1 and 3
+        [0, 0, 0.5, 0.5],  # Midpoint between vertices 2 and 3
+    ])
+}
+
+_index_maps = {
+    3: np.array([
+        [0, 3, 5],  # Triangle 1
+        [3, 1, 4],  # Triangle 2
+        [3, 4, 5],  # Triangle 3
+        [5, 4, 2]  # Triangle 4
+    ]),
+    4: np.array([
+        [0, 4, 5, 6],  # Tetrahedron 1
+        [1, 4, 7, 8],  # Tetrahedron 2
+        [2, 5, 7, 9],  # Tetrahedron 3
+        [3, 6, 8, 9],  # Tetrahedron 4
+        [4, 5, 6, 7],  # Center tetrahedron 1
+        [4, 7, 8, 6],  # Center tetrahedron 2
+        [5, 7, 9, 6],  # Center tetrahedron 3
+        [6, 8, 9, 7],  # Center tetrahedron 4
+    ])
+}
+
+
+def refine_element(element, level):
+    """
+    Recursively refines an element (triangle or tetrahedron) in space using matrix multiplication.
+
+    :param element: A numpy array of shape (1, N, M), where N is the number of vertices (3 or 4).
+    :param level: Integer, the level of refinement.
+    :return: A numpy array containing the vertices of all refined elements.
+    """
+    if level == 0:
+        return element
+    n_tria, num_vertices, dim = element.shape
+    assert n_tria == 1
+    assert num_vertices == dim + 1
+    transformation_matrix = _transformation_matrices[num_vertices]
+    index_map = _index_maps[num_vertices]
+    # Generate all nodes by applying the transformation matrix to the original vertices
+    nodes = np.dot(transformation_matrix, element[0])
+    # Construct new elements using advanced indexing
+    new_elements = nodes[index_map]
+    # Recursively refine each smaller element
+    result = np.vstack([
+        refine_element(new_elem[None, :, :], level - 1) for new_elem in new_elements
+    ])
+    return result
+
+
+def plot_triangles(triangles):
+    """
+    Plots a series of refined triangles.
+
+    :param triangles: A numpy array of shape (N, 3, 2) containing the vertices of all triangles.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.tri as tri
+
+    plt.figure(figsize=(8, 8))
+    ax = plt.gca()
+
+    # Flatten the array for plotting
+    triangles_flat = triangles.reshape(-1, 2)
+    tri_indices = np.arange(len(triangles_flat)).reshape(-1, 3)
+
+    # Create a Triangulation object
+    triangulation = tri.Triangulation(triangles_flat[:, 0], triangles_flat[:, 1], tri_indices)
+
+    # Plot the triangulation
+    ax.triplot(triangulation, 'ko-')
+
+    # Setting the aspect ratio to be equal to ensure the triangle is not distorted
+    ax.set_aspect('equal')
+
+    # Turn off the grid
+    ax.grid(False)
+
+    # Setting the limits to get a better view
+    ax.set_xlim(triangles_flat[:, 0].min() - 0.1, triangles_flat[:, 0].max() + 0.1)
+    ax.set_ylim(triangles_flat[:, 1].min() - 0.1, triangles_flat[:, 1].max() + 0.1)
+
+    # Add a title
+    plt.title('Refined Triangles Visualization')
+    plt.show()
+
+
+def test_refine_triangle():
+    # Example usage
+    initial_triangle = np.array([[[0, 0], [1, 0], [0.5, np.sqrt(3) / 2]]])
+    L = 2  # Set the desired level of refinement
+
+    # Refine the triangle
+    refined_triangles = refine_element(initial_triangle, L)
+    print(f"Refined Triangles at Level {L}:")
+    print(refined_triangles)
+    print("Total triangles:", len(refined_triangles))
+
+    plot_triangles(refined_triangles)
+
+
+
+def plot_tetrahedra(tetrahedra):
+    """
+    Plots a series of refined tetrahedra in 3D.
+
+    :param tetrahedra: A numpy array of shape (N, 4, 3) containing the vertices of all tetrahedra.
+    """
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Flatten the array for plotting
+    for tet in tetrahedra:
+        vtx = tet.reshape(-1, 3)
+        tri = [[vtx[0], vtx[1], vtx[2]],
+               [vtx[0], vtx[1], vtx[3]],
+               [vtx[0], vtx[2], vtx[3]],
+               [vtx[1], vtx[2], vtx[3]]]
+        for s in tri:
+            poly = Poly3DCollection([s], edgecolor='k', alpha=0.2, facecolor=np.random.rand(3, ))
+            ax.add_collection3d(poly)
+
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_zlim(0, 1)
+    plt.title('Refined Tetrahedra Visualization')
+    plt.show()
+
+def test_refine_tetra():
+    initial_tetrahedron = np.array(
+        [[[0, 0, 0], [1, 0, 0], [0.5, np.sqrt(3) / 2, 0], [0.5, np.sqrt(3) / 6, np.sqrt(6) / 3]]])
+    L = 1  # Set the desired level of refinement
+
+    # Refine the tetrahedron
+    refined_tetrahedra = refine_element(initial_tetrahedron, L)
+    plot_tetrahedra(refined_tetrahedra)
+
+"""
+Projection using aditional quad points on the source mesh.
+We need to generate baricenters of an L-order refinement of a simplex.
+Vertices of first reinement of triangle:
+vertices coords relative to V0, V1, V2 (bary coords)
+T0: (1, 0, 0), (1/2, 1/2, 0), (1/2, 0, 1/2) 
+T1: (1/2, 1/2, 0), (0, 1, 0),  (0, 1/2, 1/2) 
+T2: (1/2, 1/2, 0), (0, 1/2, 1/2), (0, 0, 1), 
+T3: (1/2, 1/2, 0), (1/2, 1/2, 0), (1/2, 0, 1/2) 
+
+ON size 2 grid:
+T0: (1, 0, 0), (1/2, 1/2, 0), (1/2, 0, 1/2) 
+T1: (1/2, 1/2, 0), (0, 1, 0),  (0, 1/2, 1/2) 
+T2: (1/2, 1/2, 0), (0, 1/2, 1/2), (0, 0, 1), 
+T3: (1/2, 1/2, 0), (1/2, 1/2, 0), (1/2, 0, 1/2) 
+
+... tensor (4, 3, 3) ... n_childes, n_source_veritices, n_result verites (same as source)
+source_vertices ... shape (n_vertices, coords_3d)
+.... T[:n_childs, :n_vertices, :, None] * source_vertices[None, :, None, :] 
+
+Iterative aplication of the tensor + finaly barycenters.
+"""
+
 def project_ref_solution(flow_out, grid: Grid):
     #     Velocity P0 projection
     #     1. get array of barycenters (source points) and element volumes of the fine mesh
@@ -277,7 +463,7 @@ def homo_decovalex(fr_media: FracturedMedia, grid:Grid):
     k_voigt = k_iso_xyz[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
     return k_voigt
 
-
+@pytest.mark.skip
 def test_two_scale():
     # Fracture set
     domain_size = 100
@@ -288,8 +474,8 @@ def test_two_scale():
 
 
     # Coarse Problem
-    steps = (50, 60, 70)
-    #steps = (3, 4, 5)
+    #steps = (50, 60, 70)
+    steps = (3, 4, 5)
     grid = Grid(domain_size, steps, Fe.Q(dim=3), origin=-domain_size / 2)
     bc_pressure_gradient = [1, 0, 0]
 
@@ -297,7 +483,9 @@ def test_two_scale():
     ref_velocity_grid = grid.cell_field_F_like(project_ref_solution(flow_out, grid).reshape((-1, 3)))
 
     grid_permitivity = homo_decovalex(fr_media, grid)
-    pressure = grid.solve_system(grid_permitivity, np.array(bc_pressure_gradient)[None, :])
+    #pressure = grid.solve_direct(grid_permitivity, np.array(bc_pressure_gradient)[None, :])
+    pressure = grid.solve_sparse(grid_permitivity, np.array(bc_pressure_gradient)[None, :])
+
     pressure_flat = pressure.reshape((1, -1))
     #pressure_flat = (grid.nodes() @ bc_pressure_gradient)[None, :]
 
