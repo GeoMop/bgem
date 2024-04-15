@@ -30,7 +30,7 @@ from bgem import stochastic
 from bgem.gmsh import gmsh, options
 from mesh_class import Mesh
 from bgem.core import call_flow, dotdict, workdir as workdir_mng
-from bgem.upscale import Grid, Fe, voigt_to_tn, tn_to_voigt
+from bgem.upscale import Grid, Fe, voigt_to_tn, tn_to_voigt, FracturedMedia, voxelize
 import decovalex_dfnmap as dmap
 from scipy.interpolate import LinearNDInterpolator
 
@@ -40,28 +40,6 @@ from joblib import Memory
 memory = Memory(workdir, verbose=0)
 
 
-@attrs.define
-class FracturedMedia:
-    dfn: List[stochastic.Fracture]
-    fr_cross_section: np.ndarray    # shape (n_fractures,)
-    fr_conductivity: np.ndarray     # shape (n_fractures,)
-    conductivity: float
-
-    @staticmethod
-    def fracture_cond_params(dfn, unit_cross_section, bulk_conductivity):
-        # unit_cross_section = 1e-4
-        viscosity = 1e-3
-        gravity_accel = 10
-        density = 1000
-        permeability_factor = 1 / 12
-        permeability_to_conductivity = gravity_accel * density / viscosity
-        # fr cond r=100 ~ 80
-        # fr cond r=10 ~ 0.8
-        fr_r = np.array([fr.r for fr in dfn])
-        fr_cross_section = unit_cross_section * fr_r
-        fr_cond = permeability_to_conductivity * permeability_factor * fr_r ** 2
-        fr_cond = np.full_like(fr_r, 10)
-        return FracturedMedia(dfn, fr_cross_section, fr_cond, bulk_conductivity)
 
 def fracture_set(seed, size_range, max_frac = None):
     rmin, rmax = size_range
@@ -247,6 +225,156 @@ def project_ref_solution_(flow_out, grid: Grid):
 
     return grid_velocities.reshape((*grid.shape, 3))
 
+def det33(mat):
+    """
+    mat: (N, 3, 3)
+    :param mat:
+    :return: (N, )
+    """
+    return sum(
+        np.prod(mat[:, [(col, (row+step)%3) for col in range(3)]])
+        for row in [0, 1, 2] for step in [1,2]
+    )
+
+@memory.cache
+def refine_barycenters(element, level):
+    """
+    Produce refinement of given element (triangle or tetrahedra), shape (N, n_vertices, 3)
+    and return barycenters of refined subelements.
+    """
+    return np.mean(refine_element(element, level), axis=1)
+
+@memory.cache
+def project_adaptive_source_quad(flow_out, grid: Grid):
+    grid_cell_volume = np.prod(grid.step)/27
+
+    ref_el_2d = np.array([(0, 0), (1, 0), (0, 1)])
+    ref_el_3d = np.array([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])
+
+    pvd_content = pv.get_reader(flow_out.hydro.spatial_file.path)
+    pvd_content.set_active_time_point(0)
+    dataset = pvd_content.read()[0] # Take first block of the Multiblock dataset
+
+    velocities = dataset.cell_data['velocity_p0']
+    cross_section = dataset.cell_data['cross_section']
+
+    #num_cells = dataset.n_cells
+    #shifts = np.zeros((num_cells, 3))
+    #transform_matrices = np.zeros((num_cells, 3, 3))
+    #volumes = np.zeros(num_cells)
+
+    weights_sum = np.zeros((grid.n_elements,))
+    grid_velocities = np.zeros((grid.n_elements, 3))
+    levels = np.zeros(dataset.n_cells, dtype=np.int32)
+    # Loop through each cell
+    for i in range(dataset.n_cells):
+        cell = dataset.extract_cells(i)
+        points = cell.points
+
+        if len(points) < 3:
+            continue  # Skip cells with less than 3 vertices
+
+        # Shift: the first vertex of the cell
+        shift = points[0]
+        #shifts[i] = shift
+
+        transform_matrix = points[1:] - shift
+        if len(points) == 4:  # Tetrahedron
+            # For a tetrahedron, we use all three vectors formed from the first vertex
+            #transform_matrices[i] = transform_matrix[:3].T
+            # Volume calculation for a tetrahedron:
+            volume = np.abs(np.linalg.det(transform_matrix[:3])) / 6
+            ref_el = ref_el_3d
+        elif len(points) == 3:  # Triangle
+            # For a triangle, we use only two vectors
+            #transform_matrices[i, :2] = transform_matrix.T
+            # Area calculation for a triangle:
+            volume = 0.5 * np.linalg.norm(np.cross(transform_matrix[0], transform_matrix[1])) * cross_section[i]
+            ref_el = ref_el_2d
+        level = max(int(np.log2(volume/grid_cell_volume) / 3.0), 0)
+        levels[i] = level
+        ref_barycenters = refine_barycenters(ref_el[None, :, :],level)
+        barycenters = shift[None, :] + ref_barycenters @ transform_matrix
+        grid_indices = grid.project_points(barycenters)
+        weights_sum[grid_indices] += volume
+        grid_velocities[grid_indices] += volume * velocities[i]
+    print(np.bincount(levels))
+    grid_velocities = grid_velocities / weights_sum[:, None]
+    return grid_velocities
+
+# def project_adaptive_source_quad(flow_out, grid: Grid):
+#     grid_cell_volume = np.prod(grid.step)
+#
+#     pvd_content = pv.get_reader(flow_out.hydro.spatial_file.path)
+#     pvd_content.set_active_time_point(0)
+#     dataset = pvd_content.read()[0] # Take first block of the Multiblock dataset
+#
+#     tetrahedrons = dataset.extract_cells(dataset.celltypes == 10)  # Extract all tetrahedron cells
+#     connectivity = tetrahedrons.cells.reshape(-1, 5)[:, 1:]
+#     nodes = tetrahedrons.points[connectivity]
+#     jac_mat = nodes[:, 1:, :] - nodes[:, :1, :]
+#     volumes = det33(jac_mat) / 6
+#     levels = int(np.log2(volumes/grid_cell_volume))
+#     add_el_idx = lambda barycenters, el_orig : (barycenters, np.full(len(barycenters), el_orig, dtype=np.int32))
+#     bulk_barycenters = (
+#         add_el_idx(refine_barycenters(tetra, level))
+#         for i_el, (tetra, level) in enumerate(zip(tetrahedrons, levels))
+#     )
+#     bulk_barycenters, orig_els = [np.concatenate(list(lst), axis=0) for lst in bulk_barycenters]
+#
+#     tetrahedrons = dataset.extract_cells(dataset.celltypes == 10)  # Extract all tetrahedron cells
+#     connectivity = tetrahedrons.cells.reshape(-1, 5)[:, 1:]
+#     nodes = tetrahedrons.points[connectivity]
+#     jac_mat = nodes[:, 1:, :] - nodes[:, :1, :]
+#     volumes = det33(jac_mat) / 6
+#     levels = int(np.log2(volumes/grid_cell_volume))
+#     add_el_idx = lambda barycenters, el_orig : (barycenters, np.full(len(barycenters), el_orig, dtype=np.int32))
+#     bulk_barycenters = (
+#         add_el_idx(refine_barycenters(tetra, level))
+#         for i_el, (tetra, level) in enumerate(zip(tetrahedrons, levels))
+#     )
+#     bulk_barycenters, orig_els = [np.concatenate(list(lst), axis=0) for lst in bulk_barycenters]
+#
+#     triangles = dataset.extract_cells(dataset.celltypes == 5)  # Extract all triangle cells
+#
+#     # Get the connectivity array (indices of nodes forming each cell)
+#     # This step extracts the indices array where each group of indices forms a cell
+#     triangle_indices = triangle_cells.cells.reshape(-1, 4)[:,
+#                        1:]  # Skip the first column which is the count of nodes per cell
+#
+#     # Now, to get the nodes of these cells:
+#     triangle_nodes = triangles.points
+#     tetrahedron_nodes = tetrahedrons.points
+#
+#     node_points = dataset.points
+#     cell_nodes_2d = dataset.cells
+#     cell_nodes_3d = dataset.cells
+#
+#     for cell in cell_nodes_2d:
+#         nodes = node_points[cell, :]
+#         assert nodes.shape[0] == 3
+#         ref_to_xyz = np.vstack(nodes[1] - nodes[0], nodes[2] - nodes[0])   # (3, 2)
+#     cell_centers_coords = dataset.cell_centers().points
+#     grid_min_corner = -grid.dimensions / 2
+#     centers_ijk_grid = (cell_centers_coords - grid_min_corner) // grid.step[None, :]
+#     centers_ijk_grid = centers_ijk_grid.astype(np.int32)
+#     assert np.alltrue(centers_ijk_grid < grid.shape[None, :])
+#
+#     grid_cell_idx = centers_ijk_grid[:, 0] + grid.shape[0] * (centers_ijk_grid[:, 1] + grid.shape[1] * centers_ijk_grid[:, 2])
+#     sized = dataset.compute_cell_sizes()
+#     cell_volume = np.abs(sized.cell_data["Volume"])
+#     grid_sum_cell_volume = np.zeros(grid.n_elements)
+#     np.add.at(grid_sum_cell_volume, grid_cell_idx, cell_volume)
+#     weights = cell_volume[:] / grid_sum_cell_volume[grid_cell_idx[:]]
+#
+#     velocities = dataset.cell_data['velocity_p0']
+#     grid_velocities = np.zeros((grid.n_elements, 3))
+#     wv = weights[:, None] * velocities
+#     for ax in [0, 1, 2]:
+#         np.add.at(grid_velocities[:, ax], grid_cell_idx, wv[:, ax])
+#
+#     return grid_velocities.reshape((*grid.shape, 3))
+
 
 
 # Define transformation matrices and index mappings for 2D and 3D refinements
@@ -355,7 +483,7 @@ def plot_triangles(triangles):
     plt.title('Refined Triangles Visualization')
     plt.show()
 
-
+@pytest.mark.skip
 def test_refine_triangle():
     # Example usage
     initial_triangle = np.array([[[0, 0], [1, 0], [0.5, np.sqrt(3) / 2]]])
@@ -400,6 +528,7 @@ def plot_tetrahedra(tetrahedra):
     plt.title('Refined Tetrahedra Visualization')
     plt.show()
 
+@pytest.mark.skip
 def test_refine_tetra():
     initial_tetrahedron = np.array(
         [[[0, 0, 0], [1, 0, 0], [0.5, np.sqrt(3) / 2, 0], [0.5, np.sqrt(3) / 6, np.sqrt(6) / 3]]])
@@ -408,6 +537,7 @@ def test_refine_tetra():
     # Refine the tetrahedron
     refined_tetrahedra = refine_element(initial_tetrahedron, L)
     plot_tetrahedra(refined_tetrahedra)
+
 
 """
 Projection using aditional quad points on the source mesh.
@@ -463,7 +593,7 @@ def homo_decovalex(fr_media: FracturedMedia, grid:Grid):
     k_voigt = k_iso_xyz[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
     return k_voigt
 
-@pytest.mark.skip
+#@pytest.mark.skip
 def test_two_scale():
     # Fracture set
     domain_size = 100
@@ -475,12 +605,16 @@ def test_two_scale():
 
     # Coarse Problem
     #steps = (50, 60, 70)
-    steps = (3, 4, 5)
+    steps = (20, 20, 20)
+    #steps = (50, 60, 70)
+    #steps = (3, 4, 5)
     grid = Grid(domain_size, steps, Fe.Q(dim=3), origin=-domain_size / 2)
     bc_pressure_gradient = [1, 0, 0]
 
     flow_out = reference_solution(fr_media, grid.dimensions, bc_pressure_gradient)
-    ref_velocity_grid = grid.cell_field_F_like(project_ref_solution(flow_out, grid).reshape((-1, 3)))
+    project_fn = project_adaptive_source_quad
+    #project_fn = project_ref_solution
+    ref_velocity_grid = grid.cell_field_F_like(project_fn(flow_out, grid).reshape((-1, 3)))
 
     grid_permitivity = homo_decovalex(fr_media, grid)
     #pressure = grid.solve_direct(grid_permitivity, np.array(bc_pressure_gradient)[None, :])

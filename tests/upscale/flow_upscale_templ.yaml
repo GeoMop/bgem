@@ -38,6 +38,7 @@ problem: !Coupling_Sequential
         - piezo_head_p0
         #- pressure_p0
         #- pressure_p1
+        - cross_section
         - velocity_p0
         - region_id
         - conductivity

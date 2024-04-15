@@ -6,6 +6,8 @@ import numpy as np
 from .fields import tn_to_voigt, voigt_to_tn, voigt_coords
 from .homogenization import equivalent_posdef_tensor
 #from bgem.stochastic import dfn
+import scipy.sparse as sp
+import pyamg
 
 def Q1_1d_basis(points):
     """
@@ -425,8 +427,7 @@ class Grid:
         cols = np.tile(self.el_dofs[:, None, :], [1, n_loc_dofs, 1])
         return rows, cols
 
-
-    def assembly_dense(self, K_voight_tensors):
+    def _loc_matrices(self, K_voight_tensors):
         """
         K_voight_tensors, shape: (n_elements, n_voight)
         """
@@ -437,14 +438,44 @@ class Grid:
         #loc_matrices = np.zeros((self.n_loc_dofs self.n_loc_dofs, self.n_elements))
         #np.matmul(.T[:, None, :], laplace[None, :, :], out=loc_matrices.reshape(-1, self.n_elements).T)
         loc_matrices = K_voight_tensors[:, None, :] @ laplace[None, :, :]
-        loc_matrices = loc_matrices.reshape((self.n_elements, self.fe.n_dofs, self.fe.n_dofs))
+        return loc_matrices.reshape((self.n_elements, self.fe.n_dofs, self.fe.n_dofs))
+
+    def assembly_dense(self, K_voight_tensors):
+        """
+        K_voight_tensors, shape: (n_elements, n_voight)
+        """
+        loc_matrices = self._loc_matrices(K_voight_tensors)
         A = np.zeros((self.n_dofs, self.n_dofs))
         # Use advanced indexing to add local matrices to the global matrix
         np.add.at(A, self.loc_mat_ij, loc_matrices)
         return A
 
+    def assembly_csr(self, K_voight_tensors):
+        """
+        K_voight_tensors, shape: (n_elements, n_voight)
+        """
+        rows, cols = self.loc_mat_ij
+        values = self._loc_matrices(K_voight_tensors)
+        rows, cols, values = map(np.ravel, [rows, cols, values])
 
-    def solve_system(self, K, p_grad_bc):
+        # Drop boundary rows.
+        bulk_rows = rows >= self.n_bc_dofs
+        rows, cols, values = [array[bulk_rows] for array in (rows, cols, values)]
+        rows = rows - self.n_bc_dofs
+
+        # Split boundary and bulk rows
+        # See also np.split  for possible faster implementation
+        n_dofs = self.n_dofs  - self.n_bc_dofs
+        def sub_mat(rows, cols, vals, condition, n_cols, idx_shift):
+            sub_cols = cols[condition] - idx_shift
+            return sp.csr_matrix((vals[condition], (rows[condition], sub_cols)), shape=(n_dofs, n_cols))
+
+        bulk_cols = (cols >= self.n_bc_dofs)
+        A_bulk = sub_mat(rows, cols, values, bulk_cols, self.n_dofs - self.n_bc_dofs, self.n_bc_dofs)
+        A_bc = sub_mat(rows, cols, values, ~bulk_cols, self.n_bc_dofs, 0)
+        return A_bulk, A_bc
+
+    def solve_direct(self, K, p_grad_bc):
         """
         :param K: array, shape: (n_elements, n_voight)
                   K = array of shape (*self.shape, n_voight).reshape(-1, n_voight)
@@ -467,6 +498,35 @@ class Grid:
         pressure_natur[:, self.natur_map[:]] = pressure[:, :]
         return pressure_natur.reshape((n_rhs, *self.dofs_shape))
 
+
+    def solve_sparse(self, K, p_grad_bc):
+        """
+        :param K: array, shape: (n_elements, n_voight)
+                  K = array of shape (*self.shape, n_voight).reshape(-1, n_voight)
+                  cell at position (iX, iY, iZ) has index
+                  (iX * self.shape[1] + iY) * self.shape[2]  +  iZ
+                  i.e. the Z index is running fastest,
+        :param p_grad_bc: array, shape: (n_vectors, dim)
+        usually n_vectors >= dim
+        :return: pressure, shape: (n_vectors, n_dofs)
+        """
+        n_rhs, d = p_grad_bc.shape
+        assert d == self.dim
+        A_bulk, A_bc = self.assembly_csr(K)
+        pressure_bc = p_grad_bc @ self.bc_points.T # (n_vectors, n_bc_dofs)
+        B =  (A_bc @ pressure_bc.T).T  # (n_vectors, n_interior_dofs)
+
+        #pyamg.ruge_stuben_solver(A_bulk)
+        solver = pyamg.smoothed_aggregation_solver(A_bulk, symmetry='symmetric')
+        pressure = np.empty((n_rhs, self.n_dofs))
+        pressure[:, :self.n_bc_dofs] = pressure_bc
+        for pressure_comp, b in zip(pressure, B):
+            pressure_comp[self.n_bc_dofs:] = solver.solve(-b)
+            #pressure[:, ] = np.linalg.solve(A[self.n_bc_dofs:, self.n_bc_dofs:], -B.T).T
+        pressure_natur = np.empty_like(pressure)
+        pressure_natur[:, self.natur_map[:]] = pressure[:, :]
+        return pressure_natur.reshape((n_rhs, *self.dofs_shape))
+
     def field_grad(self, dof_vals):
         """
         Compute solution gradient in element barycenters.
@@ -478,6 +538,19 @@ class Grid:
         grad_basis = self.fe.grad_eval(quads) # (dim, n_loc_dofs, 1)
         grad_els = grad_basis[None,None,:, :,0] @ el_dof_vals[:,:, :, None]
         return grad_els[:, :,:,0]
+
+    def project_points(self, points):
+        """
+        :param points: array of shape (N, dim)
+        :return: For each point the index of the containing grid cell.
+        """
+        #grid_min_corner = -grid.dimensions / 2
+        centers_ijk_grid = (points - self.origin) // self.step[None, :]
+        centers_ijk_grid = centers_ijk_grid.astype(np.int32)
+        assert np.alltrue(centers_ijk_grid < self.shape[None, :])
+        grid_cell_idx = centers_ijk_grid[:, 0] + self.shape[0] * (
+                    centers_ijk_grid[:, 1] + self.shape[1] * centers_ijk_grid[:, 2])
+        return grid_cell_idx
 
 def upscale(K, domain=None):
     """
@@ -494,7 +567,7 @@ def upscale(K, domain=None):
     g = Grid(domain, K.shape[:-1], Fe.Q(dim, order))
     p_grads = np.eye(dim)
     K_els = K.reshape((g.n_elements, -1))
-    pressure = g.solve_system(K_els, p_grads)
+    pressure = g.solve_direct(K_els, p_grads)
     #xy_grid = [np.linspace(0, g.size[i], g.ax_dofs[i]) for i in range(2)]
     #fem_plot.plot_pressure_fields(*xy_grid, pressure)
     pressure_flat = pressure.reshape((len(p_grads), -1))

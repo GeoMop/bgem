@@ -4,6 +4,7 @@ import math
 import attrs
 from functools import cached_property
 from bgem.stochastic import Fracture
+from bgem.upscale import Grid
 import numpy as np
 """
 Voxelization of fracture network.
@@ -49,6 +50,108 @@ TODO:
 5. Improved determination of candidate cells and distance, differential algorithm.    
 
 """
+
+
+@attrs.define
+class FracturedMedia:
+    dfn: List[Fracture]
+    fr_cross_section: np.ndarray    # shape (n_fractures,)
+    fr_conductivity: np.ndarray     # shape (n_fractures,)
+    conductivity: float
+
+    @staticmethod
+    def fracture_cond_params(dfn, unit_cross_section, bulk_conductivity):
+        # unit_cross_section = 1e-4
+        viscosity = 1e-3
+        gravity_accel = 10
+        density = 1000
+        permeability_factor = 1 / 12
+        permeability_to_conductivity = gravity_accel * density / viscosity
+        # fr cond r=100 ~ 80
+        # fr cond r=10 ~ 0.8
+        fr_r = np.array([fr.r for fr in dfn])
+        fr_cross_section = unit_cross_section * fr_r
+        fr_cond = permeability_to_conductivity * permeability_factor * fr_r ** 2
+        fr_cond = np.full_like(fr_r, 10)
+        return FracturedMedia(dfn, fr_cross_section, fr_cond, bulk_conductivity)
+
+@attrs.define
+class Intersection:
+    grid: Grid
+    fractures: List[Fracture]
+    i_fr_cell: np.ndarray
+    factor: np.ndarray = None
+
+def intersections_decovalex(grid: Grid, fractures: List[Fracture]):
+    """
+    Estimate intersections between grid cells and fractures
+
+    Temporary interface to original map_dfn code inorder to perform one to one test.
+    """
+    import decovalex_dfnmap as dmap
+
+    ellipses = [dmap.Ellipse(fr.normal, fr.center, fr.scale) for fr in fractures]
+    d_grid = dmap.Grid.make_grid(grid.origin, grid.step, grid.dimensions)
+    fractures = map_dfn(d_grid, ellipses)
+    fr, cell = zip([(i_fr, i_cell)  for i_fr, fr in enumerate(fractures) for i_cell in fr.cells])
+    return Intersection(grid, fractures, np.vstack(fr, cell), None)
+
+def perm_aniso_fr_values(fractures, fr_transmisivity: np.array, grid_step) -> np.ndarray:
+    '''Calculate anisotropic permeability tensor for each cell of ECPM
+       intersected by one or more fractures. Discard off-diagonal components
+       of the tensor. Assign background permeability to cells not intersected
+       by fractures.
+       Return numpy array of anisotropic permeability (3 components) for each
+       cell in the ECPM.
+
+       fracture = numpy array containing number of fractures in each cell, list of fracture numbers in each cell
+       ellipses = [{}] containing normal and translation vectors for each fracture
+       T = [] containing intrinsic transmissivity for each fracture
+       d = length of cell sides
+       k_background = float background permeability for cells with no fractures in them
+    '''
+    assert len(fractures) == len(fr_transmisivity)
+    # Construc array of fracture tensors
+    def full_tensor(n, fr_cond):
+        normal_axis_step = grid_step[np.argmax(np.abs(n))]
+        return fr_cond * (np.eye(3) - n[:, None] * n[None, :]) / normal_axis_step
+
+    return np.array([full_tensor(fr.normal, fr_cond)  for fr, fr_cond in zip(fractures, fr_transmisivity)])
+
+
+def perm_iso_fr_values(fractures, fr_transmisivity: np.array, grid_step) -> np.ndarray:
+    '''Calculate isotropic permeability for each cell of ECPM intersected by
+     one or more fractures. Sums fracture transmissivities and divides by
+     cell length (d) to calculate cell permeability.
+     Assign background permeability to cells not intersected by fractures.
+     Returns numpy array of isotropic permeability for each cell in the ECPM.
+
+     fracture = numpy array containing number of fractures in each cell, list of fracture numbers in each cell
+     T = [] containing intrinsic transmissivity for each fracture
+     d = length of cell sides
+     k_background = float background permeability for cells with no fractures in them
+    '''
+    assert len(fractures) == len(fr_transmisivity)
+    fr_norm = np.array([fr.normal for fr in fractures])
+    normalised_transmissivity = fr_transmisivity / grid_step[np.argmax(np.abs(fr_norm), axis=1)]
+    return normalised_transmissivity
+
+def _conductivity_decovalex(fr_media: FracturedMedia, grid: Grid, fr_values_fn):
+    isec  = intersections_decovalex(grid, fr_media.dfn)
+    fr_transmissivity = fr_media.fr_conductivity * fr_media.fr_cross_section
+    fr_values = fr_values_fn(isec.fractures, fr_transmissivity, isec.grid.step)
+    # accumulate tensors in cells
+    ncells = isec.grid.n_elements
+    k_aniso = np.full((ncells, 3, 3), fr_media.conductivity, dtype=np.float64)
+    k_aniso[isec.i_fr_cell[1]] += fr_values[isec.i_fr_cell[0]]
+    return k_aniso #arange_for_hdf5(grid, k_iso).flatten()
+
+def permeability_aniso_decovalex(fr_media: FracturedMedia, grid: Grid):
+    return _conductivity_decovalex(fr_media, grid, perm_aniso_fr_values)
+
+def permeability_iso_decovalex(fr_media: FracturedMedia, grid: Grid):
+    return _conductivity_decovalex(fr_media, grid, perm_iso_fr_values)
+
 
 class EllipseShape:
     def is_point_inside(self, x, y):
@@ -188,6 +291,28 @@ def test_PolyShape():
     np.testing.assert_array_equal(actual_results, expected_results,
                                   "The are_points_inside method failed to accurately determine if points are inside the polygon.")
 
+def aniso_lump(tn_array):
+    """
+    Convert array of full anisotropic tensors to the array of diagonal
+    tensors by lumping (summing) tensor rows to the diagonal.
+    :param tn_array: shape (n, k, k)
+    """
+    assert len(tn_array.shape) == 3
+    assert tn_array.shape[1] == tn_array.shape[2]
+    return np.sum(tn_array, axis=-1)[:, None, :] * np.eye(3)
+
+def aniso_diag(tn_array):
+    """
+    Convert array of full anisotropic tensors to the array of diagonal
+    tensors by extraction only diagonal elements.
+    :param tn_array: shape (n, k, k)
+    """
+    assert len(tn_array.shape) == 3
+    assert tn_array.shape[1] == tn_array.shape[2]
+    return tn_array * np.eye(3)[None, :, :]
+
+
+
 
 @attrs.define
 class FractureVoxelize:
@@ -214,13 +339,13 @@ class FractureVoxelize:
 
 
 
-    @cached_property
-    def cell_fr_sums(self):
-        cell_sums = np.zeros(, dtype=np.float64)
-
+    # @cached_property
+    # def cell_fr_sums(self):
+    #     cell_sums = np.zeros(, dtype=np.float64)
+    #
 
     def project_property(self, fr_property, bulk_property):
-
+        pass
 
 class FractureBoundaries3d:
     @staticmethod
@@ -329,55 +454,55 @@ def intersect_cell(loc_corners: np.array, ellipse: Fracture) -> bool:
 
     return True
 
-def fracture_for_ellipse(grid: Grid, i_ellipse: int, ellipse: Ellipse) -> Fracture:
-    # calculate rotation matrix for use later in rotating coordinates of nearby cells
-    direction = np.cross([0,0,1], ellipse.normal)
-    #cosa = np.dot([0,0,1],normal)/(np.linalg.norm([0,0,1])*np.linalg.norm(normal)) #frobenius norm = length
-    #above evaluates to normal[2], so:
-    angle = np.arccos(ellipse.normal[2]) # everything is in radians
-    mat_to_local = tr.rotation_matrix(angle, direction)[:3, :3].T
-    #find fracture in domain coordinates so can look for nearby cells
-    b_box_min = ellipse.translation - np.max(ellipse.radius)
-    b_box_max = ellipse.translation + np.max(ellipse.radius)
-
-    i_box_min = grid.cell_coord(b_box_min)
-    i_box_max = grid.cell_coord(b_box_max) + 1
-    axis_ranges = [range(max(0, a), min(b, n)) for a, b, n in zip(i_box_min, i_box_max, grid.cell_dimensions)]
-
-    grid_cumul_prod = np.array([1, grid.cell_dimensions[0], grid.cell_dimensions[0] * grid.cell_dimensions[1]])
-    cells = []
-    # X fastest running
-    for ijk in itertools.product(*reversed(axis_ranges)):
-        # make X the first coordinate
-        ijk = np.flip(np.array(ijk))
-        corners = grid.origin[None, :] + (ijk[None, :] + __rel_corner[:, :]) * grid.step[None, :]
-        loc_corners = mat_to_local @ (corners - ellipse.translation).T
-        if intersect_cell(loc_corners, ellipse):
-            logging.log(logging.DEBUG, f"       cell {ijk}")
-            cell_index = ijk @ grid_cumul_prod
-            cells.append(cell_index)
-    if len(cells) > 0:
-        logging.log(logging.INFO, f"   #{i_ellipse} fr, {len(cells)} cell intersections")
-    return Fracture(ellipse, cells)
-
-def map_dfn(grid, ellipses):
-    '''Identify intersecting fractures for each cell of the ECPM domain.
-     Extent of ECPM domain is determined by nx,ny,nz, and d (see below).
-     ECPM domain can be smaller than the DFN domain.
-     Return numpy array (fracture) that contains for each cell:
-     number of intersecting fractures followed by each intersecting fracture id.
-
-     ellipses = list of dictionaries containing normal, translation, xrad,
-                and yrad for each fracture
-     origin = [x,y,z] float coordinates of lower left front corner of DFN domain
-     nx = int number of cells in x in ECPM domain
-     ny = int number of cells in y in ECPM domain
-     nz = int number of cells in z in ECPM domain
-     step = [float, float, float] discretization length in ECPM domain
-
-     JB TODO: allow smaller ECPM domain
-    '''
-    logging.log(logging.INFO, f"Callculating Fracture - Cell intersections ...")
-    return [fracture_for_ellipse(grid, ie, ellipse) for ie, ellipse in enumerate(ellipses)]
+# def fracture_for_ellipse(grid: Grid, i_ellipse: int, ellipse: Ellipse) -> Fracture:
+#     # calculate rotation matrix for use later in rotating coordinates of nearby cells
+#     direction = np.cross([0,0,1], ellipse.normal)
+#     #cosa = np.dot([0,0,1],normal)/(np.linalg.norm([0,0,1])*np.linalg.norm(normal)) #frobenius norm = length
+#     #above evaluates to normal[2], so:
+#     angle = np.arccos(ellipse.normal[2]) # everything is in radians
+#     mat_to_local = tr.rotation_matrix(angle, direction)[:3, :3].T
+#     #find fracture in domain coordinates so can look for nearby cells
+#     b_box_min = ellipse.translation - np.max(ellipse.radius)
+#     b_box_max = ellipse.translation + np.max(ellipse.radius)
+#
+#     i_box_min = grid.cell_coord(b_box_min)
+#     i_box_max = grid.cell_coord(b_box_max) + 1
+#     axis_ranges = [range(max(0, a), min(b, n)) for a, b, n in zip(i_box_min, i_box_max, grid.cell_dimensions)]
+#
+#     grid_cumul_prod = np.array([1, grid.cell_dimensions[0], grid.cell_dimensions[0] * grid.cell_dimensions[1]])
+#     cells = []
+#     # X fastest running
+#     for ijk in itertools.product(*reversed(axis_ranges)):
+#         # make X the first coordinate
+#         ijk = np.flip(np.array(ijk))
+#         corners = grid.origin[None, :] + (ijk[None, :] + __rel_corner[:, :]) * grid.step[None, :]
+#         loc_corners = mat_to_local @ (corners - ellipse.translation).T
+#         if intersect_cell(loc_corners, ellipse):
+#             logging.log(logging.DEBUG, f"       cell {ijk}")
+#             cell_index = ijk @ grid_cumul_prod
+#             cells.append(cell_index)
+#     if len(cells) > 0:
+#         logging.log(logging.INFO, f"   #{i_ellipse} fr, {len(cells)} cell intersections")
+#     return Fracture(ellipse, cells)
+#
+# def map_dfn(grid, ellipses):
+#     '''Identify intersecting fractures for each cell of the ECPM domain.
+#      Extent of ECPM domain is determined by nx,ny,nz, and d (see below).
+#      ECPM domain can be smaller than the DFN domain.
+#      Return numpy array (fracture) that contains for each cell:
+#      number of intersecting fractures followed by each intersecting fracture id.
+#
+#      ellipses = list of dictionaries containing normal, translation, xrad,
+#                 and yrad for each fracture
+#      origin = [x,y,z] float coordinates of lower left front corner of DFN domain
+#      nx = int number of cells in x in ECPM domain
+#      ny = int number of cells in y in ECPM domain
+#      nz = int number of cells in z in ECPM domain
+#      step = [float, float, float] discretization length in ECPM domain
+#
+#      JB TODO: allow smaller ECPM domain
+#     '''
+#     logging.log(logging.INFO, f"Callculating Fracture - Cell intersections ...")
+#     return [fracture_for_ellipse(grid, ie, ellipse) for ie, ellipse in enumerate(ellipses)]
 
 

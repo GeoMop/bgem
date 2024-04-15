@@ -380,11 +380,7 @@ def permAnisoRaw(grid: Grid, fractures: List[Fracture], fr_transmisivity: np.arr
     #
     # return k_aniso
 
-def aniso_lump(tn_array):
-    return np.sum(tn_array, axis=-1)[:, None, :] * np.eye(3)
 
-def aniso_diag(tn_array):
-    return tn_array * np.eye(3)[None, :, :]
 
 def count_stuff(filename='mapELLIPSES.txt'):
     '''Mapping DFN to ECPM can result in false connections when non-intersecting
