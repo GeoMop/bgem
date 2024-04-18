@@ -835,12 +835,20 @@ class ConnectedPosition:
 @attrs.define
 class FrFamily:
     """
-    Describes a single fracture family with defined orientation and shape distributions.
+    Describes a single fracture family with defined distribution of:
+     - normal orientation
+     - shape orientation
+     - size orientation
+     - position distribution
+     - more complex correlation structure,
+     e.g. large fractures with independent orientations smaller with correlated orientations
+     needs more general sampling paradigm
     """
-    name: str
     orientation: FisherOrientation
     size: PowerLawSize
     shape_angle: VonMisesOrientation
+    position:
+    correlation: None
 
     @staticmethod
     def from_cfg_3d(family):
@@ -865,6 +873,7 @@ class FrFamily:
 @attrs.define
 class Population:
     """
+    B
     Data class to describe whole population of fractures, several families.
     Supports sampling across the families.
     """
@@ -907,7 +916,7 @@ class Population:
         with open(json_file) as f:
             self.initialize(json.load(f))
 
-    def init_from_yaml(self, yaml_file):
+    def init_from_yaml(self, yaml_file:str) -> Population:
         """
         Load families from a YAML file. Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         :param json_file: YAML file with families data

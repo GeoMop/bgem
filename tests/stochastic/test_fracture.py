@@ -32,3 +32,13 @@ def test_PowerLawSize():
         axes[1].plot(x1, y1, label=str(power))
     fig.legend()
     plt.show()
+
+
+def test_fractures_3d():
+    pop = frac.Population.init_from_yaml("fractures_Forsmark_repo.yaml")
+    print(pop.families.keys())
+    box=[100, 200, 300]
+    fractures = pop.sample(box=box)
+    stat = frac.statistic(fractures)
+
+    frac.plot(fractures)
