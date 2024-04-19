@@ -5,10 +5,12 @@ It provides appropriate statistical models as well as practical sampling methods
 
 from typing import *
 import numpy as np
+from pathlib import Path
 #import attr
 import attrs
 import math
 import json
+import yaml
 
 
 class LineShape:
@@ -63,6 +65,10 @@ class ConvexPolygon:
 class Fracture:
     """
     Single fracture sample.
+
+    TODO: Introduce DFNSample/Fractures for fast collective operations
+    and redirecting shape and family to the Population through family indices.
+    This would allow creation of fracture related fields using the fixed fracture indexing.
     """
     shape_class: Any
     # Basic fracture shape.
@@ -74,13 +80,13 @@ class Fracture:
     # fracture normal
     shape_angle: float
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
-    region_id: int # Union[str, int] = "fracture"
-    # name or ID of the physical group
-    i_family: int
-    # index of the group
+    family: 'FrFamily' = None
+    # Original family, None if created manually (in tests)
     aspect: float = 1
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
-    region: Any = None
+    id: Any = None
+    # any value associated with the fracture (DEPRECATED but not with
+
     # auxiliary, TODO: Separate generation of fractures and fracture shapes.
     _rotation_axis: np.array = attrs.field(init=False, default=None)
     # axis of rotation
@@ -831,7 +837,8 @@ class ConnectedPosition:
         w_vec = np.cross(u_vec, v_vec)
         return np.stack((u_vec, v_vec, w_vec, center), axis=1)
 
-
+FamilyCfg = Dict[str, Union[str, float, int]]
+FamilyDict = Dict[str, FamilyCfg]
 @attrs.define
 class FrFamily:
     """
@@ -847,20 +854,31 @@ class FrFamily:
     orientation: FisherOrientation
     size: PowerLawSize
     shape_angle: VonMisesOrientation
-    position:
-    correlation: None
+    name: Optional[str] = None
+    #position:
+    #correlation: None
 
-    @staticmethod
-    def from_cfg_3d(family):
+    @classmethod
+    def from_cfg(cls, family: FamilyCfg, name='') -> 'FrFamily':
         fisher_orientation = FisherOrientation(family["trend"], family["plunge"], family["concentration"])
         size_range = (family["r_min"], family["r_max"])
         power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
         assert np.isclose(family["p_32"], power_law_size.mean_area())
         shape_angle = VonMisesOrientation(trend=0, concentration=0)
-        return FrFamily(family["name"], fisher_orientation, power_law_size, shape_angle)
+        return cls(fisher_orientation, power_law_size, shape_angle, name=name)
 
     @staticmethod
-    def from_cfg_2d(family):
+    def project_cfg(family: FamilyCfg, plane_normal=[0,0,1]):
+        """
+
+        :param family:
+        :param plane_normal:
+        :return:
+        """
+        assert False, "Not implemented yet"
+        # Idea is to have specific dict key "2d_angle" that allows to differentiate
+        # 3d and 2d configurations.
+
         orientation = FisherOrientation(0, 90, np.inf)
         size_range = (family["r_min"], family["r_max"])
         power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
@@ -873,62 +891,85 @@ class FrFamily:
 @attrs.define
 class Population:
     """
-    B
     Data class to describe whole population of fractures, several families.
     Supports sampling across the families.
     """
     # Attributes
+    families: List[FrFamily]
+    # families list
     domain: Tuple[float, float, float]
     # dimensions of the box domain, one dimension is 0 for 2d population
-    families: List[FrFamily]
-    #
-    shape_class: LineShape = SquareShape
+    shape: Any = SquareShape()
+    # Reference Shape of generated fractures
+
+    __loaders = {
+        '.json': json.load,
+        '.yaml': yaml.load
+    }
 
     @property
     def volume(self):
         return np.product([l if l>0 else 1.0 for l in self.domain])
 
+    @staticmethod
+    def project_list_to_2d(families: FamilyDict, plane_normal=[0,0,1]):
+        """
+        Convert families as dicts into 2d.
+        :return:
+        """
+        return {k:FrFamily.project_cfg(v, plane_normal) for k,v in families.items()}
+
     @classmethod
-    def initialize_3d(cls, families: List[Dict[str, Any]], box):
+    def from_cfg(cls, families: FamilyDict, box, shape=SquareShape):
         """
         Load families from a list of dict, with keywords: [ name, trend, plunge, concentration, power, r_min, r_max, p_32 ]
         Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         """
-        families = [FrFamily.from_cfg_3d(family) for family in families]
-        return cls(box, families)
+        if isinstance(families, (str, Path)):
+            path = Path(families)
+            with open(path) as f:
+                fam_cfg = cls.__loaders[path.suffix](f)
+        else:
+            fam_cfg = families
+        families = [FrFamily.from_cfg(family, name=family_key) for family_key, family in fam_cfg.items()]
+        return cls(families, box, shape)
+
+    # @classmethod
+    # def initialize_2d(cls, families: List[Dict[str, Any]], box):
+    #     """
+    #     Load families from a list of dict, with keywords: [ name, trend, plunge, concentration, power, r_min, r_max, p_32 ]
+    #     Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
+    #     :param families json_file: JSON file with families data
+    #     """
+    #     families = [FrFamily.from_cfg_2d(family) for family in families]
+    #     assert len(box) == 3 and sum((l > 0 for l in box)) == 2
+    #     return cls(box, families)
 
     @classmethod
-    def initialize_2d(cls, families: List[Dict[str, Any]], box):
-        """
-        Load families from a list of dict, with keywords: [ name, trend, plunge, concentration, power, r_min, r_max, p_32 ]
-        Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
-        :param families json_file: JSON file with families data
-        """
-        families = [FrFamily.from_cfg_2d(family) for family in families]
-        assert len(box) == 3 and sum((l > 0 for l in box)) == 2
-        return cls(box, families)
-
-    def init_from_json(self, json_file):
+    def from_json(cls, json_file, box) -> 'Population':
         """
         Load families from a JSON file. Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         :param json_file: JSON file with families data
+        DEPRECATED
         """
-        with open(json_file) as f:
-            self.initialize(json.load(f))
+        return cls.from_cfg(json_file, box)
 
-    def init_from_yaml(self, yaml_file:str) -> Population:
+    @classmethod
+    def init_from_yaml(cls, yaml_file:str, box) -> 'Population':
         """
         Load families from a YAML file. Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         :param json_file: YAML file with families data
+        DEPRECATED
         """
-        with open(yaml_file) as f:
-            self.initialize(json.load(f))
-
-
-
+        return cls.from_cfg(yaml_file, box)
 
 
     def mean_size(self):
+        """
+        Mean number of fractures for the set sample range.
+        :return:
+
+        """
         sizes = [family.size.mean_size(self.volume) for family in self.families]
         return sum(sizes)
 
@@ -971,23 +1012,33 @@ class Population:
         :param pos_distr: Fracture position distribution, common to all families.
         An object with method .sample(size) returning array of positions (size, 3).
         :return: List of FractureShapes.
+        TODO: move position distribution into FrFamily for consistency
+        TODO: set sample size and seed here, both optional
         """
         if pos_distr is None:
             size = np.cbrt(self.volume)
             pos_distr = UniformBoxPosition([size, size, size])
 
         fractures = []
-        for ifam, f in enumerate(self.families):
-            name = f.name
-            diams = f.size.sample(self.volume)
-            fr_normals = f.orientation.sample_normal(size=len(diams))
+        for ifam, fam in enumerate(self.families):
+            name = fam.name
+            diams = fam.size.sample(self.volume)
+            fr_normals = fam.orientation.sample_normal(size=len(diams))
             #fr_axis_angle = f.orientation.sample_axis_angle(size=len(diams))
-            shape_angle = f.shape_angle.sample_angle(len(diams))
+            shape_angle = fam.shape_angle.sample_angle(len(diams))
                 #np.random.uniform(0, 2 * np.pi, len(diams))
             for r, normal, sa in zip(diams, fr_normals, shape_angle):
                 #axis, angle = aa[:3], aa[3]
                 center = pos_distr.sample()
-                fractures.append(Fracture(self.shape_class, r, center, normal[None,:], sa, name, ifam, 1))
+                fractures.append(Fracture(
+                    shape_class=self.shape,
+                    r=r,
+                    center=center,
+                    normal=normal[None, :],
+                    shape_angle=sa,
+                    family=fam,
+                    aspect=1,
+                    id=name))
         return fractures
 
 
