@@ -39,24 +39,30 @@ def make_surface_approx(path):
     Make a full XYZ bspline surface approximation a point grid from a file.
     """
 
-    # Make an approximation.
-    # 1. Create the approximation object from the points in the grid file.
-    surf_approx = bs_approx.SurfaceApprox.approx_from_file(path)
+    ### Make an approximation.
 
-    # 2. Compute minimal surface bounding rectangular of points projected to the XY plane.
+    # Load point set from the grid file.
+    surf_point_set = bs_approx.SurfacePointSet.from_file(path)
+
+    # Compute minimal surface bounding rectangular of points projected to the XY plane.
     # or use own XY rectangle given as array of shape (4,2) of the four vertices.
-    quad = surf_approx.compute_default_quad()
+    # quad = surf_point_set.compute_default_quad()
 
-    # 3. Try to guess dimensions of a (semi regular) grid.
-    nuv = surf_approx.compute_default_nuv()
+    # Crate the approximation object.
+    surf_approx = bs_approx.SurfaceApprox(surf_point_set)
+
+    # Try to guess dimensions of a (semi regular) grid.
+    #nuv = surf_approx._compute_default_nuv()
     # We want usually  much sparser approximation.
-    nuv = nuv / 5
+    #nuv = nuv / 5
 
     # 4. Compute the approximation.
     surface = surf_approx.compute_approximation()
-    # Own or computed quad and nuv can be passed in as parameters:
-    # surface = surf_approx.compute_approximation(quad=quad, nuv=nuv)
+    # Own or computed initial number of patches `nuv=(nu, nv)` can be provided.
+    # surface = surf_approx.compute_approximation(nuv=nuv)
+
     return surface.make_full_surface()
+
 
 
 def make_shell_brep(surface_3d):
@@ -67,7 +73,7 @@ def make_shell_brep(surface_3d):
     vertices = [bw.Vertex.on_surface(u, v, bw_surface)
                 for u, v in [(0,0), (1,0), (1,1), (0,1)]]
     vertices.append(vertices[0])
-    edges = [bw.Edge(vertices[i:i+2]).attach_to_surface(bw_surface) for i in range(4)]
+    edges = [bw.Edge(*vertices[i:i+2]).attach_to_surface(bw_surface) for i in range(4)]
     face = bw.Face([bw.Wire(edges)],bw_surface)
     shell = bw.Shell([face])
     compound = bw.Compound([shell])

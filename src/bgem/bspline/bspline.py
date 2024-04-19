@@ -27,23 +27,25 @@ class SplineBasis:
     """
 
     @classmethod
-    def make_equidistant(cls, degree, n_intervals, knot_range=[0.0, 1.0]):
+    def make_equidistant(cls, degree, n_intervals, knot_range=[0.0, 1.0], n_boundary=(None, None)):
         """
         Returns spline basis for an eqidistant knot vector
         having 'n_intervals' subintervals.
         :param degree: degree of the spline basis
         :param n_intervals: Number of subintervals.
         :param knot_range: support of the spline, min and max valid 't'
+        :param n_boundary: multiplicity of the knots on the left and right side, None == degree
         :return: SplineBasis object.
         """
-        n = n_intervals + 2 * degree + 1
+        multiplicity_begin, multiplicity_end = [degree if n is None else n for n in n_boundary]
+        n = n_intervals + multiplicity_begin + multiplicity_end + 1
         knots = np.array((knot_range[0],) * n)
         diff = (knot_range[1] - knot_range[0]) / n_intervals
-        for i in range(degree + 1, n - degree):
-            knots[i] = (i - degree) * diff + knot_range[0]
-        knots[-degree - 1:] = knot_range[1]
+        for i in range(multiplicity_begin + 1, n - multiplicity_end):
+            knots[i] = (i - multiplicity_begin) * diff + knot_range[0]
+        knots[-multiplicity_end - 1:] = knot_range[1]
         return cls(degree, knots)
-
+        # TODO: test and push
 
     @classmethod
     def make_from_packed_knots(cls, degree, knots):
@@ -75,10 +77,10 @@ class SplineBasis:
         assert degree >=0
         self.degree = degree
 
-        # check free ends
-        for i in range(self.degree):
-            assert knots[i] == knots[i+1]
-            assert knots[-i-1] == knots[-i-2]
+        # check free ends (need not to be the case)
+        #for i in range(self.degree):
+        #    assert knots[i] == knots[i+1]
+        #    assert knots[-i-1] == knots[-i-2]
         self.knots = np.array(knots)
 
         self.size = len(self.knots) - self.degree -1
@@ -166,6 +168,26 @@ class SplineBasis:
         """
         return (self.knots[i_interval + self.degree], self.knots[i_interval + self.degree + 1])
 
+    def interval_centers(self):
+        return (self.knots[self.degree + 1: -self.degree] + self.knots[self.degree: -(self.degree+1)]) / 2
+
+    def interval_vector(self):
+        return self.knots[self.degree : -self.degree]
+
+    def interval_diff(self, i_interval):
+        return self.knots[i_interval + self.degree + 1] - self.knots[i_interval + self.degree]
+
+    def interval_diff_vector(self):
+        return self.knots[self.degree + 1: -self.degree] - self.knots[self.degree: -(self.degree + 1)]
+
+    def insert_knot(self, interval, knot):
+        pass
+
+    def update_eval(self, orig_interval, t_vec, basis_mat):
+        """
+        (t - t_i)/(t_(i+k) - t_i) * B_i_1 + (t_(i+k+1) - t)/(t_(i+k+1) - t_(i+1) * B_(i+1)_1
+
+        """
 
     def _basis(self, deg, idx, t):
         """
@@ -255,10 +277,10 @@ class SplineBasis:
 
     def eval_vector(self, i_int, t):
         """
-        This function compute base function of B-Spline curve on given subinterval.
+        Compute basis functions that are nonzero on the interval `i_int`, i.e. basis functions i_int up to i_int + degree.
         :param i_int: Interval in which 't' belongs. Three nonzero basis functions on this interval are evaluated.
-        :param t: Where to evaluate.
-        :return: Numpy array of three values.
+        :param t: Where to evaluate. float or vector
+        :return: Numpy array  (degree + 1) x N
         """
         if isinstance(t, float):
             values = []
@@ -271,15 +293,15 @@ class SplineBasis:
             t = np.atleast_1d(t)
             for ib in range(i_int, i_int + self.degree + 1):
                 values.append([self.eval(ib, t_item) for t_item in t])
-            return np.stack(values)
+            return np.array(values)
 
 
     def eval_diff_vector(self, i_int, t):
         """
-        This function compute derivative of base function of B-Spline curve on given subinterval.
-        :param i_int: Interval in which 't' belongs. Derivatives of the 3 nonzero basis functions on this interval are evaluated.
+        Compute derivative of the basis function nonzero on interval `i_int`.
+        :param i_int: Interval in which 't' belongs.
         :param t: Where to evaluate.
-        :return: Numpy array of three values.
+        :return: Numpy array of (degree + 1) x N
         """
         if isinstance(t, float):
             values = []
@@ -292,7 +314,7 @@ class SplineBasis:
             t = np.atleast_1d(t)
             for ib in range(i_int, i_int + self.degree + 1):
                 values.append([self.eval_diff(ib, t_item) for t_item in t])
-            return np.stack(values)
+            return np.array(values)
 
 
     """
@@ -495,7 +517,7 @@ class Surface:
     """
 
     @classmethod
-    def make_raw(cls, poles, knots, rational=False, degree=(2,2)):
+    def make_raw(cls, poles, knots, degree=(2,2), rational=False):
         """
         Construct a B-spline curve.
         :param poles: List of poles (control points) ( X, Y, Z ) or weighted points (X,Y,Z, w). X,Y,Z,w are floats.
@@ -503,11 +525,11 @@ class Surface:
         :param knots: List of tuples (knot, multiplicity), where knot is float, t-parameter on the curve of the knot
                    and multiplicity is positive int. Total number of knots, i.e. sum of their multiplicities, must be
                    degree + N + 1, where N is number of poles.
+        :param degree: (deg u, deg v) Non-negative ints
         :param rational: True for rational B-spline, i.e. NURB. Use weighted poles.
-        :param degree: Non-negative int
         """
-        u_basis = SplineBasis(degree[0], knots[0])
-        v_basis = SplineBasis(degree[1], knots[1])
+        u_basis = SplineBasis.make_from_packed_knots(degree[0], knots[0])
+        v_basis = SplineBasis.make_from_packed_knots(degree[1], knots[1])
         return cls((u_basis, v_basis), poles, rational)
 
 

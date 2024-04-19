@@ -224,7 +224,7 @@ class HealMesh:
         self.max_node_id = max(self.mesh.nodes.keys())
 
         base, ext = os.path.splitext(mesh_file)
-        self.healed_mesh_name = base + "_healed.msh"
+        self.healed_mesh_name = base + "_healed.msh2"
 
         self.modified_elements = set()
         aabb_min = np.full(3, +np.inf)
@@ -253,6 +253,44 @@ class HealMesh:
                 self.remove_node(nid)
                 # if nid in self.node_els:
 
+    def move_all(self, vec):
+        print("Move nodes")
+        np_vec = np.array(vec)
+        for k, v in self.mesh.nodes.items():
+            self.mesh.nodes[k] = v + np_vec
+
+    def map_regions(self, new_reg_map):
+        """
+        Replace all (reg_id, dim) regions by the new regions.
+        new_reg_map: (reg_id, dim) -> new (reg_id, dim, reg_name)
+        return: el_id -> old_reg_id
+        """
+        print(self.mesh.physical)
+        print(new_reg_map)
+
+        new_els = {}
+        el_to_old_reg = {}
+        for id, el in self.mesh.elements.items():
+            type, tags, nodes = el
+            tags = list(tags)
+            old_reg_id = tags[0]
+            dim = len(nodes) - 1
+            old_id_dim = (old_reg_id, dim)
+            if old_id_dim in new_reg_map:
+                el_to_old_reg[id] = old_id_dim
+                reg_id, reg_dim,  reg_name = new_reg_map[old_id_dim]
+                if reg_dim != dim:
+                    Exception(f"Assigning region of wrong dimension: ele dim: {dim} region dim: {reg_dim}")
+                self.mesh.physical[reg_name] = (reg_id, reg_dim)
+                tags[0] = reg_id
+            new_els[id] = (type, tags, nodes)
+        self.mesh.elements = new_els
+        # remove old regions
+        id_to_reg = {id_dim: k for k, id_dim in self.mesh.physical.items()}
+        for old_id_dim in new_reg_map.keys():
+            if old_id_dim in id_to_reg:
+                del self.mesh.physical[id_to_reg[old_id_dim]]
+        return el_to_old_reg
 
     def make_node_to_el(self):
         # make node -> element map
@@ -390,16 +428,16 @@ class HealMesh:
             if eid in self.mesh.elements:
                 yield eid
 
-    def write(self, meshfile=None):
+    def write(self, file_name=None):
         """
         Write current mesh state into given of default mesh file.
         :param other_name:
         :return:
         """
-        if meshfile is None:
-            meshfile = self.healed_mesh_name
-        with open(meshfile, "w") as f:
-            self.mesh.write_ascii(f)
+        if file_name is None:
+            file_name = self.healed_mesh_name
+
+        self.mesh.write_ascii(file_name)
 
 
 
@@ -415,27 +453,33 @@ class HealMesh:
         return Element(eid, type, tags, np.array(node_ids, dtype=int), shape)
 
 
-    quality_methods = {'flow_stats': 'smooth_grad_error_indicator', 'gamma_stats': 'gmsh_gamma'}
+    #quality_methods = {'flow_stats': 'smooth_grad_error_indicator', 'gamma_stats': 'gmsh_gamma'}
     def quality_statistics(self, bad_el_tol=0.01):
         """
         Vector of number of elements in quality bins:
         (1, 0.5), (0.5, 0.25), ...
         :return:
         """
-        methods = self.quality_methods
-        bad_els = {method: [] for method in methods}
+        #methods = self.quality_methods
+        bad_els = []
         bins = 2.0 ** (np.arange(-15, 1))
         bins = np.concatenate((bins, [np.inf]))
-        histogram = {method: np.zeros_like(bins, dtype=int) for method in methods}
+        #histogram = {method: np.zeros_like(bins, dtype=int) for method in methods}
+        histogram = np.zeros_like(bins, dtype=int)
         for eid in self.mesh.elements:
             e = self._make_element(eid)
             if e.shape.dim > 1:
-                for method, hist in histogram.items():
-                    quality = getattr(e.shape, methods[method])()
-                    if quality <= bad_el_tol:
-                        bad_els[method].append(eid)
-                    first_smaller = np.argmax(quality < bins)
-                    hist[first_smaller] += 1
+                # for method, hist in histogram.items():
+                #     quality = getattr(e.shape, methods[method])()
+                #     if quality <= bad_el_tol:
+                #         bad_els[method].append(eid)
+                #     first_smaller = np.argmax(quality < bins)
+                #     hist[first_smaller] += 1
+                quality = e.shape.gmsh_gamma()
+                if quality <= bad_el_tol:
+                    bad_els.append(eid)
+                first_smaller = np.argmax(quality < bins)
+                histogram[first_smaller] += 1
         return histogram, bins, bad_els
 
 
@@ -448,11 +492,11 @@ class HealMesh:
 
 
     def stats_to_yaml(self, filename, el_tol=0.01):
-        methods = self.quality_methods
+        #methods = self.quality_methods
         hist, bins, bad_els = self.quality_statistics(bad_el_tol=el_tol)
         output = {}
-        for name, method in methods.items():
-            output[name] = dict(hist=hist[name].tolist(), bins=bins.tolist(), bad_elements=bad_els[name], bad_el_tol=el_tol)
+        for name in 'gamma':
+            output[name] = dict(hist=hist.tolist(), bins=bins.tolist(), bad_elements=bad_els, bad_el_tol=el_tol)
         import yaml
         with open(filename, "w") as f:
             yaml.dump(output, f)
@@ -843,7 +887,7 @@ class HealMesh:
             rel_dist = np.linalg.norm(inner_node - x_proj) / np.linalg.norm(e_vec)
             projections.append((rel_dist, i, t_proj, x_proj))
         rel_dist, i, t, x = min(projections)
-        assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
+        #assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
 
         # nondegenerate triangle case, split elements connected to the outer face
         print("  flat tria case")

@@ -383,7 +383,7 @@ class Interface:
         for segment in decomp.segments.values():
             #nodes_id, surface_id = segment
             pa, pb = segment.vtxs
-            edge = bw.Edge( [self.vertices[pa.id].shape, self.vertices[pb.id].shape] )
+            edge = bw.Edge(self.vertices[pa.id].shape, self.vertices[pb.id].shape)
             curve_z = self.add_curve_to_edge(edge)
             si = ShapeInfo(edge)
             si.curve_z = curve_z
@@ -510,12 +510,12 @@ class Interface:
         """
         axyz, bxyz = edge.points()
 
-        n_points = 16
+        n_points = 1000
         x_points = np.linspace(axyz[0], bxyz[0], n_points)
         y_points = np.linspace(axyz[1], bxyz[1], n_points)
         xy_points = np.stack( (x_points, y_points), axis =1)
         xyz_points = self.surface_approx.eval_xy_array(xy_points)
-        curve_xyz = bs_approx.curve_from_grid(xyz_points)
+        curve_xyz = bs_approx.curve_from_grid(xyz_points, tol=1e-5)
         start, end = curve_xyz.eval_array(np.array([0.0, 1.0]))
         check_point_tol( start, axyz, 1e-3)
         check_point_tol( end, bxyz, 1e-3)
@@ -905,7 +905,7 @@ class StratumLayer(GeoLayer):
             bot_new_pt = self.i_bot.vertices[bot_subobjs[0][id][0]]
 
 
-            edge = bw.Edge( [bot_new_pt.shape, top_new_pt.shape] )
+            edge = bw.Edge(bot_new_pt.shape, top_new_pt.shape)
             edge.implicit_curve()
             edge_info = ShapeInfo(edge)
             vert_edges[id] = edge_info
@@ -1158,10 +1158,10 @@ class LayerGeometry():
         :return:
         """
         # ignore shapes without ID - not part of the output
-        output_shapes = [si for si in self.all_shapes if hasattr(si.shape, 'id')]
+        output_shapes = [si for si in self.all_shapes if si.shape._brep_id is not None]
 
         # prepare dict: (dim, shape_id) : shape info
-        output_shapes.sort(key=lambda si: si.shape.id, reverse=True)
+        output_shapes.sort(key=lambda si: si.shape.brep_id, reverse=True)
         shape_by_dim = [[] for i in range(4)]
         for shp_info in output_shapes:
             dim = shp_info.dim()
@@ -1386,9 +1386,7 @@ class LayerGeometry():
 
     def modify_mesh(self):
         self.tmp_msh_file = self.filename_base + ".tmp.msh"
-        self.mesh = gmsh_io.GmshIO()
-        with open(self.tmp_msh_file, "r") as f:
-            self.mesh.read(f)
+        self.mesh = gmsh_io.GmshIO(self.tmp_msh_file)
 
         # deform mesh, nontrivial evaluation of Z for the interface mesh
         #self.deform_mesh()
@@ -1401,7 +1399,7 @@ class LayerGeometry():
                 raise Exception("Less then 2 tags.")
             dim = self.el_type_to_dim[el_type]
             shape_id = tags[1]
-            shape_info = self.gmsh_shape_dist[ (dim, shape_id)]
+            shape_info = self.gmsh_shape_dist[(dim, shape_id)]
 
             if not shape_info.free:
                 continue
@@ -1418,8 +1416,7 @@ class LayerGeometry():
             new_elements[id] = (el_type, tags, nodes)
         self.mesh.elements = new_elements
         self.msh_file = self.filename_base + ".msh"
-        with open(self.msh_file, "w") as f:
-            self.mesh.write_ascii(f)
+        self.mesh.write_ascii(self.msh_file)
         return self.mesh
 
 

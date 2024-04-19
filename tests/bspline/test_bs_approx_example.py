@@ -69,23 +69,27 @@ def test_grid_approx_example():
     grid_path = "_grid_data.xyz"
     make_a_test_grid(grid_path, function_sin_cos, nuv)
 
-    # Make an approximation.
-    # 1. Create the approximation object from the points in the grid file.
-    surf_approx = bs_approx.SurfaceApprox.approx_from_file(grid_path)
+    ### Make an approximation.
 
-    # 2. Compute minimal surface bounding rectangular of points projected to the XY plane.
+    # Load point set from the grid file.
+    surf_point_set = bs_approx.SurfacePointSet.from_file(grid_path)
+
+    # Compute minimal surface bounding rectangular of points projected to the XY plane.
     # or use own XY rectangle given as array of shape (4,2) of the four vertices.
-    quad = surf_approx.compute_default_quad()
+    # quad = surf_point_set.compute_default_quad()
 
-    # 3. Try to guess dimensions of a (semi regular) grid.
-    nuv = surf_approx.compute_default_nuv()
+    # Crate the approximation object.
+    surf_approx = bs_approx.SurfaceApprox(surf_point_set)
+
+    # Try to guess dimensions of a (semi regular) grid.
+    nuv = surf_approx._compute_default_nuv()
     # We want usually  much sparser approximation.
     nuv = nuv / 5
 
     # 4. Compute the approximation.
     surface = surf_approx.compute_approximation()
-    # Own or computed quad and nuv can be passed in as parameters:
-    # surface = surf_approx.compute_approximation(quad=quad, nuv=nuv)
+    # Own or computed initial number of patches `nuv=(nu, nv)` can be provided.
+    # surface = surf_approx.compute_approximation(nuv=nuv)
 
     # Verification.
     # Evaluate approximation and the function on the same grid.

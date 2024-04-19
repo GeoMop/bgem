@@ -35,6 +35,19 @@ class TestSplineBasis:
                 i_found = basis.find_knot_interval(x)
                 assert i_found == interval - 2, "i_found: {} i: {} j: {} x: {} ".format(i_found, interval-2, j, x)
 
+    def test_interval_functions(self):
+
+        knots = [0, 0, 0, 0.25, 0.6, 0.7, 1, 1, 1]
+        basis = bs.SplineBasis.make_from_knots(2, knots)
+        #
+        assert basis.knot_interval_bounds(0) == (0, 0.25)
+        assert basis.knot_interval_bounds(3) == (0.7, 1.0)
+        assert np.isclose(0.25, basis.interval_diff(0))
+        assert np.isclose(0.3, basis.interval_diff(3))
+        diffs = basis.interval_diff_vector()
+        assert len(diffs) == 4
+        assert np.isclose(0.25, diffs[0])
+        assert np.isclose(0.3, diffs[3])
 
     def test_packed_knots(self):
         """
@@ -92,6 +105,16 @@ class TestSplineBasis:
             for x in np.linspace(basis.domain[0], basis.domain[1], 10):
                 s = sum([ basis.eval(i, x) for i in range(basis.size) ])
                 assert np.isclose(s, 1.0)
+
+        # explicit multiplicity
+        eq_basis = bs.SplineBasis.make_equidistant(2, 2, n_boundary=(1, 1))
+        assert eq_basis.size == 2
+        assert eq_basis.eval(0, 0.0) == 0.0
+        assert eq_basis.eval(0, 1.0) == 0.0
+        assert eq_basis.eval(0, 1 - 1e-10) < 1e-19
+        assert eq_basis.eval(1, 0.0) == 0.0
+        assert eq_basis.eval(1, 1.0) == 0.0
+        assert eq_basis.eval(1, 1e-10) < 1e-19
 
     def fn_supp(self):
         basis = bs.SplineBasis.make_equidistant(2, 4)
