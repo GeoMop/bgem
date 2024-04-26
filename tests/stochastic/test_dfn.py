@@ -29,47 +29,43 @@ geometry_dict = {
     'well_effective_radius': 10,
     'well_openning': [-50, 50]}
 
-fracture_stats = [
-    {'concentration': 17.8,
-     'name': 'NS',
+fracture_stats = dict(
+    NS={'concentration': 17.8,
      'p_32': 0.094,
      'plunge': 1,
      'power': 2.5,
      'r_max': 564,
      'r_min': 0.038,
      'trend': 292},
-    {'concentration': 14.3,
-     'name': 'NE',
+    NE={'concentration': 14.3,
      'p_32': 0.163,
      'plunge': 2,
      'power': 2.7,
      'r_max': 564,
      'r_min': 0.038,
      'trend': 326},
-    {'concentration': 12.9,
-     'name': 'NW',
+    NW={'concentration': 12.9,
      'p_32': 0.098,
      'plunge': 6,
      'power': 3.1,
      'r_max': 564,
      'r_min': 0.038,
      'trend': 60},
-    {'concentration': 14.0,
-     'name': 'EW',
+    EW={'concentration': 14.0,
      'p_32': 0.039,
      'plunge': 2,
      'power': 3.1,
      'r_max': 564,
      'r_min': 0.038,
      'trend': 15},
-    {'concentration': 15.2,
-     'name': 'HZ',
+    HZ={'concentration': 15.2,
      'p_32': 0.141,
      'plunge': 86,
      'power': 2.38,
      'r_max': 564,
      'r_min': 0.038,
-     'trend': 5}]
+     'trend': 5}
+)
 
 
 # TODO:
@@ -129,9 +125,9 @@ def generate_uniform(statistics, n_frac_limit):
     # generate fracture set
     box_size = 100
     fracture_box = 3 * [box_size]
-    volume = np.product(fracture_box)
-    pop = fracture.Population(volume)
-    pop.initialize(statistics)
+    #volume = np.product()
+    pop = fracture.Population.from_cfg(statistics, fracture_box)
+    #pop.initialize()
     pop.set_sample_range([1, box_size], sample_size=n_frac_limit)
     print("total mean size: ", pop.mean_size())
     pos_gen = fracture.UniformBoxPosition(fracture_box)

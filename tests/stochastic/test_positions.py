@@ -90,8 +90,9 @@ def test_angle():
     normal2 = normal2 / np.linalg.norm(normal2)
     angle2 = 0.0
 
-    frac_X1= Fracture(SquareShape,r1, center1 , normal1 ,angle1, 1.0)
-    frac_X2= Fracture(SquareShape,r2, center2 , normal2 ,angle2, 1.0)
+    family = 0
+    frac_X1= Fracture(SquareShape, r1, center1 , normal1 ,angle1)
+    frac_X2= Fracture(SquareShape, r2, center2 , normal2 ,angle2)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)
@@ -161,8 +162,8 @@ def test_cross():
     normal2 = normal2 / np.linalg.norm(normal2)
     angle2 = 0.0
 
-    frac_X1= Fracture(SquareShape,r1, center1 , normal1 ,angle1, 1.0)
-    frac_X2= Fracture(SquareShape,r2, center2 , normal2 ,angle2, 1.0)
+    frac_X1= Fracture(SquareShape,r1, center1 , normal1 ,angle1)
+    frac_X2= Fracture(SquareShape,r2, center2 , normal2 ,angle2)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)

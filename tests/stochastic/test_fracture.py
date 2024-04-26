@@ -32,3 +32,14 @@ def test_PowerLawSize():
         axes[1].plot(x1, y1, label=str(power))
     fig.legend()
     plt.show()
+
+@pytest.mark.skip
+def test_fractures_3d():
+    box=[10, 20, 30]
+    pop = frac.Population.init_from_yaml("fractures_Forsmark_repo.yaml", box=box)
+    print([fam.name for fam in pop.families])
+    pop.set_sample_range((None, 30), sample_size=1e6)
+    fractures = pop.sample()
+    stat = frac.statistic(fractures)
+
+    frac.plot(fractures)
