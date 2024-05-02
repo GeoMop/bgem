@@ -233,20 +233,6 @@ class Fracture:
     Single fracture sample.
     TODO: modify to the acessor into the FrSet objects.
     """
-
-    @attrs.define
-    class Fracture:
-        """
-        Single fracture sample.
-
-        TODO: Introduce DFNSample/Fractures for fast collective operations
-        and redirecting shape and family to the Population through family indices.
-        This would allow creation of fracture related fields using the fixed fracture indexing.
-        """
-        aspect: float = 1
-        # aspect ratio of the fracture =  y_length / x_length where  x_length == r
-        id: Any = None
-
     shape_class: Any
     # Basic fracture shape.
     r: float
