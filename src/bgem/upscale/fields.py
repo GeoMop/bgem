@@ -35,7 +35,7 @@ def tn_to_voigt(tn):
     :param array:
     :return:
     """
-    dim, dim, _ = tn.shape
+    _, dim, dim = tn.shape
     return tn[:, idx_to_voigt[dim][0], idx_to_voigt[dim][1]]
     # m, n, N = tn.shape
     # assert m == n

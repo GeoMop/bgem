@@ -1,10 +1,13 @@
 from typing import *
+from pathlib import Path
+import csv
 import math
 
 import attrs
 from functools import cached_property
 from bgem.stochastic import Fracture
 from bgem.upscale import Grid
+from bgem.stochastic.dfn import FractureSet, EllipseShape, PolygonShape
 import numpy as np
 """
 Voxelization of fracture network.
@@ -23,20 +26,17 @@ Possible approaches:
 
 """
 TODO:
-1. Port decovalex solution as the basic building block 
-    - i.e. contributions to full tensor on cells intersectiong the fracture.
-    - Conservative homogenization, slow.
-   
-   1. AABB grid -> centers of cells within AABB of fracture
+1. 1. AABB grid -> centers of cells within AABB of fracture
    2. Fast selection of active cells: centers_distance < tol
    3. For active cells detect intersection with plane.
       - active cells corners -> projection to fr plane
       - detect nodes in ellipse, local system 
       - alternative function to detect nodes within n-polygon
-   4. output: interacting cells, cell cords in local system, optiaonly -> estimate of intersection surface
+   4. output: tripples: i_fracture, i_cell, cell_distance for each intersection
+      to get consistent conductivity along  voxelized fracture, we must modify cells within normal*grid.step band 
    5. rasterized full tenzor:
       - add to all interacting cells
-      - add multiplied by surface dependent coefficient
+      - add multiplied by distance dependent coefficient
        
    
 2. Direct homogenization test, with at least 2 cells across fracture.
@@ -54,13 +54,14 @@ TODO:
 
 @attrs.define
 class FracturedMedia:
-    dfn: List[Fracture]
+    dfn: FractureSet                #
     fr_cross_section: np.ndarray    # shape (n_fractures,)
     fr_conductivity: np.ndarray     # shape (n_fractures,)
     conductivity: float
 
+
     @staticmethod
-    def fracture_cond_params(dfn, unit_cross_section, bulk_conductivity):
+    def fracture_cond_params(dfn :FractureSet, unit_cross_section, bulk_conductivity):
         # unit_cross_section = 1e-4
         viscosity = 1e-3
         gravity_accel = 10
@@ -75,12 +76,84 @@ class FracturedMedia:
         fr_cond = np.full_like(fr_r, 10)
         return FracturedMedia(dfn, fr_cross_section, fr_cond, bulk_conductivity)
 
+    @classmethod
+    def _read_dfn_file(cls, f_path):
+        with open(f_path, 'r') as file:
+            rdr = csv.reader(filter(lambda row: row[0] != '#', file), delimiter=' ', skipinitialspace=True)
+            return [row for row in rdr]
+
+    @classmethod
+    def from_dfn_works(cls, input_dir: Union[Path, str], bulk_conductivity):
+        '''
+        Read dfnWorks-Version2.0 output files:
+        normal_vectors.dat - three values per line, normal vectors
+        translations.dat - three values per line, fracture centers,
+                        'R' marks isolated fracture, currently ignored
+        radii.dat - three values per line: (major_r, minor_r, shape_family)
+                shape_family: -1 = RectangleShape, 0 = EllipseShape, >0 fracture family index
+                (unfortunate format as it mixes two different attributes ahape and fracture statistical family, which are independent)
+        perm.dat - 6 values per line; 4th is permitivity
+        aperture.dat - 4 values per line; 4th is apperture
+        polygons.dat - not used, DFN triangulation
+
+        :param source_dir: directory with the files
+        :param bulk_conductivity: background / bulk conductivity
+            (constant only)
+        :return: FracturedMedia
+        '''
+        __radiifile = 'radii.dat'
+        __normalfile = 'normal_vectors.dat'
+        __transfile = 'translations.dat'
+        __permfile = 'perm.dat'
+        __aperturefile = 'aperture.dat'
+        workdir = Path(input_dir)
+
+        radii = np.array(cls._read_dfn_file(workdir / __radiifile), dtype=float)
+        n_frac = radii.shape[0]
+        shape_family = radii[:, 2]
+        radii = radii[:, 0:2]
+        assert radii.shape[1] == 2
+        normals = np.array(cls._read_dfn_file(workdir / __normalfile), dtype=float)
+        assert normals.shape == (n_frac, 3)
+        translations = np.array([t for t in cls._read_dfn_file(workdir / __transfile) if t[-1] != 'R'], dtype=float)
+        assert translations.shape == (n_frac, 3)
+        permeability = np.array(cls._read_dfn_file(workdir / __permfile), dtype=float)[:, 3]
+        apperture = np.array(cls._read_dfn_file(workdir / __aperturefile), dtype=float)[:, 3]
+        shape_idx = np.zeros(n_frac)
+        dfn = FractureSet([EllipseShape], shape_idx, radius, center, normal)
+        return cls(normals, centers, radii, )
+
+        ellipses = [Ellipse(np.array(n), np.array(t), np.array(r)) for n, t, r in zip(normals, translations, radii)]
+        return ellipses
+
+
 @attrs.define
 class Intersection:
     grid: Grid
     fractures: List[Fracture]
     i_fr_cell: np.ndarray
     factor: np.ndarray = None
+
+
+def intersections_centers(grid: Grid, fractures: List[Fracture]):
+    """
+    Estimate intersections between grid cells and fractures
+
+    1. for all fractures compute what could be computed in vector fassion
+    2. for each fracture determine cell centers close enough
+    3. compute XY local coords and if in the Shape
+    """
+    fr_normal = np.array([fr.normal for fr in fractures])
+    fr_center = np.array([fr.center for fr in fractures])
+    import decovalex_dfnmap as dmap
+
+    ellipses = [dmap.Ellipse(fr.normal, fr.center, fr.scale) for fr in fractures]
+    d_grid = dmap.Grid.make_grid(grid.origin, grid.step, grid.dimensions)
+    d_fractures = dmap.map_dfn(d_grid, ellipses)
+    i_fr_cell = np.stack([(i_fr, i_cell)  for i_fr, fr in enumerate(d_fractures) for i_cell in fr.cells])
+    #fr, cell = zip([(i_fr, i_cell)  for i_fr, fr in enumerate(fractures) for i_cell in fr.cells])
+    return Intersection(grid, fractures, i_fr_cell, None)
+
 
 def intersections_decovalex(grid: Grid, fractures: List[Fracture]):
     """
@@ -92,9 +165,10 @@ def intersections_decovalex(grid: Grid, fractures: List[Fracture]):
 
     ellipses = [dmap.Ellipse(fr.normal, fr.center, fr.scale) for fr in fractures]
     d_grid = dmap.Grid.make_grid(grid.origin, grid.step, grid.dimensions)
-    fractures = map_dfn(d_grid, ellipses)
-    fr, cell = zip([(i_fr, i_cell)  for i_fr, fr in enumerate(fractures) for i_cell in fr.cells])
-    return Intersection(grid, fractures, np.vstack(fr, cell), None)
+    d_fractures = dmap.map_dfn(d_grid, ellipses)
+    i_fr_cell = np.stack([(i_fr, i_cell)  for i_fr, fr in enumerate(d_fractures) for i_cell in fr.cells])
+    #fr, cell = zip([(i_fr, i_cell)  for i_fr, fr in enumerate(fractures) for i_cell in fr.cells])
+    return Intersection(grid, fractures, i_fr_cell, None)
 
 def perm_aniso_fr_values(fractures, fr_transmisivity: np.array, grid_step) -> np.ndarray:
     '''Calculate anisotropic permeability tensor for each cell of ECPM
@@ -113,8 +187,9 @@ def perm_aniso_fr_values(fractures, fr_transmisivity: np.array, grid_step) -> np
     assert len(fractures) == len(fr_transmisivity)
     # Construc array of fracture tensors
     def full_tensor(n, fr_cond):
+        normal = np.array(n)
         normal_axis_step = grid_step[np.argmax(np.abs(n))]
-        return fr_cond * (np.eye(3) - n[:, None] * n[None, :]) / normal_axis_step
+        return fr_cond * (np.eye(3) - normal[:, None] * normal[None, :]) / normal_axis_step
 
     return np.array([full_tensor(fr.normal, fr_cond)  for fr, fr_cond in zip(fractures, fr_transmisivity)])
 
@@ -142,8 +217,8 @@ def _conductivity_decovalex(fr_media: FracturedMedia, grid: Grid, fr_values_fn):
     fr_values = fr_values_fn(isec.fractures, fr_transmissivity, isec.grid.step)
     # accumulate tensors in cells
     ncells = isec.grid.n_elements
-    k_aniso = np.full((ncells, 3, 3), fr_media.conductivity, dtype=np.float64)
-    k_aniso[isec.i_fr_cell[1]] += fr_values[isec.i_fr_cell[0]]
+    k_aniso = np.full((ncells, *fr_values.shape[1:]), fr_media.conductivity, dtype=np.float64)
+    np.add.at(k_aniso, isec.i_fr_cell[:,1], fr_values[isec.i_fr_cell[:,0]])
     return k_aniso #arange_for_hdf5(grid, k_iso).flatten()
 
 def permeability_aniso_decovalex(fr_media: FracturedMedia, grid: Grid):
@@ -153,143 +228,8 @@ def permeability_iso_decovalex(fr_media: FracturedMedia, grid: Grid):
     return _conductivity_decovalex(fr_media, grid, perm_iso_fr_values)
 
 
-class EllipseShape:
-    def is_point_inside(self, x, y):
-        return x**2 + y**2 <= 1
-
-    def are_points_inside(self, points):
-        sq = points ** 2
-        return sq[:, 0] + sq[:, 1]  <= 1
-
-def test_EllipseShape():
-    ellipse = EllipseShape(6)  # Create a hexagon for testing
-
-    # Points to test
-    inside_point = (0.5, 0.5)
-    edge_point = (np.cos(np.pi / 6), np.sin(np.pi / 6))  # A point exactly on the edge
-    outside_point = (1.5, 1.5)
-
-    # Test for a point inside
-    assert ellipse.is_point_inside(*inside_point), "The point should be inside the ellipse"
-
-    # Test for a point on the edge
-    # Depending on your implementation's edge handling, this could be either True or False
-    # Here we assume points on edges are considered inside
-    assert ellipse.is_point_inside(*edge_point), "The point should be considered inside the ellipse"
-
-    # Test for a point outside
-    assert not ellipse.is_point_inside(*outside_point), "The point should be outside the ellipse"
-
-    # Test points: inside, on edge, outside
-    points = np.array([
-        [0.5, 0.5],  # Inside
-        [-0.5, -0.5],  # Inside
-        [0.86, 0.5],  # On edge (approximately, considering rounding)
-        [1, 1],  # Outside
-        [0, 0]  # Centrally inside
-    ])
-
-    expected_results = np.array([
-        True,  # Inside
-        True,  # Inside
-        False,  # On edge, but due to precision, might be considered outside
-        False,  # Outside
-        True  # Centrally inside
-    ])
-
-    actual_results = ellipse.are_points_inside(points)
-    np.testing.assert_array_equal(actual_results, expected_results,
-                                  "The are_points_inside method failed to accurately determine if points are inside the ellipse.")
 
 
-class PolygonShape:
-    def __init__(self, N):
-        """
-        Initializes a RegularPolygon instance for an N-sided polygon.
-
-        Args:
-        - N: Number of sides of the regular polygon.
-        """
-        self.N = N
-        self.theta_segment = 2 * math.pi / N  # Angle of each segment
-        self.R_inscribed = math.cos(self.theta_segment / 2)  # Radius of inscribed circle for R=1
-
-    def is_point_inside(self, x, y):
-        """
-        Tests if a point (x, y) is inside the regular N-sided polygon.
-
-        Args:
-        - x, y: Coordinates of the point to test.
-
-        Returns:
-        - True if the point is inside the polygon, False otherwise.
-        """
-        r = math.sqrt(x**2 + y**2)  # Convert point to polar coordinates (radius)
-        theta = math.atan2(y, x)  # Angle in polar coordinates
-
-        # Compute the reminder of the angle and the x coordinate of the reminder point
-        theta_reminder = theta % self.theta_segment
-        x_reminder = math.cos(theta_reminder) * r
-
-        # Check if the x coordinate of the reminder point is less than
-        # the radius of the inscribed circle (for R=1)
-        return x_reminder <= self.R_inscribed
-
-    def are_points_inside(self, points):
-        """
-        Tests if points in a NumPy array are inside the regular N-sided polygon.
-        Args:
-        - points: A 2D NumPy array of shape (M, 2), where M is the number of points
-          and each row represents a point (x, y).
-        Returns:
-        - A boolean NumPy array where each element indicates whether the respective
-          point is inside the polygon.
-        """
-        r = np.sqrt(points[:, 0]**2 + points[:, 1]**2)
-        theta = np.arctan2(points[:, 1], points[:, 0])
-        theta_reminder = theta % self.theta_segment
-        x_reminder = np.cos(theta_reminder) * r
-        return x_reminder <= self.R_inscribed
-
-def test_PolyShape():
-    polygon = PolygonShape(6)  # Create a hexagon for testing
-
-    # Points to test
-    inside_point = (0.5, 0.5)
-    edge_point = (np.cos(np.pi / 6), np.sin(np.pi / 6))  # A point exactly on the edge
-    outside_point = (1.5, 1.5)
-
-    # Test for a point inside
-    assert polygon.is_point_inside(*inside_point), "The point should be inside the polygon"
-
-    # Test for a point on the edge
-    # Depending on your implementation's edge handling, this could be either True or False
-    # Here we assume points on edges are considered inside
-    assert polygon.is_point_inside(*edge_point), "The point should be considered inside the polygon"
-
-    # Test for a point outside
-    assert not polygon.is_point_inside(*outside_point), "The point should be outside the polygon"
-
-    # Test points: inside, on edge, outside
-    points = np.array([
-        [0.5, 0.5],  # Inside
-        [-0.5, -0.5],  # Inside
-        [0.86, 0.5],  # On edge (approximately, considering rounding)
-        [1, 1],  # Outside
-        [0, 0]  # Centrally inside
-    ])
-
-    expected_results = np.array([
-        True,  # Inside
-        True,  # Inside
-        False,  # On edge, but due to precision, might be considered outside
-        False,  # Outside
-        True  # Centrally inside
-    ])
-
-    actual_results = polygon.are_points_inside(points)
-    np.testing.assert_array_equal(actual_results, expected_results,
-                                  "The are_points_inside method failed to accurately determine if points are inside the polygon.")
 
 def aniso_lump(tn_array):
     """

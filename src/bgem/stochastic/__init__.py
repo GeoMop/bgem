@@ -1,2 +1,3 @@
-from .fracture import Population, PowerLawSize, UniformBoxPosition, VonMisesOrientation, FisherOrientation, \
-    Fracture, SquareShape, LineShape, DiscShape, ConvexPolygon
+from .dfn import Population, PowerLawSize, UniformBoxPosition, VonMisesOrientation, FisherOrientation
+from .fr_set import  FractureSet, EllipseShape, RectangleShape
+                      # SquareShape, LineShape, DiscShape, ConvexPolygon)

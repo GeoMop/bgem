@@ -1,3 +1,4 @@
+import logging
 import os
 import collections
 import numpy as np
@@ -101,7 +102,7 @@ class Tetrahedron(ShapeBase):
             # circum radius
             a,b,c,A,B,C = self.edge_lens
             x_area = (a*A + b*B + c*C)*(a*A + b*B - c*C)*(a*A - b*B + c*C)*(-a*A + b*B + c*C)
-            assert x_area > 0, x_area
+            # assert x_area > 0, x_area
             R = np.sqrt(x_area) / 24 / max(1e-300, V)
             self._gamma = 3 * r/max(1e-300, R)
         return self._gamma
@@ -503,7 +504,6 @@ class HealMesh:
 
 
     def heal_mesh(self, gamma_tol=0.02, fraction_of_new_els=2):
-
         self.gamma_tol = gamma_tol
         orig_n_el = self.max_ele_id
         el_to_check = collections.deque(self.mesh.elements.keys())

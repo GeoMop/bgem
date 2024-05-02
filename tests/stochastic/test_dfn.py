@@ -60,12 +60,14 @@ fracture_stats = dict(
      'trend': 15},
     HZ={'concentration': 15.2,
      'p_32': 0.141,
-     'plunge': 86,
      'power': 2.38,
      'r_max': 564,
      'r_min': 0.038,
-     'trend': 5}
-)
+     #'trend': 5
+     #'plunge': 86,
+     'strike': 95,
+     'dip': 4
+     }]
 
 
 # TODO:
@@ -472,6 +474,33 @@ def test_brep_dfn():
 #def resolve_fractures_intersection(ipss):
 
 
+def test_PowerLawSize():
+    powers = [0.8, 1.6, 2.9, 3, 3.2]
+    cmap = plt.get_cmap('gnuplot')
+    colors = [cmap(i) for i in np.linspace(0, 1, len(powers))]
+
+    fig = plt.figure(figsize = (16, 9))
+    axes = fig.subplots(1, 2, sharey=True)
+    for i, power in enumerate(powers):
+        diam_range = (0.1, 10)
+        distr = frac.PowerLawSize(power, diam_range, 1000)
+        sizes = distr.sample(volume=1, size=10000)
+        sizes.sort()
+        x = np.geomspace(*diam_range, 30)
+        y = [distr.cdf(xv, diam_range) for xv in x]
+        z = [distr.ppf(yv, diam_range) for yv in y]
+        np.allclose(x, z)
+        axes[0].set_xscale('log')
+        axes[0].plot(x, y, label=str(power), c=colors[i])
+
+        axes[0].plot(sizes[::100], np.linspace(0, 1, len(sizes))[::100], c=colors[i], marker='+')
+        sample_range = [0.1, 1]
+        x1 = np.geomspace(*sample_range, 200)
+        y1 = [distr.cdf(xv, sample_range) for xv in x1]
+        axes[1].set_xscale('log')
+        axes[1].plot(x1, y1, label=str(power))
+    fig.legend()
+    plt.show()
 
 def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
     """
