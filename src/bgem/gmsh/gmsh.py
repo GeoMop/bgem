@@ -2,7 +2,7 @@ import itertools
 from typing import *
 from collections import defaultdict
 import enum
-import attr
+import attrs
 import numpy as np
 import gmsh
 import re
@@ -57,7 +57,7 @@ gmsh_api, issues:
 
 
 
-@attr.s(auto_attribs=True)
+@attrs.define(auto_attribs=True)
 class Region:
     dim: Optional[int]
     id: int

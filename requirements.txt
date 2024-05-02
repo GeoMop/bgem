@@ -1,6 +1,6 @@
 pytest
-numpy
-scipy
-bih
+
+# some test plottings that are not part of auto test suite
+matplotlib
 joblib
 plotly
