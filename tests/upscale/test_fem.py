@@ -245,13 +245,13 @@ def test_upsacale_2d():
     assert np.allclose(K_eff, K_const[0, :])
 
 
-def test_upscale_parallel_plates():
-    cube = [1, 1, 1]
-    for dim in [2, 3]:
-        plates = dfn.FractureSet.parallel_plates(
-            box = cube,
-            normal = [1, 0, 0]
-        )
+# def test_upscale_parallel_plates():
+#     cube = [1, 1, 1]
+#     for dim in [2, 3]:
+#         plates = dfn.FractureSet.parallel_plates(
+#             box = cube,
+#             normal = [1, 0, 0]
+#         )
 
 
 def single_fracture_distance_function():

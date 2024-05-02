@@ -2,6 +2,9 @@
 Various function programming tools.
 """
 
+# Various functional imports
+from functools import cached_property
+
 def compose(*functions):
     """
     Return composition of functions:

@@ -56,7 +56,7 @@ setuptools.setup(
     include_package_data=True,
     zip_safe=False,
     #install_requires=['numpy', 'scipy', 'bih', 'gmsh-sdk<=4.5.1'],
-    install_requires=['numpy>=1.13.4', 'pandas', 'scipy', 'gmsh>=4.10.4', 'pyyaml-include', 'bih'],
+    install_requires=['numpy>=1.13.4', 'pandas', 'scipy', 'gmsh>=4.10.4', 'pyyaml-include', 'bih', 'nptyping', 'pyamg'],
     # incompatible changes in SDK in release 4.6.0 to be changed in the new release of bgem
     python_requires='>=3',
     # extras_require={
