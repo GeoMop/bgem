@@ -323,16 +323,14 @@ class Grid:
         transposed = grid_field.transpose(*reversed(range(self.dim)),-1)
         return transposed.reshape(-1, *value_shape)
 
-    # def nodes(self):
-    #     """
-    #     Nodes of the grid.
-    #     n_nodes = prod( n_steps + 1 )
-    #     :return: shape (n_nodes, dim)
-    #     """
-    #     nodes_axes = [self.step[i] * (np.arange(self.n_steps[i] + 1)) for i in range(self.dim)]
-    #     mesh_grid = np.meshgrid(*nodes_axes, indexing='ij')
-    #     mesh_grid_array = np.stack(mesh_grid, axis=-1)
-    #     return mesh_grid_array.reshape(-1, self.dim) + self.origin
+    def nodes(self):
+        """
+        Nodes of the grid.
+        n_nodes = prod( n_steps + 1 )
+        :return: shape (n_nodes, dim)
+        """
+        node_coords = self.dof_idx_to_coord(np.arange(self.n_dofs, dtype=np.int64))
+        return node_coords * self.step[None, :] + self.origin[None, :]  #mesh_grid_array.reshape(-1, self.dim) + self.origin
 
     @cached_property
     def bc_coords(self):
@@ -350,7 +348,6 @@ class Grid:
         :return:
         """
         return self.bc_coords * self.step[None, :] + self.origin[None, :]
-
 
 
     def dof_idx_to_coord(self, dof_natur_indices):
@@ -489,14 +486,15 @@ class Grid:
         n_rhs, d = p_grad_bc.shape
         assert d == self.dim
         A = self.assembly_dense(K)
-        pressure_bc = p_grad_bc @ self.bc_points.T # (n_vectors, n_bc_dofs)
+        bc_points_rel = self.bc_coords * self.step[None, :]
+        pressure_bc = p_grad_bc @ bc_points_rel.T # (n_vectors, n_bc_dofs)
         B = pressure_bc @ A[:self.n_bc_dofs, self.n_bc_dofs:]  # (n_vectors, n_interior_dofs)
         pressure = np.empty((n_rhs, self.n_dofs))
         pressure[:, :self.n_bc_dofs] = pressure_bc
         pressure[:, self.n_bc_dofs:] = np.linalg.solve(A[self.n_bc_dofs:, self.n_bc_dofs:], -B.T).T
         pressure_natur = np.empty_like(pressure)
         pressure_natur[:, self.natur_map[:]] = pressure[:, :]
-        return pressure_natur.reshape((n_rhs, *self.dofs_shape))
+        return pressure_natur.reshape((n_rhs, -1))
 
 
     def solve_sparse(self, K, p_grad_bc):
@@ -513,19 +511,20 @@ class Grid:
         n_rhs, d = p_grad_bc.shape
         assert d == self.dim
         A_bulk, A_bc = self.assembly_csr(K)
-        pressure_bc = p_grad_bc @ self.bc_points.T # (n_vectors, n_bc_dofs)
+        bc_points_rel = self.bc_coords * self.step[None, :]
+        pressure_bc = p_grad_bc @ bc_points_rel.T # (n_vectors, n_bc_dofs)
         B =  (A_bc @ pressure_bc.T).T  # (n_vectors, n_interior_dofs)
 
         #pyamg.ruge_stuben_solver(A_bulk)
         solver = pyamg.smoothed_aggregation_solver(A_bulk, symmetry='symmetric')
-        pressure = np.empty((n_rhs, self.n_dofs))
+        pressure = np.zeros((n_rhs, self.n_dofs))
         pressure[:, :self.n_bc_dofs] = pressure_bc
         for pressure_comp, b in zip(pressure, B):
             pressure_comp[self.n_bc_dofs:] = solver.solve(-b)
             #pressure[:, ] = np.linalg.solve(A[self.n_bc_dofs:, self.n_bc_dofs:], -B.T).T
         pressure_natur = np.empty_like(pressure)
         pressure_natur[:, self.natur_map[:]] = pressure[:, :]
-        return pressure_natur.reshape((n_rhs, *self.dofs_shape))
+        return pressure_natur.reshape((n_rhs, -1))
 
     def field_grad(self, dof_vals):
         """
@@ -570,8 +569,8 @@ def upscale(K, domain=None):
     pressure = g.solve_direct(K_els, p_grads)
     #xy_grid = [np.linspace(0, g.size[i], g.ax_dofs[i]) for i in range(2)]
     #fem_plot.plot_pressure_fields(*xy_grid, pressure)
-    pressure_flat = pressure.reshape((len(p_grads), -1))
-    grad = g.field_grad(pressure_flat)   # (n_vectors, n_els, dim)
+    #pressure_flat = pressure.reshape((len(p_grads), -1))
+    grad = g.field_grad(pressure)   # (n_vectors, n_els, dim)
     loads = np.average(grad, axis=1) # (n_vectors, dim)
     full_K_els = voigt_to_tn(K_els)
     responses_els =  grad[:, :, None, :] @ full_K_els[None, :, :, :]   #(n_vec, n_els, 1, dim)

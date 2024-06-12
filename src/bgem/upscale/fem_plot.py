@@ -1,11 +1,12 @@
 import pyvista as pv
 import numpy as np
 
+from bgem.upscale import Grid
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_pressure_fields(x_grid, y_grid, pressure):
+def plot_pressure_fields(grid:Grid, pressure):
     """
     x_grid: shape (M,)
     y_grid: shape (N,)
@@ -14,7 +15,11 @@ def plot_pressure_fields(x_grid, y_grid, pressure):
     Parameters:
     pressure (numpy.ndarray): An array of shape (K, M, N) representing K scalar fields.
     """
-    K, M, N = pressure.shape
+    x_grid, y_grid = [np.linspace(0, grid.dimensions[i], grid.dofs_shape[i]) for i in range(2)]
+    K, n_dofs = pressure.shape
+    assert n_dofs == grid.n_dofs
+    M, N = grid.shape + 1
+    pressure = pressure.reshape(K, M, N)
 
     # Create a figure and K subplots in a single row
     fig, axes = plt.subplots(1, K, figsize=(K * 5, 5), sharey=True)
@@ -28,7 +33,7 @@ def plot_pressure_fields(x_grid, y_grid, pressure):
     X, Y = np.meshgrid(x_grid, y_grid)
     for i in range(K):
         # Plot each scalar field
-        im = axes[i].pcolormesh(X, Y, pressure[i], vmin=vmin, vmax=vmax, shading='gouraud')
+        im = axes[i].pcolormesh(X, Y, pressure[i].transpose(), vmin=vmin, vmax=vmax, shading='gouraud')
 
     #im = axes[i].imgshow(pressure[i, :, :], vmin=vmin, vmax=vmax,
         #                    origin='lower', extent=x_limit + y_limit)

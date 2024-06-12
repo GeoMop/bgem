@@ -16,7 +16,7 @@ def basis_2():
 
 
 
-
+#@pytest.mark.skip()
 def test_Q1_1D_basis():
     basis_order_1, points = basis_1()
     assert basis_order_1.shape == (2, 2)
@@ -31,7 +31,7 @@ def test_Q1_1D_basis():
 
 
 
-
+#@pytest.mark.skip()
 def test_poly_diff_1d():
     diff_order_1 = fem.poly_diff_1d(basis_1()[0])
     assert diff_order_1.shape == (2, 1)
@@ -40,12 +40,14 @@ def test_poly_diff_1d():
     assert diff_order_2.shape == (3, 2)
     print("Q1 order 2 diff basis: \n", diff_order_2)
 
+#@pytest.mark.skip()
 def test_eval_1d():
     basis_order_1, _ = basis_1()
     points = [0.2, 0.7]
     values = [[0.2, 0.7], [0.8, 0.3]]
     np.allclose(fem.eval_1d(basis_order_1, points), values)
 
+#@pytest.mark.skip()
 def test_Fe_Q1():
     for dim in range(1, 4):
         order = 1
@@ -60,7 +62,7 @@ def test_Fe_Q1():
         grad = f.grad_eval(points)
         assert grad.shape == (dim, (order + 1)**dim, len(points_1d))
 
-
+#@pytest.mark.skip()
 def test_flatten_dim():
     x = np.outer([1, 2, 3, 4, 5, 6, 7, 8], [10, 100, 1000])
     tensor_x = fem.tensor_dim(x, 3, 2)
@@ -70,7 +72,7 @@ def test_flatten_dim():
     assert flat_x.shape == x.shape
     assert np.allclose(flat_x, x)
 
-
+#@pytest.mark.skip()
 def test_grid_init():
     g = fem.Grid((100, 150, 200), (4, 3, 2), fem.Fe.Q(3, 1), origin=(-4, -5, -6))
     assert g.dim == 3
@@ -113,7 +115,7 @@ def test_grid_init():
                 assert np.allclose(g.natur_map[g.el_dofs[i_el]], natur_el_dofs)
     # shape (n_elements, n_local_dofs), DOF indices in calculation numbering
 
-
+#@pytest.mark.skip()
 def test_barycenters():
     origin = [-4, -5, -6]
     g = fem.Grid((100, 150, 200), (4, 3, 2), fem.Fe.Q(3, 1), origin=origin)
@@ -128,6 +130,7 @@ def test_barycenters():
 #     ref_barycenters = (np.stack(xyz_grid, axis=-1).reshape(-1, 3) + 0.5) * g.step + origin
 #     assert np.allclose(g.nodes(), ref_barycenters)
 
+#@pytest.mark.skip()
 def test_bc_all():
     origin = [-4, -5, -6]
     g = fem.Grid((100, 150, 200), (4, 3, 2), fem.Fe.Q(3, 1), origin=origin)
@@ -175,7 +178,7 @@ def grid_numbering_Q1(dim):
 #
 # def test_grid_nodes():
 
-
+#@pytest.mark.skip()
 def test_grid_bc():
     g = fem.Grid(10, 2, fem.Fe.Q(1, 1))
     assert np.all(g.bc_coords == np.array([[0], [2]]))
@@ -185,6 +188,7 @@ def test_grid_bc():
     ref = np.array([[0, 0, 0, 1, 1, 2, 2, 2], [0, 1, 2, 0, 2, 0, 1, 2]]).T
     assert np.all(g.bc_coords == ref)
 
+#@pytest.mark.skip()
 def test_laplace():
     order = 1
     N = 3
@@ -193,6 +197,7 @@ def test_laplace():
     l = g.laplace.reshape((-1, g.fe.n_dofs, g.fe.n_dofs))
     print("\nlaplace, 2d:\n", l)
 
+#@pytest.mark.skip()
 def test_grid_assembly():
     for dim in range(1, 4):
         order = 1
@@ -215,8 +220,24 @@ def test_solve_system():
         K_const = fem.tn_to_voigt(K_const[None, :, :])
         K_field = K_const * np.ones(g.n_elements)[:, None]
         p_grads = np.eye(dim)
+        ref_pressure = ((g.nodes() - g.origin) @ p_grads).T
+
+        # solve direct
         pressure = g.solve_direct(K_field, p_grads)
-        assert pressure.shape == (dim, *dim * [N + 1])
+        assert pressure.shape == (dim, (N + 1) ** dim)
+        assert not np.any(np.isnan(pressure))
+        assert np.allclose(pressure, ref_pressure)
+
+        # solve sparse
+        pressure = g.solve_sparse(K_field, p_grads)
+        assert pressure.shape == (dim, (N + 1) ** dim)
+        assert not np.any(np.isnan(pressure))
+        assert np.allclose(pressure, ref_pressure)
+
+
+#def test_solve_sparse():
+
+
 
 
 #@pytest.mark.skip
@@ -224,7 +245,7 @@ def test_solve_2d():
     dim = 2
     order = 1
     N = 30
-    g = fem.Grid(100, N, fem.Fe.Q(dim, order))
+    g = fem.Grid(100, (20, 8), fem.Fe.Q(dim, order))
     x = g.barycenters()[:, 0]
     K_const = np.diag([1, 1])
     #K_const = np.ones((dim, dim))
@@ -233,8 +254,50 @@ def test_solve_2d():
     #K_field = K_const.T * np.ones_like(x)[:, None]
     p_grads = np.eye(dim)
     pressure = g.solve_direct(K_field, p_grads)
+    fem_plot.plot_pressure_fields(g, pressure)
+
+@pytest.mark.skip
+def test_solve_sparse_2d():
+    dim = 2
+    order = 1
+    domain_size = 100
+    #N = 30
+    g = fem.Grid(domain_size, (20, 8), fem.Fe.Q(dim, order), origin=-domain_size / 2)
+    x = (g.barycenters() - g.origin)[:, 0]
+    K_const = np.diag([1, 1])
+    #K_const = np.ones((dim, dim))
+    K_const = fields.tn_to_voigt(K_const[None, :, :])
+    K_field = K_const * x[:, None]
+    #K_field = K_const.T * np.ones_like(x)[:, None]
+    p_grads = np.eye(dim)
+    pressure = g.solve_sparse(K_field, p_grads)
+
     xy_grid = [np.linspace(0, g.dimensions[i], g.dofs_shape[i]) for i in range(2)]
     fem_plot.plot_pressure_fields(*xy_grid, pressure)
+
+#@pytest.mark.skip
+def test_solve_sparse_3d():
+    dim = 3
+    order = 1
+    domain_size = 100
+    #N = 8
+    steps = (9, 10, 11)
+    g = fem.Grid(domain_size, steps, fem.Fe.Q(dim=3))
+    #x = g.barycenters()[:, 0]
+    #K_const = np.diag([1, 1, 1])
+    #K_const = np.ones((dim, dim))
+    K_const = np.array([1,1,1,0,0,0]) #fields.tn_to_voigt(K_const[None, :, :])
+    K_field = np.ones(g.n_elements)[:, None] * K_const [None, :]
+    bc_pressure_gradient = [1, 0, 0]
+    bc_pressure_gradient = np.array(bc_pressure_gradient)[None, :]
+
+    #K_field = K_const.T * np.ones_like(x)[:, None]
+    #p_grads = np.eye(dim)
+    pressure = g.solve_sparse(K_field, bc_pressure_gradient)
+    xy_grid = [np.linspace(0, g.dimensions[i], g.dofs_shape[i]) for i in range(2)]
+    #fem_plot.plot_pressure_fields(*xy_grid, pressure)
+    assert not np.any(np.isnan(pressure))
+
 
 @pytest.mark.skip()
 def test_upsacale_2d():

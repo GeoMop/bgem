@@ -26,7 +26,7 @@ from bgem.gmsh import gmsh, options
 from mesh_class import Mesh
 from bgem.core import call_flow, dotdict, workdir as workdir_mng
 from bgem.upscale import Grid, Fe, voigt_to_tn, tn_to_voigt, FracturedMedia, voxelize
-from bgem.voxelize import EllipseShape, PolygonShape
+#from bgem.voxelize import EllipseShape, PolygonShape
 
 script_dir = Path(__file__).absolute().parent
 workdir = script_dir / "sandbox"

@@ -7,7 +7,7 @@ import attrs
 from functools import cached_property
 from bgem.stochastic import Fracture
 from bgem.upscale import Grid
-from bgem.stochastic.dfn import FractureSet, EllipseShape, PolygonShape
+from bgem.stochastic import FractureSet, EllipseShape, PolygonShape
 import numpy as np
 """
 Voxelization of fracture network.

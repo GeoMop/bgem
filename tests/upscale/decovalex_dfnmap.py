@@ -40,7 +40,7 @@ class Grid:
     def make_grid(cls, origin, step, dimensions):
         s = np.array(step)
         d = np.array(dimensions)
-        cell_dim = (d / s).astype(int)
+        cell_dim = np.round(d / s).astype(int)
         dim = s * cell_dim
         return cls(np.array(origin), s, d, cell_dim)
 

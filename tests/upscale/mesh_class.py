@@ -105,6 +105,7 @@ class Mesh:
         # numbers elements from 0 as they are added
         self._update_nodes()
         self._update_elements()
+        self._update_regions()
 
         # _boxes: List[bih.AABB]
         self._bih: bih.BIH = None
@@ -131,6 +132,9 @@ class Mesh:
             self.el_indices[eid] = i
             self.el_ids.append(eid)
             self.elements.append(element)
+
+    def _update_regions(self):
+        self.regions = {dim_tag: name for name, dim_tag in self.gmsh_io.physical.items()}
 
     def __getstate__(self):
         return (self.gmsh_io, self.file)
@@ -181,10 +185,34 @@ class Mesh:
             self._el_barycenters = np.array([e.barycenter() for e in self.elements])
         return self._el_barycenters
 
-    def fr_map(self, fractures):
+
+
+    def fr_map(self, dfn:'FractureSet', reg_id_to_fr:Dict[str, int]):
+        """
+        Get int field with fracture idx for fracture elements and len(dfn) for other
+        :param dfn:
+        :param reg_id_to_fr:
+        :return:
+        TODO: better way to map elements to frature numbers
+        Limiting factors:
+        - we have no control over actual region IDs produced by meshing so we must use
+          physical names to encode fracture numbers
+        - alternative could be based on functional approach that would allow mapping shape IDs back to shapes
+          and then shapes (including fractures), may be asiciated with various attributes
+        - we currently we also depend on gmsh_io.regions when reading the mesh
+        """
         # TODO better association mechanism
-        fr_reg_to_idx = {fr.region.id - 100000 - 2: idx for idx, fr in enumerate(fractures)}
-        fr_map = [fr_reg_to_idx.get(e.tags[0], len(fractures)) for e in self.elements]
+        #fr_reg_to_idx = {fr.region.id - 100000 - 2: idx for idx, fr in enumerate(fractures)}
+        def fr_id_from_name(name : str):
+            try:
+                _, fam, fr_id = name.split('_')
+                fr_id = int(fr_id)
+            except ValueError:
+                fr_id = len(dfn)
+            return fr_id
+        el_type = [31, 1, 2, 4]         # gmsh element types
+        reg_id_to_fr = { (el_type[dim], reg_id): fr_id_from_name(name) for (reg_id, dim), name in self.regions.items()}
+        fr_map = [reg_id_to_fr.get((e.type, e.tags[0]), len(dfn)) for e in self.elements]
         return np.array(fr_map)
 
     # def el_loc_mat(self, id):
