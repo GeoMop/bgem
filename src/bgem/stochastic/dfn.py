@@ -1,6 +1,10 @@
 """
 Module for statistical description of the fracture networks.
 It provides appropriate statistical models as well as practical sampling methods.
+
+TODO:
+- move pos_distr into Population configuration as well
+- shape modification as separate fn,, or part of other population reconfiguration functions (common range)
 """
 
 from typing import *
@@ -18,60 +22,6 @@ from bgem.stochastic import fr_set
 Auxiliary normal manipulation functions.
 TODO: tr to remove, incorporate into FractureSet if needed.
 """
-
-
-def normal_to_axis_angle(normal): ## todo
-    """
-
-    """
-    z_axis = np.array([0, 0, 1], dtype=float)
-    norms = normal / np.linalg.norm(normal)
-    cos_angle = np.dot(norms, z_axis)
-    angle = np.arccos(cos_angle)
-    # sin_angle = np.sqrt(1-cos_angle**2)
-
-    axis = np.cross(z_axis, norms)
-    ax_norm = max(np.linalg.norm(axis), 1e-200)
-    axis = axis / ax_norm
-    #return axes, angles
-    return axis, angle
-
-def normals_to_axis_angles(normals): ## todo
-    """
-
-    """
-    z_axis = np.array([0, 0, 1], dtype=float)
-    norms = normals / np.linalg.norm(normals, axis=1)[:, None]
-    cos_angle = norms @ z_axis
-    angles = np.arccos(cos_angle)
-    # sin_angle = np.sqrt(1-cos_angle**2)
-
-    axes = np.cross(z_axis, norms, axisb=1)
-    ax_norm = np.maximum(np.linalg.norm(axes, axis=1), 1e-200)
-    axes = axes / ax_norm[:, None]
-    #return axes, angles
-    return np.concatenate([axes, angles[:, None]], axis=1)
-
-
-def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
-    """
-    Rotate given vector around given 'axis' by the 'angle'.
-    :param vectors: array of 3d vectors, shape (n, 3)
-    :param axis_angle: pass both as array (4,)
-    :return: shape (n, 3)
-    """
-    if axis_angle is not None:
-        axis, angle = axis_angle[:3], axis_angle[3]
-    if angle == 0:
-        return vectors
-    vectors = np.atleast_2d(vectors)
-    cos_angle, sin_angle = np.cos(angle), np.sin(angle)
-    rotated = vectors * cos_angle \
-              + np.cross(axis, vectors, axisb=1) * sin_angle \
-              + axis[None, :] * (vectors @ axis)[:, None] * (1 - cos_angle)
-    # Rodrigues formula for rotation of vectors around axis by an angle
-    return rotated
-
 
 
 @attrs.define
@@ -185,8 +135,8 @@ class FisherOrientation:
         """
         raw_normals = self._sample_standard_fisher(size)
         mean_norm = self._mean_normal()
-        axis_angle = normals_to_axis_angles(mean_norm[None, :])
-        return rotate(raw_normals, axis_angle=axis_angle[0])
+        axis_angle = fr_set.normals_to_axis_angles(mean_norm[None, :])
+        return fr_set.rotate(raw_normals, axis_angle=axis_angle[0])
 
 
     #def sample_axis_angle(self, size=1):
@@ -245,14 +195,14 @@ class PowerLawSize:
     prescribed fracture intensity via the `set_range_by_intansity` method.
 
     """
-    power: float
+    power = attrs.field(type=float)
     # power of th power law
-    diam_range: Interval
+    diam_range = attrs.field(type=Interval)
     # lower and upper bound of the power law for the fracture diameter (size), values for which the intensity is given
-    intensity: float
+    intensity = attrs.field(type=float)
     # number of fractures with size in the size_range per unit volume (denoted as P30 in SKB reports)
 
-    sample_range: Interval #= attrs.field(default=copy_full_range)
+    sample_range = attrs.field(type=Interval)
     # range used for sampling., not part of the statistical description
 
     # default attrs initiaizer:
@@ -270,7 +220,8 @@ class PowerLawSize:
         """
         if p32_power is None:
             p32_power = power
-        return cls(power, diam_range, cls.intensity_for_mean_area(p32, power, diam_range, p32_exp=p32_power))
+        intensity = cls.intensity_for_mean_area(p32, power, diam_range, p32_exp=p32_power)
+        return cls(power, diam_range, intensity)
 
     def cdf(self, x, range):
         """
@@ -305,7 +256,7 @@ class PowerLawSize:
         """
         Set the range for the fracture sampling.
         :param sample_range: (min, max), None to reset to the full range.
-        DEPRECATED
+        DEPRECATED Use extract_range
         """
         if sample_range is None:
             sample_range = self.diam_range
@@ -414,20 +365,20 @@ class PowerLawSize:
 
 @attrs.define
 class UniformBoxPosition:
-    dimensions: List[float]
-    center: List[float] = [0, 0, 0]
+    dimensions = attrs.field(type=List[float], converter=np.array)
+    center= attrs.field(type=List[float], converter=np.array, default=np.zeros(3))
 
-    def sample(self):
+    def sample(self, size=1):
         # size = 1
         # pos = np.empty((size, 3), dtype=float)
         # for i in range(3):
         #    pos[:, i] =  np.random.uniform(self.center[i] - self.dimensions[i]/2, self.center[i] + self.dimensions[i]/2, size)
         pos = np.empty(3, dtype=float)
-        for i in range(3):
-            pos[i] = np.random.uniform(self.center[i] - self.dimensions[i] / 2, self.center[i] + self.dimensions[i] / 2,
-                                       size=1)
-        return pos
+        return  np.random.random([size, 3]) * self.dimensions[None, :] + self.center[None, :]
 
+    @property
+    def volume(self):
+        return np.prod(self.dimensions)
 
 @attrs.define
 class ConnectedPosition:
@@ -581,7 +532,12 @@ class ConnectedPosition:
 
 
 FamilyCfg = Dict[str, Union[str, float, int]]
-FamilyDict = Dict[str, FamilyCfg]
+PopulationDict = Dict[str, FamilyCfg]
+PopulationList = Dict[str, FamilyCfg]   # Deprecated, list of Family cfg with "name" attribute
+PopulationCfg = Union[PopulationDict, Path, str]
+# Population configuration dict/list, or YAML or JASON input file
+
+
 @attrs.define
 class FrFamily:
     """
@@ -602,10 +558,20 @@ class FrFamily:
     #position:
     #correlation: None
 
+
     @classmethod
     def from_cfg(cls, family: FamilyCfg, name='') -> 'FrFamily':
-        trend = family.get("trend", family.get("strike", None) + 90)
-        plunge = family.get("plunge", 90 - family.get("dip", None))
+        trend = family.get("trend", None)
+        plunge = family.get("plunge", None)
+        if trend is None or plunge is None:
+            # use strike & dip instead
+            try:
+                trend = family.get("strike") + 90
+                plunge = 90 - family.get("dip")
+            except KeyError as e:
+                print("Uncomplete fracture family configuration. Use trend+plunge or strike+dip keys.")
+                raise e
+
         fisher_orientation = FisherOrientation(trend, plunge, family["concentration"])
         size_range = (family["r_min"], family["r_max"])
         if "p_32" in family:
@@ -637,17 +603,39 @@ class FrFamily:
         shape_angle = VonMisesOrientation(family["trend"], family["concentration"])
         return FrFamily(family["name"], orientation, power_law_size, shape_angle)
 
-    def sample(self, position_distribution):
-        radii = self.size.sample(position_distribution.volume)
+    def with_size_range(self, size_range):
+        """
+        Copy of the family with modified fracture size range.
+        :param size_range:
+        :return:
+        """
+        return FrFamily(self.orientation, self.size.extract_range(size_range), self.shape_angle, self.name)
+
+    def sample(self, position_distribution, shape=fr_set.RectangleShape(), i_fam=0, force_size:int=None):
+        """
+        Generate FractureSet sample from the FrFamily.
+        :param position_distribution:
+        :param shape:
+        :param i_fam:
+        :return:
+        TODO: include position distribution into FrFamily, apply different domains as with change in sample_size
+        but rahter keep both separated from distributions and keep them common to all families at the population level.
+        Pass them down when sampling of computing size estimates.
+        TODO: add distribution of aspect (log normal with mean 1 and given log_10 sigma)
+        """
+        radii = self.size.sample(position_distribution.volume, size=force_size)
+        aspect = 1.0
+        radii = np.stack( (radii, aspect * radii), axis=1 )
         n_fractures = len(radii)
-        ellipse_shape_id = fr_set.shape_ids[fr_set.EllipseShape]
+        shape_angle = self.shape_angle.sample_angle(size=n_fractures)
+        shape_axis = np.stack((np.cos(shape_angle), np.sin(shape_angle)), axis=1)
         return fr_set.FractureSet(
-            base_shapes=fr_set.base_shapes,
-            shape_idx=ellipse_shape_id,
+            shape_idx=shape.id,
             radius=radii,
             normal=self.orientation.sample_normal(size=n_fractures),
-            center=position_distribution.center(size=n_fractures),
-            shape_axis=self.shape_angle.sample_angle(size=n_fractures)
+            center=position_distribution.sample(size=n_fractures),
+            shape_axis=shape_axis,
+            family=np.full(n_fractures, i_fam)
         )
 
 
@@ -664,12 +652,12 @@ class Population:
     # families list
     domain: Tuple[float, float, float]
     # dimensions of the box domain, the Z dimension is = 0 for 2d population
-    shape: Any = fr_set.BaseShape
+    shape: fr_set.BaseShape = fr_set.RectangleShape()
     # Reference Shape of generated fractures
 
     __loaders = {
         '.json': json.load,
-        '.yaml': yaml.load
+        '.yaml': yaml.safe_load
     }
 
     @property
@@ -677,7 +665,7 @@ class Population:
         return np.product([l if l>0 else 1.0 for l in self.domain])
 
     @staticmethod
-    def project_list_to_2d(families: FamilyDict, plane_normal=[0,0,1]):
+    def project_list_to_2d(families: PopulationDict, plane_normal=[0, 0, 1]):
         """
         Convert families as dicts into 2d.
         :return:
@@ -685,7 +673,7 @@ class Population:
         return {k:FrFamily.project_cfg(v, plane_normal) for k,v in families.items()}
 
     @classmethod
-    def from_cfg(cls, families: FamilyDict, box, shape=fr_set.RectangleShape):
+    def from_cfg(cls, families: PopulationDict, box, shape=fr_set.RectangleShape):
         """
         Load families from a list of dict, with keywords: [ name, trend, plunge, concentration, power, r_min, r_max, p_32 ]
         Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
@@ -695,9 +683,15 @@ class Population:
             path = Path(families)
             with open(path) as f:
                 fam_cfg = cls.__loaders[path.suffix](f)
-        elif isinstance(families, list):
+        else:
             fam_cfg = families
-        families = [FrFamily.from_cfg(family, name=family_key) for family_key, family in fam_cfg.items()]
+        if isinstance(fam_cfg, dict):
+            families = [FrFamily.from_cfg(family, name=family_key) for family_key, family in fam_cfg.items()]
+        elif isinstance(fam_cfg, list):
+            families = [FrFamily.from_cfg(family, name=family['name']) for family in fam_cfg]
+        else:
+            raise TypeError("Families (possibly loaded from provied file path) must be either dictionary or list of dictionaries with the 'name' item.")
+
         return cls(families, box, shape)
 
     # @classmethod
@@ -716,7 +710,7 @@ class Population:
         """
         Load families from a JSON file. Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         :param json_file: JSON file with families data
-        DEPRECATED
+        DEPRECATED use from_cfg
         """
         return cls.from_cfg(json_file, box)
 
@@ -725,7 +719,7 @@ class Population:
         """
         Load families from a YAML file. Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
         :param json_file: YAML file with families data
-        DEPRECATED
+        DEPRECATED use from _cfg
         """
         return cls.from_cfg(yaml_file, box)
 
@@ -739,52 +733,62 @@ class Population:
         sizes = [family.size.mean_size(self.volume) for family in self.families]
         return sum(sizes)
 
-    def set_sample_range(self, sample_range, sample_size=None):
+    def set_range_from_size(self, sample_size):
+        return self.set_sample_range(self.common_range_for_sample_size(sample_size))
+
+    def set_sample_range(self, sample_range):
         """
         Set sample range for fracture diameter.
         :param sample_range: (min_bound, max_bound) - one of these can be None if 'sample_size' is provided
                                                       this bound is set to match mean number of fractures
-        :param sample_size: If provided, the None bound is changed to achieve given mean number of fractures.
-                            If neither of the bounds is None, the lower one is reset.
-        :return:
-        TODO: modify into method producting a new Population. Make it frozen.
+        #:param sample_size: If provided, the None bound is changed to achieve given mean number of fractures.
+        #                    If neither of the bounds is None, the lower one is reset.
+        #                    DEPRECATED. Use self.set_sample_range(self.coommon_range_for_sample_size(target_size)
+        :return: Population with new common fracture range.
         """
-        min_size, max_size = sample_range
-        for f in self.families:
-            r_min, r_max = f.size.diam_range
-            if min_size is not None:
-                r_min = min_size
-            if max_size is not None:
-                r_max = max_size
-            f.size.set_sample_range((r_min, r_max))
-        if sample_size is not None:
-            family_sizes = [family.size.mean_size(self.volume) for family in self.families]
-            total_size = np.sum(family_sizes)
-
-            if max_size is None:
-                for f, size in zip(self.families, family_sizes):
-                    family_intensity = size / total_size * sample_size / self.volume
-                    f.size.set_upper_bound_by_intensity(family_intensity)
-            else:
-                for f, size in zip(self.families, family_sizes):
-                    family_intensity = size / total_size * sample_size / self.volume
-                    f.size.set_lower_bound_by_intensity(family_intensity)
+        families = [fam.with_size_range(sample_range) for fam in self.families]
+        return Population(families, self.domain, self.shape)
+        # min_size, max_size = sample_range
+        # for f in self.families:
+        #     r_min, r_max = f.size.diam_range
+        #     if min_size is not None:
+        #         r_min = min_size
+        #     if max_size is not None:
+        #         r_max = max_size
+        #     f.size.set_sample_range((r_min, r_max))
+        # if sample_size is not None:
+        #     family_sizes = [family.size.mean_size(self.volume) for family in self.families]
+        #     total_size = np.sum(family_sizes)
+        #
+        #     if max_size is None:
+        #         for f, size in zip(self.families, family_sizes):
+        #             family_intensity = size / total_size * sample_size / self.volume
+        #             f.size.set_upper_bound_by_intensity(family_intensity)
+        #     else:
+        #         for f, size in zip(self.families, family_sizes):
+        #             family_intensity = size / total_size * sample_size / self.volume
+        #             f.size.set_lower_bound_by_intensity(family_intensity)
 
     def common_range_for_sample_size(self, sample_size=None, free_bound=0, initial_range=None) -> Interval:
         """
         Compute common size range accross families for given mean sample size.
-        :param sample_size: If provided, the 'size' is changed to achieve given mean number of fractures.
+        :param sample_size: Target mean number of fractures in the population. Sum of mean sample sizes over families.
+            If None, current mean size is used, so we only compute common size range that preserve same mean sample size.
+
             Setting the common family bound to obtain prescribed sample size is a nonlinear
             yet monotone problem. Therefore, we apply simple iterating strategy to find correct bound.
             1. split the total sample_size according to current range family intensities
             2. compute common new bound for each family, set the common bound as the median of these
             3. continue to 1. if the estimated number of samples match prescribed sample size with error up to 1.
         :param free_bound index of bound (0-lower, 1-upper) to adapt.
-        :param initial_range - initial range of the iterative algorithm, median of family sample ranges by default
+        :param initial_range - initial range of the iterative algorithm; median of family sample ranges by default
         """
+        if sample_size is None:
+            sample_size = self.mean_size()
         target_total_intenzity = sample_size / self.volume
         if initial_range is None:
-            initial_range = np.median(np.array([f.size.sample_range for f in self.families]))
+            fam_ranges = np.array([f.size.sample_range for f in self.families])
+            initial_range = np.median(fam_ranges, axis=0)
         common_range = initial_range
 
         fn_fam_intensities = lambda range: [f.size.range_intensity(range) for f in self.families]
@@ -827,9 +831,16 @@ class Population:
         """
         if pos_distr is None:
             pos_distr = UniformBoxPosition(self.domain)
-
-        fr_fam_sets = [fam.sample(pos_self.volume) for fam in self.families]
-        return FrFamily.merge(fr_fam_sets)
+        fr_fam_sets = [fam.sample(pos_distr, self.shape, i_fam=i_fam) for i_fam, fam in enumerate(self.families)]
+        fracture_set = fr_set.FractureSet.merge(fr_fam_sets, population=self)
+        if keep_nonempty and len(fracture_set) == 0:
+            fam_probs = [fam.size.mean_size(1.0) for fam in self.families]
+            fam_probs = np.array(fam_probs) / np.sum(fam_probs)
+            sample = np.random.multinomial(1, fam_probs, size=1)[0]     # Take the single sample.
+            i_family = np.argmax(sample)
+            fracture_set = self.families[i_family].sample(pos_distr, self.shape, i_fam = i_family, force_size=1)
+            fracture_set = fr_set.FractureSet.merge([fracture_set], population=self)
+        return fracture_set
         #
         # for ifam, fam in enumerate(self.families):
         #     fr_set.FractureSet(

@@ -1,5 +1,9 @@
+import os
+import numpy as np
+from bgem.stochastic import fr_set
+from bgem.gmsh import gmsh, options as gmsh_options, field as gmsh_field
 
-def make_mesh(geometry_dict, fractures: fracture.Fracture, mesh_name: str):
+def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
     """
     Create the GMSH mesh from a list of fractures using the bgem.gmsh interface.
     """

@@ -3,20 +3,20 @@ import numpy as np
 import math
 
 # from bgem
-from bgem.stochastic import fracture
+from bgem.stochastic import fr_set
 from bgem.bspline import brep_writer as bw
 from bgem import Transform
 from fixtures import sandbox_fname
 
 def test_trans():
     """
-    Create the BREP file from a list of fractures using the brep writer interface.
+    Create the BREP file from a list of fr_sets using the brep writer interface.
     """
     faces = []
-
-    frac_X1= fracture.Fracture(fracture.SquareShape,1.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, -2.0, 1.0]])/np.linalg.norm(np.array([[1.0, -2.0, 1.0]])),math.pi/4)
-    frac_X2= fracture.Fracture(fracture.SquareShape,2.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, 1.0, 2.0]])/np.linalg.norm(np.array([[1.0, 1.0, 2.0]])),math.pi/3)
-    frac_X3= fracture.Fracture(fracture.SquareShape,5.0, np.array([1.0, 5.0, 3.0]), np.array([[3.0, 2.0, 1.0]])/np.linalg.norm(np.array([[3.0, 2.0, 1.0]])),math.pi/6)
+    square_id = fr_set.RectangleShape().id
+    frac_X1= fr_set.Fracture(square_id, 1.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, -2.0, 1.0]])/np.linalg.norm(np.array([[1.0, -2.0, 1.0]])),math.pi/4)
+    frac_X2= fr_set.Fracture(square_id, 2.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, 1.0, 2.0]])/np.linalg.norm(np.array([[1.0, 1.0, 2.0]])),math.pi/3)
+    frac_X3= fr_set.Fracture(square_id, 5.0, np.array([1.0, 5.0, 3.0]), np.array([[3.0, 2.0, 1.0]])/np.linalg.norm(np.array([[3.0, 2.0, 1.0]])),math.pi/6)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)

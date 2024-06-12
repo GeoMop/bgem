@@ -5,7 +5,7 @@ import numpy as np
 import math
 
 # from bgem
-from bgem.stochastic.fracture import Fracture, SquareShape
+from bgem.stochastic import Fracture, RectangleShape
 from bgem.bspline import brep_writer as bw
 from bgem import Transform
 

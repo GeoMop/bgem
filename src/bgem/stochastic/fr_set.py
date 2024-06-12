@@ -21,13 +21,13 @@ TODO:
 .. TO Be Done
 """
 from typing import *
-from nptyping import NDArray, Shape, Float, Int32
 
 import attrs
+import math
 import numpy as np
+import numpy.typing as npt
 
 from bgem import fn
-from .fracture import Fracture, SquareShape
 
 """
 Reference fracture shapes. 
@@ -39,37 +39,68 @@ in order to be comparable in density (not necesarily in the connectivity).
 class BaseShape:
     """
     Abstract class.
+    All subclasses should represent shpapes with the area equal to 1.0.
+    TODO: check that aabb and unit area asre satisfied for individual shapes.
     """
 
-    pass
+    @staticmethod
+    def shape_for_id(id: int):
+        if id == 0:
+            return EllipseShape()
+        elif id == 1 or id == 4:
+            return RectangleShape()
+        elif id == 2:
+            return LineShape()
+        else:
+            return PolygonShape(id)
 
 
-class LineShape(BaseShape):
-    pass
-
-class EllipseShape(BaseShape):
-    """
-    Reference fracture shape  - unit disc.
-    """
-    def is_point_inside(self, x, y):
-        return x**2 + y**2 <= 1
-
-    def are_points_inside(self, points):
-        sq = points ** 2
-        return sq[:, 0] + sq[:, 1]  <= 1
-
+    @property
     def aabb(self):
         """
         Size of the bounding box for any rotation of the reference shape.
         For an isotropic reference shape we have a bounding box (-D,+D) x (-D,+D)
         :return: D - half of the box size
         """
-        return 1.0
+        half_size = np.ones(2) * self.scale
+        return np.stack([-half_size, half_size])
+
+
+
+class LineShape(BaseShape):
+    """
+    Does not fit to 3D conceptually. Introduce carefully once 3D case API is properly designed and tested.
+    """
+    id = 2
+
+    pass
+
+class EllipseShape(BaseShape):
+    """
+    Disc base fracture shape.
+    """
+
+    id = 0
+
+    def __init__(self):
+        # Radius of the reference disc.
+        self.scale = 1 / math.sqrt(math.pi)
+        self.scale_sqr = 1 / math.pi
+
+    def is_point_inside(self, x, y):
+        return x**2 + y**2 <= self.scale_sqr
+
+    def are_points_inside(self, points):
+        sq = points ** 2
+        return sq[:, 0] + sq[:, 1]  <= self.scale_sqr
+
 
 class RectangleShape(BaseShape):
     """
-    Reference square shape.
+    Reference square shape with area 1.0 and center at origin.
     """
+    id = 1
+
     def __init__(self):
         """
         Initializes a RegularPolygon instance for an N-sided polygon.
@@ -78,7 +109,7 @@ class RectangleShape(BaseShape):
         - N: Number of sides of the regular polygon.
         """
         # Square with area of unit disc.
-        self.half_side = np.sqrt(np.pi) / 2
+        self.scale = 0.5
 
     def is_point_inside(self, x, y):
         """
@@ -90,7 +121,7 @@ class RectangleShape(BaseShape):
         Returns:
         - True if the point is inside the polygon, False otherwise.
         """
-        return (math.abs(x) < self.half_side) and (math.abs(y) < self.half_side)
+        return (math.abs(x) < self.scale) and (math.abs(y) < self.scale)
 
     def are_points_inside(self, points):
         """
@@ -102,18 +133,10 @@ class RectangleShape(BaseShape):
         - A boolean NumPy array where each element indicates whether the respective
           point is inside the polygon.
         """
-        return np.max(np.abs(points), axis=1) < self.half_side
+        return np.max(np.abs(points), axis=1) < self.scale
 
-    def aabb(self):
-        """
-        Size of the bounding box for any rotation of the reference shape.
-        For an isotropic reference shape we have a bounding box (-D,+D) x (-D,+D)
-        :return: D - half of the box size
-        """
-        return np.sqrt(2.0)
 
 class PolygonShape(BaseShape):
-
     @classmethod
     def disc_approx(cls, x_scale, y_scale, step=1.0):
         n_sides = np.pi * min(x_scale, y_scale) / step
@@ -129,9 +152,19 @@ class PolygonShape(BaseShape):
         Args:
         - N: Number of sides of the regular polygon.
         """
+        assert N > 4
         self.N = N
-        self.theta_segment = 2 * math.pi / N  # Angle of each segment
-        self.R_inscribed = math.cos(self.theta_segment / 2)  # Radius of inscribed circle for R=1
+        self.theta_segment_half = math.pi / N       # half angle of each segment
+        self.cos_theta = math.cos(self.theta_segment_half)
+        self.scale = 1 / math.sqrt(N * math.sin(2 * self.theta_segment_half))
+        # Radius of circumcircle. For polygon of the unit area.
+        self.R_inscribed = self.cos_theta
+        # Radius of inscribed circle for R=1
+
+    @property
+    def id(self):
+        return self.N
+
 
     def is_point_inside(self, x, y):
         """
@@ -147,7 +180,7 @@ class PolygonShape(BaseShape):
         theta = math.atan2(y, x)  # Angle in polar coordinates
 
         # Compute the reminder of the angle and the x coordinate of the reminder point
-        theta_reminder = theta % self.theta_segment
+        theta_reminder = theta % self.theta_segment_half
         x_reminder = math.cos(theta_reminder) * r
 
         # Check if the x coordinate of the reminder point is less than
@@ -166,19 +199,9 @@ class PolygonShape(BaseShape):
         """
         r = np.sqrt(points[:, 0]**2 + points[:, 1]**2)
         theta = np.arctan2(points[:, 1], points[:, 0])
-        theta_reminder = theta % self.theta_segment
+        theta_reminder = theta % self.theta_segment_half
         x_reminder = np.cos(theta_reminder) * r
         return x_reminder <= self.R_inscribed
-
-    def aabb(self):
-        """
-        Size of the bounding box for any rotation of the reference shape.
-        For an isotropic reference shape we have a bounding box (-D,+D) x (-D,+D)
-        :return: D - half of the box size
-        TODO: more precise estimate, improve for radius scaling according to
-        same surface ar the Ellipse case.
-        """
-        return np.sqrt(2.0)
 
 
 
@@ -223,6 +246,61 @@ __shape_ids = {shape:i for i, shape in enumerate(__base_shapes)}
 
 
 
+def normal_to_axis_angle(normal): ## todo
+    """
+
+    """
+    z_axis = np.array([0, 0, 1], dtype=float)
+    norms = normal / np.linalg.norm(normal)
+    cos_angle = np.dot(norms, z_axis)
+    angle = np.arccos(cos_angle)
+    # sin_angle = np.sqrt(1-cos_angle**2)
+
+    axis = np.cross(z_axis, norms)
+    ax_norm = max(np.linalg.norm(axis), 1e-200)
+    axis = axis / ax_norm
+    #return axes, angles
+    return axis, angle
+
+def normals_to_axis_angles(normals): ## todo
+    """
+
+    """
+    z_axis = np.array([0, 0, 1], dtype=float)
+    norms = normals / np.linalg.norm(normals, axis=1)[:, None]
+    cos_angle = norms @ z_axis
+    angles = np.arccos(cos_angle)
+    # sin_angle = np.sqrt(1-cos_angle**2)
+
+    axes = np.cross(z_axis, norms, axisb=1)
+    ax_norm = np.maximum(np.linalg.norm(axes, axis=1), 1e-200)
+    axes = axes / ax_norm[:, None]
+    #return axes, angles
+    return np.concatenate([axes, angles[:, None]], axis=1)
+
+
+def rotate(vectors, axis=None, angle=0.0, axis_angle=None):
+    """
+    Rotate given vector around given 'axis' by the 'angle'.
+    :param vectors: array of 3d vectors, shape (n, 3)
+    :param axis_angle: pass both as array (4,)
+    :return: shape (n, 3)
+    """
+    if axis_angle is not None:
+        axis, angle = axis_angle[:3], axis_angle[3]
+    if angle == 0:
+        return vectors
+    vectors = np.atleast_2d(vectors)
+    cos_angle, sin_angle = np.cos(angle), np.sin(angle)
+    rotated = vectors * cos_angle \
+              + np.cross(axis, vectors, axisb=1) * sin_angle \
+              + axis[None, :] * (vectors @ axis)[:, None] * (1 - cos_angle)
+    # Rodrigues formula for rotation of vectors around axis by an angle
+    return rotated
+
+
+
+
 
 
 
@@ -233,25 +311,27 @@ class Fracture:
     Single fracture sample.
     TODO: modify to the acessor into the FrSet objects.
     """
-    shape_class: Any
-    # Basic fracture shape.
-    r: float
+    shape_idx: int
+    # Basic fracture shape idx.
+    radius: Tuple[float, float]
     # Fracture diameter, laying in XY plane
     center: np.array
     # location of the barycentre of the fracture
     normal: np.array
     # fracture normal
-    shape_angle: float
+    shape_axis: np.array = None
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
-    region_id: int # Union[str, int] = "fracture"
-    # name or ID of the physical group
-    family: 'FrFamily' = None
+    #region_id: int # Union[str, int] = "fracture"
+    # Family index in population. Could be used to identify group of fractures even for population = None
+    family: int = None
     # Original family, None if created manually (in tests)
-    aspect: float = 1
+    #aspect: float = 1
     # aspect ratio of the fracture =  y_length / x_length where  x_length == r
-    id: Any = None
+    #id: Any = None
     # any value associated with the fracture (DEPRECATED should be replaced by
     # FrValue class and fr_mesh code
+    population: 'Population' = None
+
 
     _rotation_axis: np.array = attrs.field(init=False, default=None)
     # axis of rotation
@@ -266,6 +346,22 @@ class Fracture:
     _ref_vertices: np.array = attrs.field(init=False, default=None)
     # local coordinates of the vertices (xy - plane)
 
+    @property
+    def shape_class(self):
+        return BaseShape.shape_for_id(self.shape_idx)
+
+    @property
+    def r(self):
+        return math.sqrt(self.radius[0] * self.radius[1])
+
+    @property
+    def aspect(self):
+        return self.radius[0] / self.radius[1]
+
+    @property
+    def shape_angle(self):
+        angle = np.arccos(self.shape_axis[0])
+        return angle
 
     @property
     def vertices(self):
@@ -281,11 +377,11 @@ class Fracture:
 
     @property
     def rx(self):
-        return self.r
+        return self.radius[0]
 
     @property
     def ry(self):
-        return self.r * self.aspect
+        return self.radius[1]
 
     @property
     def scale(self):
@@ -481,9 +577,9 @@ class Fracture:
 
 
 
-def array_attr(shape, dtype=Float, default=[]):
+def array_attr(shape, dtype=np.double, default=[]):
     return attrs.field(
-        type=NDArray[Shape[shape], dtype],
+        type=npt.NDArray[dtype],
         converter=np.array,
         default=default)
 
@@ -505,19 +601,42 @@ class FractureSet:
     #domain: NDArray[Shape['3'], Float]            # Box given by (3,) shape array
     #base_shapes : List[Any]                 # Unique reference shape classes
 
-    shape_idx = array_attr((attrs.field(type=NDArray[Any, Int32], converter=np.array)          # Base shape type index into 'base_shapes' list.
-    radius = attrs.field(type=NDArray[Any, Float], converter=np.array)             # shape (2, n_fractures), X and Y scaling of the reference shape.
-    center = attrs.field(type=NDArray[Any, Float], converter=np.array)              # center (3, n_fractures); translation of the reference shape to actual position
-    normal = attrs.field(type=NDArray[Any, Float], converter=np.array)              # fracture unit normal vectors.
+    #shape_idx = array_attr(shape=(-1,), dtype=np.int32)           # Base shape type index into 'base_shapes' list.
+    shape_idx = attrs.field(type=int)                             # keep fracture sets of common shape, that is far enough for practical applications
+    radius = array_attr(shape=(-1, 2), dtype=np.double)           # shape (2, n_fractures), X and Y scaling of the reference shape.
+    center = array_attr(shape=(-1, 3), dtype=np.double)           # center (3, n_fractures); translation of the reference shape to actual position
+    normal = array_attr(shape=(-1, 3), dtype=np.double)           # fracture unit normal vectors.
 
-    shape_axis = attrs.field(type=NDArray[Any, Float], converter=np.array)     # X reference unit vector in XY plane (2, n_fractures)
-    family: NDArray[Any, Int32] = None         # index of the fracture family
+    shape_axis = array_attr(shape=(-1, 2), dtype=np.double)       # X reference unit vector in XY plane (2, n_fractures)
+    family = array_attr(shape=(-1,), dtype=np.int32)                # index of the fracture family within population
 
-    population: 'Population' = None         # Generating population. Gives meaning to fr family indices.
+    population = attrs.field(type='Population', default=None)         # Generating population. Gives meaning to fr family indices.
+
+    def __len__(self):
+        return self.radius.shape[0]
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
     @property
     def base_shapes(self):
         return self.__module__.__base_shapes
+
+    @property
+    def _base_shape_area(self):
+        """
+        Array of areas of the unit/base shapes.
+        """
+        return np.array([shp.area for shp in self.base_shapes])
+
+    @fn.cached_property
+    def area(self):
+        """
+        Array of fracture areas
+        """
+        shape_factor = self._base_shape_area[self.shape_idx]
+        return shape_factor * np.prod(self.radius, axis=1)
 
     @classmethod
     def parallel_plates(cls, box, normal, shift=0):
@@ -538,7 +657,7 @@ class FractureSet:
         plates = [
             Fracture(
                 SquareShape,
-                r=diag,
+                radius=diag,
                 center=(i - n_fr // 2) * normal + shift * normal + box / 2.0,
                 normal=normal / separation,
                 shape_angle=0,
@@ -548,46 +667,72 @@ class FractureSet:
         return cls.from_list(plates)
 
     @classmethod
-    def from_list(cls, fr_list: List[Fracture]):
+    def area_sorted(cls, other: 'FractureSet') -> 'FractureSet':
+        area_order = np.argsort(other.area)
+        return cls(
+            shape_idx=other.shape_idx,
+            radius=other.radius[area_order],
+            center=other.center[area_order],
+            normal=other.normal[area_order],
+            shape_axis=other.shape_axis[area_order],
+            family=other.family[area_order],
+            population=other.population
+        )
+
+    @classmethod
+    def from_list(cls, fr_list: List[Fracture]) -> 'FractureSet':
         """
         Construct a fracture set from a list of 'Fracture' objects.
         :param fr_list:
         :return:
+        TODO: deal with shape_idx
+        TODO: fix shape_axis
         """
         fr_attribute = lambda attr : [getattr(fr, attr) for fr in fr_list]
-        shape_class_list = fr_attribute('shape_class')
+        shape_idx_list = fr_attribute('shape_idx')
         #base_shape = {}
-        shape_idx = [cls.shape_ids[sc] for sc in shape_class_list]
-        shape_angle = np.array(fr_attribute('shape_angle'))
-        shape_axis = np.stack((np.cos(shape_angle), np.sin(shape_angle)))
+        #shape_idx_set = {si for si in shape_class_list}
+        assert len(set(shape_idx_list)) == 1
+        shape_idx = shape_idx_list[0]
+
+        shape_axis = fr_attribute('shape_axis')
+        shape_axis = np.array([[1, 0] if sa is None else sa for sa in shape_axis])
+        shape_axis = np.stack(shape_axis, axis=0)
+
+        family_idx = np.full(len(fr_list), 0)
 
         return cls(
             shape_idx,
-            radius=fr_attribute('r'),
+            radius=fr_attribute('radius'),
             center=fr_attribute('center'),
             normal=fr_attribute('normal'),
             shape_axis=shape_axis,
-            family=fr_attribute('region_id')
+            family=family_idx
         )
 
+    @staticmethod
+    def _concat_attr(fr_sets, attr, size=0):
+        con = np.concatenate([getattr(fs, attr) for fs in fr_sets])
+        if size:
+            assert con.shape[0] == size
+        return con
 
     @classmethod
-    def merge(cls, fr_sets: List['FractureSet']) -> 'FractureSet':
+    def merge(cls, fr_sets: List['FractureSet'], population=None) -> 'FractureSet':
+        shape_idx_set = {fs.shape_idx for fs in fr_sets}
+        assert len(shape_idx_set) == 1
+        shape_idx = list(shape_idx_set)[0]
+        ccat = lambda attr : cls._concat_attr(fr_sets, attr)
         return cls(
-            base_shape,
             shape_idx,
-            radius=fr_attribute('r'),
-            center=fr_attribute('center'),
-            normal=fr_attribute('normal'),
-            shape_axis=shape_axis,
-            family=fr_attribute('region_id')
+            radius=ccat('radius'),
+            center=ccat('center'),
+            normal=ccat('normal'),
+            shape_axis=ccat('shape_axis'),
+            family=ccat('family'),
+            population = population
         )
 
-
-
-    @property
-    def size(self):
-        return len(self.normal)
 
     @fn.cached_property
     def AABB(self):
@@ -612,19 +757,67 @@ class FractureSet:
         y_vec = np.cross(z_vec, x_vec, axis=1)
         return np.stack((x_vec, y_vec, z_vec), axis=1)
 
+
+    def __getitem__(self, item):
+        family_idx = self.family[item]
+        return Fracture(
+            shape_idx=self.shape_idx,
+            radius=self.radius[item, :],
+            center=self.center[item, :],
+            normal=self.normal[item, :],
+            shape_axis=self.shape_axis[item, :],
+            family=family_idx,
+            population=self.population
+        )
+
 @attrs.define
 class FractureValues:
     """
     A quantities on the fracture set, one value for each fracture, constant on the fracture.
     """
     fractures: FractureSet
-    values: NDArray[Any, Float]
+    values: npt.NDArray[np.double]
 
 """
 Some Fracture Values Operations
 """
 def fr_values_permeability():
         pass
+
+
+class FractureMesh:
+    """
+    GMSH specific class for fracture mesh generation.
+    Mesh generation procedure:
+    1. Bulk GMSH geometry, functional approach allowing association of some data with parts of geometry.
+       Functional approach: refer to the shapes through Entities: dim_id set + dict property  -> PropertyValues;
+       ProperyValues: [value], {dim_id: value_idx}, works as dim_id -> value map (Shold exsits as a CompressedDict or SparseDict)
+
+       Operations: merge properties dicts, parent has priority Intersection - get A * B parent properties, optionaly get disable 'other' properties
+       cut - get parent properties
+       union - keep properties of A, B, intersection properties on A * B
+    2. Create fractures and apply them to the bulk geometry. Can apply to given bulk shape or to the whole geometry.
+       Cut fractures at shape boundary. => Intersection map: fracture -> Entity(dim_id set)
+    3. FractureMesh - various simplification and modification operations
+       FractureMap - attach entities and properties to mesh elements through gmsh_shape_ids (internaly)
+       Field ... could be defined with respect to fracture properties, access to element attached properties
+
+    Temporary solution until the functional GMSH approach would be implemented:
+    1. Assign fracture region IDs to the geometry fracture shapes after fragmentation -> return from fracture application
+    2. Create FractureMesh with element -> fracture properties (r, ...), should work as Fields having value only on fracture elements
+       FractureMehs should provide getters to fracture and bulk property fields:
+       bulk:
+       - center
+       - el_volume
+       - el_transform
+       - custom bulk declared properties
+       fracture (in adition):
+       - r
+       - normal
+       - fr_transform (for anisotropic properties on the reference fracture shape)
+       - fr_center
+       Fields could be constructed by first evaluate the bulk elements and then the fracture elements using fracture fields.
+    """
 
 class Fractures:
     """

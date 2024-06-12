@@ -14,7 +14,8 @@ from bgem.gmsh import options as gmsh_options
 from bgem.gmsh import field as gmsh_field
 from bgem.stochastic import frac_plane as FP
 from bgem.stochastic import frac_isec as FIC
-from bgem.stochastic import fracture
+from bgem.stochastic import fr_set
+from bgem.stochastic import dfn
 from bgem.bspline import brep_writer as bw
 from bgem import Transform
 from fixtures import sandbox_fname
@@ -67,7 +68,7 @@ fracture_stats = dict(
      #'plunge': 86,
      'strike': 95,
      'dip': 4
-     }]
+     })
 
 
 # TODO:
@@ -94,7 +95,7 @@ def plot_fr_orientation(fractures):
     family_dict = collections.defaultdict(list)
     for fr in fractures:
         x, y, z = \
-        fracture.FisherOrientation.rotate(np.array([0, 0, 1]), axis=fr.rotation_axis, angle=fr.rotation_angle)[0]
+        dfn.FisherOrientation.rotate(np.array([0, 0, 1]), axis=fr.rotation_axis, angle=fr.rotation_angle)[0]
         family_dict[fr.region].append([
             to_polar(z, y, x),
             to_polar(z, x, -y),
@@ -128,11 +129,11 @@ def generate_uniform(statistics, n_frac_limit):
     box_size = 100
     fracture_box = 3 * [box_size]
     #volume = np.product()
-    pop = fracture.Population.from_cfg(statistics, fracture_box)
+    pop = dfn.Population.from_cfg(statistics, fracture_box)
     #pop.initialize()
-    pop.set_sample_range([1, box_size], sample_size=n_frac_limit)
+    pop.set_range_from_size(sample_size=n_frac_limit)
     print("total mean size: ", pop.mean_size())
-    pos_gen = fracture.UniformBoxPosition(fracture_box)
+    pos_gen = dfn.UniformBoxPosition(fracture_box)
     fractures = pop.sample(pos_distr=pos_gen, keep_nonempty=True)
     # fracture.fr_intersect(fractures)
 
@@ -183,7 +184,7 @@ def create_fractures_polygons(gmsh_geom, fractures):
     return fracture_fragments
 
 
-def make_mesh(geometry_dict, fractures: fracture.Fracture, mesh_name: str):
+def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
     """
     Create the GMSH mesh from a list of fractures using the bgem.gmsh interface.
     """
@@ -502,34 +503,34 @@ def test_PowerLawSize():
     fig.legend()
     plt.show()
 
-def make_brep(geometry_dict, fractures: fracture.Fracture, brep_name: str):
-    """
-    Create the BREP file from a list of fractures using the brep writer interface.
-    """
-    #fracture_mesh_step = geometry_dict['fracture_mesh_step']
-    #dimensions = geometry_dict["box_dimensions"]
+# def make_brep(geometry_dict, fractures: fr_set.Fracture, brep_name: str):
+#     """
+#     Create the BREP file from a list of fractures using the brep writer interface.
+#     """
+#     #fracture_mesh_step = geometry_dict['fracture_mesh_step']
+#     #dimensions = geometry_dict["box_dimensions"]
+#
+#     print("n fractures:", len(fractures))
+#
+#     faces = []
+#     for i, fr in enumerate(fractures):
+#         #ref_fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]]) # polovina
+#         ref_fr_points = fr_set.RectangleShape()._points
+#         frac_points = fr.transform(ref_fr_points)
+#         vtxs = [bw.Vertex(p) for p in frac_points]
+#         vtxs.append(vtxs[0])
+#         edges = [bw.Edge(a, b) for a, b in zip(vtxs[:-1], vtxs[1:])]
+#         face = bw.Face(edges)
+#         faces.append(face)
+#
+#     comp = bw.Compound(faces)
+#     loc = Transform([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+#     with open(brep_name, "w") as f:
+#         bw.write_model(f, comp, loc)
 
-    print("n fractures:", len(fractures))
-
-    faces = []
-    for i, fr in enumerate(fractures):
-        #ref_fr_points = np.array([[1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]]) # polovina
-        ref_fr_points = fracture.SquareShape()._points
-        frac_points = fr.transform(ref_fr_points)
-        vtxs = [bw.Vertex(p) for p in frac_points]
-        vtxs.append(vtxs[0])
-        edges = [bw.Edge(a, b) for a, b in zip(vtxs[:-1], vtxs[1:])]
-        face = bw.Face(edges)
-        faces.append(face)
-
-    comp = bw.Compound(faces)
-    loc = Transform([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
-    with open(brep_name, "w") as f:
-        bw.write_model(f, comp, loc)
 
 
-
-def compute_intersections(fractures: fracture.Fracture):
+def compute_intersections(fractures: fr_set.Fracture):
     surface = []
     fracs = []
     edges = []
