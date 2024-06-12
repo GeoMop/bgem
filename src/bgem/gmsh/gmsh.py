@@ -2,7 +2,7 @@ import itertools
 from typing import *
 from collections import defaultdict
 import enum
-import attr
+import attrs
 import numpy as np
 import gmsh
 import re
@@ -57,7 +57,7 @@ gmsh_api, issues:
 
 
 
-@attr.s(auto_attribs=True)
+@attrs.define(auto_attribs=True)
 class Region:
     dim: Optional[int]
     id: int
@@ -520,8 +520,7 @@ class GeometryOCC:
         for i, fr in enumerate(fractures):
             shape = base_shape.copy()
             print("fr: ", i, "tag: ", shape.dim_tags)
-            shape = shape.scale([fr.rx, fr.ry, 1]) \
-                .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
+            shape = shape.transfrom(fr.transform_mat) \
                 .translate(fr.center) \
                 .set_region(fr.region)
 
