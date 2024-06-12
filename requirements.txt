@@ -4,3 +4,4 @@ pytest
 matplotlib
 joblib
 plotly
+pyvista   # fem plot
