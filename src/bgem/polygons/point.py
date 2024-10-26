@@ -1,5 +1,5 @@
-from . import idmap
-from .segment import right_side, left_side, out_vtx, in_vtx
+from bgem.src.bgem.polygons import idmap
+from bgem.src.bgem.polygons.segment import left_side, in_vtx
 import numpy as np
 
 
@@ -42,7 +42,7 @@ class Point(idmap.IdObject):
         if start[0] is None:
             return
         seg_side = start
-        while (1):
+        while 1:
             yield seg_side
             seg, side = seg_side
             seg, other_side = seg.next[side]
@@ -60,7 +60,7 @@ class Point(idmap.IdObject):
         Previous segment side, and next segment side relative from inserted vector and the
         wire separated by the vector.
         """
-        assert abs(vector[0])  > 1e-10 or abs(vector[1])  > 1e-10
+        assert abs(vector[0]) > 1e-10 or abs(vector[1]) > 1e-10
 
         if self.segment[0] is None:
             return None
@@ -85,9 +85,6 @@ class Point(idmap.IdObject):
         wire = prev[0].wire[prev[1]]
         # assert wire == next[0].wire[next[1]]
         return (prev, next, wire)
-
-
-
 
     def join_segment(self, seg, vtx):
         """
@@ -117,7 +114,6 @@ class Point(idmap.IdObject):
         self.poly = polygon
         polygon.free_points.add(self)
         self.segment = (None, None)
-
 
     def move(self, move_vec):
         """

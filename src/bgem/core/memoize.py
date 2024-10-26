@@ -1,9 +1,6 @@
-import logging
 from typing import *
-#import redis_cache
+import redis_cache
 import hashlib
-from functools import wraps
-import time
 import os
 
 
@@ -13,6 +10,7 @@ TODO: modify redis_simple_cache or our memoize decorator to hash also function c
  that one should aslo hash called function .. the whole tree
  more over we should also hash over serialization of classes
 """
+
 
 class EndorseCache:
     pass
@@ -48,12 +46,11 @@ class EndorseCache:
 #         return wrapper
 #     return decorator
 
+
 def memoize(fn):
     endorse_cache = EndorseCache.instance()
     redis_cache_deco = redis_cache.cache_it(limit=10000, expire=redis_cache.DEFAULT_EXPIRY, cache=endorse_cache.cache)
     return redis_cache_deco(fn)
-
-
 
 
 class File:
@@ -99,7 +96,8 @@ class File:
     #     """
     #     return cls(path, postponed=True)
     _hash_fn = hashlib.md5
-    def __init__(self, path: str, files:List['File'] = None):  # , hash:Union[bytes, str]=None) #, postponed=False):
+
+    def __init__(self, path: str, files: List['File'] = None):  # , hash:Union[bytes, str]=None) #, postponed=False):
         """
         For file 'path' create object containing both path and content hash.
         Optionaly the files referenced by the file 'path' could be passed by `files` argument
@@ -114,7 +112,7 @@ class File:
         self._set_hash()
 
     def __getstate__(self):
-        return (self.path, self.referenced_files)
+        return self.path, self.referenced_files
 
     def __setstate__(self, args):
         self.path, self.referenced_files = args
@@ -130,7 +128,7 @@ class File:
     @staticmethod
     def open(path, mode="wt"):
         """
-        Mode could only be 'wt' or 'wb', 'x' is added automaticaly.
+        Mode could only be 'wt' or 'wb', 'x' is added automatically.
         """
         exclusive_mode = {"w": "x", "wt": "xt", "wb": "xb"}[mode]
         # if os.path.isfile(path):
@@ -152,7 +150,6 @@ class File:
     def __str__(self):
         return f"File('{self.path}', hash={self.hash})"
 
-
     """
     Could be used from Python 3.11    
     @staticmethod
@@ -169,11 +166,11 @@ class File:
 
     @staticmethod
     def hash_for_file(path):
-        '''
+        """
         Block size directly depends on the block size of your filesystem
         to avoid performances issues
         Here I have blocks of 4096 octets (Default NTFS)
-        '''
+        """
         block_size = 256 * 128
         md5 = File._hash_fn()
         try:
@@ -183,9 +180,3 @@ class File:
         except FileNotFoundError:
             raise FileNotFoundError(f"Missing cached file: {path}")
         return md5
-
-
-"""
-
-
-"""

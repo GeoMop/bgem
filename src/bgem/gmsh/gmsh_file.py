@@ -7,9 +7,9 @@ import numpy as np
 import gmsh
 import re
 import warnings
-from bgem.gmsh import gmsh_exceptions
-from bgem.gmsh import options as gmsh_options
-from bgem.gmsh import gmsh_io
+from bgem.src.bgem.gmsh import gmsh_exceptions
+from bgem.src.bgem.gmsh import options as gmsh_options
+from bgem.src.bgem.gmsh import gmsh_io
 
 
 """
@@ -1076,8 +1076,8 @@ class ObjectSet:
         isec_obj = {k: dict_obj[k] for k in isec_set}
         isec_tool = {k: dict_tool[k] for k in isec_set}
 
-        out_objs = [ ObjectSet(factory, list(d.keys()), list(d.values()))
-                        for d in [cut_obj, cut_tool, isec_obj, isec_tool] ]
+        out_objs = [ObjectSet(factory, list(d.keys()), list(d.values()))
+                        for d in [cut_obj, cut_tool, isec_obj, isec_tool]]
         return out_objs
 
     def set_region_from_dimtag(self):
@@ -1095,7 +1095,7 @@ class ObjectSet:
         tool_objects = self.factory.group(*tool_objects).copy()
         try:
             new_tags, old_tags_map = operation(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
-        except ValueError as err :
+        except ValueError as err:
             message = "\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]), str(tool_objects.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
             self._raise_gmsh_exception(gerr, err)
@@ -1197,7 +1197,7 @@ class ObjectSet:
         Remove objects with the mass under the limit.
         """
         masses = [self.factory.model.getMass(*dt) for dt in self.dim_tags]
-        #for dt, mass in zip(self.dim_tags, masses):
+        # for dt, mass in zip(self.dim_tags, masses):
         #    print(dt, mass)
 
         dimtags = [dt for dt, m in zip(self.dim_tags, masses) if m > mass_limit]

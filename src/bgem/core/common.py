@@ -3,30 +3,28 @@ from typing import *
 import shutil
 import attrs
 import numpy.typing as npt
-
 from pathlib import Path
 import numpy as np
-import logging
-
 from .memoize import File
+
 
 class workdir:
     """
     Context manager for creation and usage of a workspace dir.
 
     name: the workspace directory
-    inputs: list of files and directories to copy into the workspaceand
+    inputs: list of files and directories to copy into the workspace and
         TODO: fine a sort of robust ad portable reference
     clean: if true the workspace would be deleted at the end of the context manager.
     TODO: clean_before / clean_after
-    TODO: File constructor taking current workdir environment, openning virtually copied files.
-    TODO: Workdir would not perform change of working dir, but provides system interface for: subprocess, file openning
+    TODO: File constructor taking current workdir environment, opening virtually copied files.
+    TODO: Workdir would not perform change of working dir, but provides system interface for: subprocess, file opening
           only perform CD just before executing a subprocess also interacts with concept of an executable.
     portable reference and with lazy evaluation. Optional true copy possible.
     """
     CopyArgs = Union[str, Tuple[str, str]]
-    def __init__(self, name:str="sandbox", inputs:List[CopyArgs] = None, clean=False):
 
+    def __init__(self, name: str = "sandbox", inputs: List[CopyArgs] = None, clean=False):
         if inputs is None:
             inputs = []
         self._inputs = inputs
@@ -37,16 +35,16 @@ class workdir:
 
     def copy(self, src, dest=None):
         """
-        :param src: Realtive or absolute path.
+        :param src: Relative or absolute path.
         :param dest: Relative path with respect to work dir.
                     Default is the same as the relative source path,
-                    for abs path it is the just the last name in the path.
+                    for abs path it is just the last name in the path.
         """
         if isinstance(src, File):
             src = src.path
         if isinstance(dest, File):
             dest = dest.path
-        #if dest == ".":
+        # if dest == ".":
         #    if os.path.isabs(src):
         #        dest = os.path.basename(src)
         #    else:
@@ -56,7 +54,7 @@ class workdir:
         dest = os.path.join(self.work_dir, dest, os.path.basename(src))
         dest_dir, _ = os.path.split(dest)
         if not os.path.isdir(dest_dir):
-            #print(f"MAKE DIR: {dest_dir}")
+            # print(f"MAKE DIR: {dest_dir}")
             Path(dest_dir).mkdir(parents=True, exist_ok=True)
         abs_src = os.path.abspath(src)
 
@@ -66,10 +64,10 @@ class workdir:
         elif os.path.isfile(dest):
             os.remove(dest)
 
-        # TODO: perform copy, link or redirectio to src during extraction of the File object from dictionary
+        # TODO: perform copy, link or redirection to src during extraction of the File object from dictionary
         # assumes custom tag for file, file_link, file_copy etc.
         if os.path.isdir(src):
-            #print(f"COPY DIR: {abs_src} TO DESTINATION: {dest}")
+            # print(f"COPY DIR: {abs_src} TO DESTINATION: {dest}")
             shutil.copytree(abs_src, dest, dirs_exist_ok=True)
         else:
             try:
@@ -79,7 +77,7 @@ class workdir:
 
     def __enter__(self):
         for item in self._inputs:
-            #print(f"treat workspace item: {item}")
+            # print(f"treat workspace item: {item}")
             if isinstance(item, Tuple):
                 self.copy(*item)
             else:
@@ -128,16 +126,16 @@ def substitute_placeholders(file_in: str, file_out: str, params: Dict[str, Any])
 
 def array_attr(shape, dtype=np.double, default=[]):
     """
-    Numpy array attribut definition for the attrs library.
+    Numpy array attribute definition for the attrs library.
     - shape and dtype specification and auto conversion
-    - defalut empty array
+    - default empty array
     """
     # Unfortunately broadcast_to does not support -1 in the target_shape
     # assume shape in form (-1, ...).
     assert shape[0] == -1
 
     def converter(x):
-        rev_shape = reversed( (len(x), *shape[1:]) )
+        rev_shape = reversed((len(x), *shape[1:]))
         return np.broadcast_to(np.array(x).T, rev_shape).T
 
     return attrs.field(
@@ -146,7 +144,7 @@ def array_attr(shape, dtype=np.double, default=[]):
         default=default)
 
 
-def sample_from_population(n_samples:int, frequency:Union[np.array, int]):
+def sample_from_population(n_samples: int, frequency: Union[np.array, int]):
     if type(frequency) is int:
         frequency = np.full(len(frequency), 1, dtype=int)
     else:
@@ -155,7 +153,7 @@ def sample_from_population(n_samples:int, frequency:Union[np.array, int]):
     cumul_freq = np.cumsum(frequency)
     total_samples = np.sum(frequency)
     samples = np.random.randint(0, total_samples, size=n_samples + 1)
-    samples[-1] = total_samples # stopper
+    samples[-1] = total_samples  # stopper
     sample_seq = np.sort(samples)
     # put samples into bins given by cumul_freq
     bin_samples = np.empty_like(samples)

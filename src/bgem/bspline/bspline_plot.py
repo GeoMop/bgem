@@ -1,19 +1,11 @@
 """
 Functions to plot Bspline curves and surfaces.
 """
-
-plot_lib = "plotly"
-
+import matplotlib.pyplot as plt
+import numpy as np
 import plotly.offline as pl
 import plotly.graph_objs as go
-
-from mpl_toolkits.mplot3d import Axes3D     # needed for usage of 3d projection
-import matplotlib.pyplot as plt
-from matplotlib import cm
-
-import numpy as np
-
-
+# from mpl_toolkits.mplot3d import Axes3D  # needed for usage of 3d projection
 
 
 class PlottingPlotly:
@@ -32,8 +24,7 @@ class PlottingPlotly:
             color='blue',
         )
         marker.update(kwargs)
-        self.data_2d.append( go.Scatter(x=X, y=Y, mode = 'lines', marker=marker) )
-
+        self.data_2d.append(go.Scatter(x=X, y=Y, mode='lines', marker=marker))
 
     def add_points_2d(self, X, Y, **kwargs):
         marker = dict(
@@ -41,16 +32,14 @@ class PlottingPlotly:
             color='red',
         )
         marker.update(kwargs)
-        self.data_2d.append(  go.Scatter(x=X, y=Y,
-                         mode = 'markers',
-                         marker=marker) )
-
+        self.data_2d.append(go.Scatter(x=X, y=Y,
+                                       mode='markers',
+                                       marker=marker))
 
     def add_surface_3d(self, X, Y, Z, **kwargs):
-        hue = (120.0*(len(self.data_3d)))%360
+        hue = (120.0 * (len(self.data_3d))) % 360
         colorscale = [[0.0, 'hsv({}, 50%, 10%)'.format(hue)], [1.0, 'hsv({}, 50%, 90%)'.format(hue)]]
-        self.data_3d.append( go.Surface(x=X, y=Y, z=Z, colorscale=colorscale))
-
+        self.data_3d.append(go.Surface(x=X, y=Y, z=Z, colorscale=colorscale))
 
     def add_points_3d(self, X, Y, Z, **kwargs):
         marker = dict(
@@ -63,12 +52,11 @@ class PlottingPlotly:
             opacity=0.6
         )
         marker.update(kwargs)
-        self.data_3d.append( go.Scatter3d(
+        self.data_3d.append(go.Scatter3d(
             x=X, y=Y, z=Z,
             mode='markers',
             marker=marker
         ))
-
 
     def show(self):
         """
@@ -77,10 +65,10 @@ class PlottingPlotly:
         """
         if self.data_3d:
             fig_3d = go.Figure(data=self.data_3d)
-            pl.plot(fig_3d, filename='bc_plot_3d_%d.html'%(self.i_figure))
+            pl.plot(fig_3d, filename='bc_plot_3d_%d.html' % (self.i_figure))
         if self.data_2d:
             fig_2d = go.Figure(data=self.data_2d)
-            pl.plot(fig_2d, filename='bc_plot_2d_%d.html'%(self.i_figure))
+            pl.plot(fig_2d, filename='bc_plot_2d_%d.html' % (self.i_figure))
         self._reinit()
 
 
@@ -88,7 +76,7 @@ class PlottingMatplot:
     def __init__(self):
         self.fig_2d = plt.figure(1)
         self.fig_3d = plt.figure(2)
-        #self.ax_3d = self.fig_3d.gca(projection='3d')
+        # self.ax_3d = self.fig_3d.gca(projection='3d')
         self.ax_3d = self.fig_3d.add_subplot(projection='3d')
 
     def add_curve_2d(self, X, Y, **kwargs):
@@ -120,7 +108,8 @@ class Plotting:
     Debug plotting class. Several 2d and 3d plots can be added and finally displayed on common figure
     calling self.show(). Matplotlib or plotly library is used as backend.
     """
-    def __init__(self, backend = PlottingPlotly()):
+
+    def __init__(self, backend=PlottingPlotly()):
         self.backend = backend
 
     def plot_2d(self, X, Y, **marker_dict):
@@ -165,14 +154,13 @@ class Plotting:
         if poles:
             self.plot_curve_poles_2d(curve)
 
-
     def plot_curve_poles_2d(self, curve):
         """
         Plot poles of the B-spline curve.
         :param curve: Curve t -> x,y
         :return: Plot object.
         """
-        x_poles, y_poles = curve.poles.T[0:2, :]    # remove weights
+        x_poles, y_poles = curve.poles.T[0:2, :]  # remove weights
         return self.backend.add_points_2d(x_poles, y_poles)
 
     def scatter_3d(self, X, Y, Z, **marker_dict):
@@ -182,7 +170,6 @@ class Plotting:
         :param Y: y-coords of points
         """
         self.backend.add_points_3d(X, Y, Z, **marker_dict)
-
 
     def plot_surface_3d(self, surface, n_points=(100, 100), poles=False):
         """
@@ -203,7 +190,7 @@ class Plotting:
         v_coord = np.linspace(v_basis.domain[0], v_basis.domain[1], n_points[1])
 
         U, V = np.meshgrid(u_coord, v_coord)
-        points = np.stack( [U.ravel(), V.ravel()], axis = 1 )
+        points = np.stack([U.ravel(), V.ravel()], axis=1)
 
         xyz = surface.eval_array(points)
         X, Y, Z = xyz.T
@@ -213,15 +200,12 @@ class Plotting:
         Z = Z.reshape(U.shape)
 
         # Plot the surface.
-        self.backend.add_surface_3d(X, Y,  Z)
+        self.backend.add_surface_3d(X, Y, Z)
 
         if poles:
             self.plot_surface_poles_3d(surface)
 
-
-
-
-    def plot_grid_surface_3d(self, surface,  n_points=(100, 100)):
+    def plot_grid_surface_3d(self, surface, n_points=(100, 100)):
         """
         Plot a surface in 3d, on UV plane.
 
@@ -233,7 +217,7 @@ class Plotting:
         v_coord = np.linspace(0, 1.0, n_points[1])
 
         U, V = np.meshgrid(u_coord, v_coord)
-        points = np.stack( [U.ravel(), V.ravel()], axis = 1 )
+        points = np.stack([U.ravel(), V.ravel()], axis=1)
 
         xyz = surface.eval_array(points)
         X, Y, Z = xyz.T
@@ -241,8 +225,7 @@ class Plotting:
         Z = Z.reshape(U.shape)
 
         # Plot the surface.
-        self.backend.add_surface_3d(U, V,  Z)
-
+        self.backend.add_surface_3d(U, V, Z)
 
     def plot_surface_poles_3d(self, surface, **kwargs):
         """
@@ -251,9 +234,8 @@ class Plotting:
         :param: kwargs: Additional parameters passed to the mtplotlib plot command.
         :return: Plot object.
         """
-        x_poles, y_poles, z_poles = surface.poles[:, :, 0:3].reshape(-1, 3).T          # remove weights and flatten nu, nv
+        x_poles, y_poles, z_poles = surface.poles[:, :, 0:3].reshape(-1, 3).T  # remove weights and flatten nu, nv
         return self.backend.add_points_3d(x_poles, y_poles, z_poles, **kwargs)
-
 
     def show(self):
         """

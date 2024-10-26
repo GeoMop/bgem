@@ -1,8 +1,9 @@
-
 import numpy as np
 import numpy.linalg as la
 
-from . import curve_point as CP, surface_point as SP, isec_curv_surf_point as ICSP
+from bgem.src.bgem.bspline import curve_point as CP
+from bgem.src.bgem.bspline import surface_point as SP
+from bgem.src.bgem.bspline import isec_curv_surf_point as ICSP
 
 
 class IsecCurveSurf:
@@ -71,10 +72,10 @@ class IsecCurveSurf:
         uvt = (min_bounds + max_bounds)/2
 
         iuvt = (iu, iv, it)
-        #uvt_basis = [self.surf.u_basis, self.surf.v_basis, self.curv.basis]
-        #bounds = [basis.knot_interval_bounds(iuvt[axis]) for axis, basis in enumerate(uvt_basis)]
-        #bounds = np.array(bounds).T  # shape (2, 3)
-        #uvt = np.average(bounds, axis=0)
+        # uvt_basis = [self.surf.u_basis, self.surf.v_basis, self.curv.basis]
+        # bounds = [basis.knot_interval_bounds(iuvt[axis]) for axis, basis in enumerate(uvt_basis)]
+        # bounds = np.array(bounds).T  # shape (2, 3)
+        # uvt = np.average(bounds, axis=0)
 
         for i in range(max_it):
             J, xyz1, xyz2 = self._compute_jacobian_and_coordinates(uvt, iuvt)
@@ -91,7 +92,6 @@ class IsecCurveSurf:
         xyz = (xyz1 + xyz2) / 2
 
         return uvt, conv, xyz
-
 
     def get_intersections(self, surf, curv, tree):
         """
@@ -138,6 +138,6 @@ class IsecCurveSurf:
     def _already_found(crossing, it):
 
         found = 0
-        if np.logical_or(crossing[it] == 1, crossing[it +1] == 1):
+        if np.logical_or(crossing[it] == 1, crossing[it + 1] == 1):
             found = 1
         return found

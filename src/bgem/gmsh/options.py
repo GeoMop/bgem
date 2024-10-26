@@ -33,9 +33,6 @@ gmsh_api, issues:
 """
 
 
-
-
-
 class Algorithm2d(enum.IntEnum):
     MeshAdapt = 1
     Automatic = 2
@@ -53,11 +50,13 @@ class Algorithm3d(enum.IntEnum):
     RTree = 9
     HXT = 10
 
+
 class QualityType(enum.IntEnum):
     SignedInversConditionNumber = 0     # SICN~signed inverse condition number (TODO: explain)
     SignedInverseGradientError = 1      # SIGE~signed inverse gradient error (TODO: explain)
     Gamma = 2                           # (default) gamma ~ vol / sum_face / max_edge; ( "element height" / diameter)
     Distorsion = 3                      # Disto~minJ / maxJ (TODO: explain)
+
 
 class OptionsBase:
     """
@@ -69,7 +68,7 @@ class OptionsBase:
     their own attributes. After that call of 'finish_init' will:
     1. collect existing attributes
     2. set appropriate GMSH options to default values
-    3. set __setattr__ method so that furhter assignements to attribute are translated to
+    3. set __setattr__ method so that further assignments to attribute are translated to
        setting the GMSH option.
 
     """
@@ -80,11 +79,8 @@ class OptionsBase:
         # Dictionary of valid options: option_name -> type
         object.__setattr__(self, '_sa', self.init_setattr)
 
-
-
     def finish_init(self):
         object.__setattr__(self, '_sa', self.instance_setattr)
-
 
     def _add(self, gmsh_name, default):
         """
@@ -104,14 +100,11 @@ class OptionsBase:
     def __setattr__(self, key, value):
         self._sa(key, value)
 
-
     def init_setattr(self, key, value):
         """
         Syntactic sugar for _add.
         """
         self._add(key, value)
-
-
 
     def instance_setattr(self, key, value):
         assert key in self.names_map, "Unknown option {}.".format(key)
@@ -193,7 +186,7 @@ class Geometry(OptionsBase):
         # # Tolerance for matching mesh and geometry
 
         self.AutoCoherence = 1
-        # 1 - automaticaly remove duplicate entities, 2 - automaticaly remove also degenerate entities
+        # 1 - automatically remove duplicate entities, 2 - automatically remove also degenerate entities
 
 
         self.OCCFixDegenerated = False

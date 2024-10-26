@@ -1,5 +1,5 @@
-
 import numpy as np
+
 
 class IsecCurve:
     """
@@ -18,7 +18,6 @@ class IsecCurve:
         self.surf = []
         self.loop = False
 
-
     #@classmethod
     def reverse(self):
         """
@@ -32,7 +31,6 @@ class IsecCurve:
         self.own_neighbours.reverse()
         self.other_neighbours.reverse()
         self.surf.reverse()
-
 
     #@classmethod
     def add_point(self, point, i_surf, own_info, other_info):
@@ -76,5 +74,3 @@ class IsecCurve:
 
         if np.logical_and(n1 > 0, n2 > 0):
             self.loop = True
-
-

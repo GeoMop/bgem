@@ -1,6 +1,3 @@
-import warnings
-
-
 def make_warning(cls):
     """
     Takes 'class_name' of an object and creates new type 'class_nameWarning'

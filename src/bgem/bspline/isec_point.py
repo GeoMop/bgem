@@ -2,12 +2,14 @@ import enum
 import numpy as np
 from .surface_point import SurfacePoint
 
+
 class Axis(enum.IntEnum):
     """
     Axis of the 2d bspline.
     """
     u = 0
     v = 1
+
 
 class IsecPoint:
     """
@@ -22,7 +24,6 @@ class IsecPoint:
         :param xyz: array of global coordinates as numpy array 3x1
         """
 
-
         self.duplicite_with = None
         # TODO: document attribute
         self.own_point: SurfacePoint = own_point
@@ -34,5 +35,3 @@ class IsecPoint:
         # Position of the intersection in 3d space.
         self.connected:bool = False
         # True if the point is connected to a curve.
-
-

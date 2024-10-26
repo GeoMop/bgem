@@ -1,11 +1,13 @@
 from typing import *
 import logging
 import os
-import attrs
-from . import dotdict, memoize, File, report, substitute_placeholders, workdir
+from bgem.src.bgem.core.config import dotdict
+from bgem.src.bgem.core.memoize import File
+from bgem.src.bgem.core.common import substitute_placeholders, workdir
 import subprocess
 from pathlib import Path
 import yaml
+
 
 def search_file(basename, extensions):
     """
@@ -17,6 +19,7 @@ def search_file(basename, extensions):
         if os.path.isfile(basename + ext):
             return File(basename + ext)
     return None
+
 
 class EquationOutput:
     def __init__(self, eq_name, balance_name):
@@ -48,7 +51,6 @@ class EquationOutput:
         """
         dict = self.balance_dict()
         pass
-
 
 
 class FlowOutput:
@@ -88,19 +90,21 @@ class FlowOutput:
                     continue
         return True
 
-#@memoize
+
+# @memoize
 def _prepare_inputs(file_in, params):
     in_dir, template = os.path.split(file_in)
     root = template.removesuffix(".yaml").removesuffix("_tmpl")
     template_path = Path(file_in).rename(Path(in_dir) / (root + "_tmpl.yaml"))
-    #suffix = "_tmpl.yaml"
-    #assert template[-len(suffix):] == suffix
-    #filebase = template[:-len(suffix)]
+    # suffix = "_tmpl.yaml"
+    # assert template[-len(suffix):] == suffix
+    # filebase = template[:-len(suffix)]
     main_input = Path(in_dir) / (root + ".yaml")
-    main_input, used_params =  substitute_placeholders(str(template_path), str(main_input), params)
+    main_input, used_params = substitute_placeholders(str(template_path), str(main_input), params)
     return main_input
 
-#@memoize
+
+# @memoize
 def _flow_subprocess(arguments, main_input):
     filebase, ext = os.path.splitext(os.path.basename(main_input.path))
     arguments.append(main_input.path)
@@ -114,9 +118,10 @@ def _flow_subprocess(arguments, main_input):
             completed = subprocess.run(arguments, stdout=stdout, stderr=stderr)
     return File(stdout_path), File(stderr_path), completed
 
-#@report
-#@memoize
-def call_flow(cfg:'dotdict', file_in:File, params: Dict[str,str]) -> FlowOutput:
+
+# @report
+# @memoize
+def call_flow(cfg: 'dotdict', file_in: File, params: Dict[str, str]) -> FlowOutput:
     """
     Run Flow123d in actual work dir with main input given be given template and dictionary of parameters.
 
@@ -140,5 +145,3 @@ def call_flow(cfg:'dotdict', file_in:File, params: Dict[str,str]) -> FlowOutput:
 
 # TODO:
 # - call_flow variant with creating dir, copy,
-
-
