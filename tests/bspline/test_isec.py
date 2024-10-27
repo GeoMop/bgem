@@ -1,8 +1,9 @@
-from bgem.bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as bp, bspline_approx as bsa
+from bgem.src.bgem.bspline import bspline_plot as bp
+from bgem.src.bgem.bspline import isec_surf_surf as iss
+from bgem.src.bgem.bspline import bspline_approx as bsa
 import numpy as np
 import math
 import pytest
-#import statprof
 
 
 class SurfApprox:
@@ -30,7 +31,8 @@ class SurfApprox:
         self.additive_function = additive_function
 
         def surfzf(X):
-            return -(self.plane_coefficients[0] * X[0] + self.plane_coefficients[1] * X[1] + self.plane_coefficients[3]) / self.plane_coefficients[2] + self.additive_function(3 * X[0])
+            return -(self.plane_coefficients[0] * X[0] + self.plane_coefficients[1] * X[1] + self.plane_coefficients[
+                3]) / self.plane_coefficients[2] + self.additive_function(3 * X[0])
 
         self.surfzf = surfzf
 
@@ -41,7 +43,8 @@ class SurfApprox:
         fc = np.zeros([self.x_n_samples * self.y_n_samples, 3])
         for i in range(self.x_n_samples):
             for j in range(self.y_n_samples):
-                fc[i + j * self.y_n_samples, 0:2] = [i / self.x_n_samples * self.x_length, j / self.y_n_samples * self.y_length]
+                fc[i + j * self.y_n_samples, 0:2] = [i / self.x_n_samples * self.x_length,
+                                                     j / self.y_n_samples * self.y_length]
                 fc[i + j * self.y_n_samples, 2] = self.surfzf(fc[i + j * self.y_n_samples, 0:2])
 
         approx = bsa.SurfaceApprox(bsa.SurfacePointSet(fc))
@@ -51,7 +54,7 @@ class SurfApprox:
         return err, surfzf
 
 
-#class TestIsecs():
+# class TestIsecs():
 #    run = TestIsec.TI()
 
 class TestIsec:
@@ -71,51 +74,49 @@ class TestIsec:
     - try to document which cases are covered by which parameters
     """
 
+
 coefficients = [
-        (np.array([-1, 1, -1, 7])),
-        (np.array([-1, 2, -1, 7])),
-    ]
+    (np.array([-1, 1, -1, 7])),
+    (np.array([-1, 2, -1, 7])),
+]
 
 control_points = [
-        ([5, 15]),
-        ([11, 10]) # best for debug
-    ]
+    ([5, 15]),
+    ([11, 10])  # best for debug
+]
 
 length = [
-        ([5, 7]),
-        ([2, 3]), # best for debug
-        ([6, 6])
-    ]
+    ([5, 7]),
+    ([2, 3]),  # best for debug
+    ([6, 6])
+]
 
 
 @pytest.mark.parametrize("plane_coefficients1", coefficients)
 @pytest.mark.parametrize("control_points_1", control_points)
 @pytest.mark.parametrize("length1", length)
 def test_surface_intersection(plane_coefficients1, control_points_1, length1):
+    plane_coefficients2 = np.array([2, -1, -1, 3])
 
-        plane_coefficients2 = np.array([2, -1, -1, 3])
+    def cosx(x):
+        return math.cos(3 * x)
 
-        def cosx(x):
-            return math.cos(3 * x)
+    length2 = [5, 7]
+    control_points_2 = [10, 11]
+    samples = [200, 200]
 
-        length2 = [5, 7]
-        control_points_2 = [10, 11]
-        samples = [200, 200]
+    # try:
+    # statprof.start()
+    sapp1 = SurfApprox(plane_coefficients1, length1, samples, control_points_1, cosx)
+    # statprof.stop()
+    # statprof.display()
+    # finally:
 
+    sapp2 = SurfApprox(plane_coefficients2, length2, samples, control_points_2, cosx)
 
-        #try:
-        #statprof.start()
-        sapp1 = SurfApprox(plane_coefficients1, length1, samples, control_points_1, cosx)
-        #statprof.stop()
-        #statprof.display()
-        #finally:
-
-        sapp2 = SurfApprox(plane_coefficients2, length2, samples, control_points_2, cosx)
-
-
-        #Test isec
-        ist = IntersectTest(sapp1, sapp2)
-        ist.test_isec()
+    # Test isec
+    ist = IntersectTest(sapp1, sapp2)
+    ist.test_isec()
 
 
 class IntersectTest:
@@ -124,20 +125,17 @@ class IntersectTest:
         self.surfapprox = surfapprox
         self.surfapprox2 = surfapprox2
 
-
     def plot(self):
         return
 
         myplot = bp.Plotting((bp.PlottingPlotly()))
         myplot.plot_surface_3d(self.surfapprox.surfz, poles=False)
         myplot.plot_surface_3d(self.surfapprox2.surfz, poles=False)
-        #myplot.scatter_3d(X, Y, Z)
-        myplot.show() # view
-        #return surfzf, surfzf2, myplot, err
+        # myplot.scatter_3d(X, Y, Z)
+        myplot.show()  # view
+        # return surfzf, surfzf2, myplot, err
 
     def test_isec(self):
-
-
         plane_coefficients1 = self.surfapprox.plane_coefficients
         plane_coefficients2 = self.surfapprox2.plane_coefficients
         additive_function = self.surfapprox.additive_function
@@ -151,7 +149,6 @@ class IntersectTest:
 
         def yp(x):
             return -(a * x + d) / b
-
 
         def srf(x):
             xpp = xp(x[1])
@@ -167,15 +164,8 @@ class IntersectTest:
         isec = iss.IsecSurfSurf(self.surfapprox.surfz, self.surfapprox2.surfz)
         point_list1, point_list2 = isec.get_intersection()
 
-
-
         tol = self.surfapprox.err + self.surfapprox2.err
         points = point_list1 + point_list2
 
         for point in points:
-            assert(np.linalg.norm(point.xyz - srf(point.xyz)) < tol), "intersection point tolerance has been exceeded."
-
-
-
-
-
+            assert (np.linalg.norm(point.xyz - srf(point.xyz)) < tol), "intersection point tolerance has been exceeded."

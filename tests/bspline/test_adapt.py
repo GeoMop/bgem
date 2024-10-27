@@ -1,8 +1,7 @@
-from bgem.bspline import bspline as bs, isec_surf_surf as iss, bspline_plot as bp, bspline_approx as bsa
+from bgem.src.bgem.bspline import bspline_plot as bp, bspline_approx as bsa
 import numpy as np
 import math
 import pytest
-#import statprof
 
 
 class SurfApprox:
@@ -30,18 +29,19 @@ class SurfApprox:
         self.additive_function = additive_function
 
         def surfzf(X):
-            return -(self.plane_coefficients[0] * X[0] + self.plane_coefficients[1] * X[1] + self.plane_coefficients[3]) / self.plane_coefficients[2] + self.additive_function(3 * X[0])
+            return -(self.plane_coefficients[0] * X[0] + self.plane_coefficients[1] * X[1] + self.plane_coefficients[
+                3]) / self.plane_coefficients[2] + self.additive_function(3 * X[0])
 
         self.surfzf = surfzf
 
         self.err, self.surfz = self.surf_app()
 
     def surf_app(self):
-
         fc = np.zeros([self.x_n_samples * self.y_n_samples, 3])
         for i in range(self.x_n_samples):
             for j in range(self.y_n_samples):
-                fc[i + j * self.y_n_samples, 0:2] = [i / self.x_n_samples * self.x_length, j / self.y_n_samples * self.y_length]
+                fc[i + j * self.y_n_samples, 0:2] = [i / self.x_n_samples * self.x_length,
+                                                     j / self.y_n_samples * self.y_length]
                 fc[i + j * self.y_n_samples, 2] = self.surfzf(fc[i + j * self.y_n_samples, 0:2])
 
         approx = bsa.SurfaceApprox(bsa.SurfacePointSet(fc))
@@ -49,8 +49,6 @@ class SurfApprox:
         err = approx.error
         surfzf = surfz.make_full_surface()
         return err, surfzf
-
-
 
 
 class TestAdapt:
@@ -70,51 +68,44 @@ class TestAdapt:
     - try to document which cases are covered by which parameters
     """
 
+
 coefficients = [
-        #(np.array([-1, 1, -1, 7])),
-        (np.array([-1, 2, -1, 7])),
-    ]
+    # (np.array([-1, 1, -1, 7])),
+    (np.array([-1, 2, -1, 7])),
+]
 
 control_points = [
-        #([5, 15]),
-        ([11, 10]) #
-    ]
+    # ([5, 15]),
+    ([11, 10])  #
+]
 
 length = [
-        #([5, 7]),
-        ([2, 3]), #
-        #([6, 6])
-    ]
+    # ([5, 7]),
+    ([2, 3]),  #
+    # ([6, 6])
+]
 
 
 @pytest.mark.parametrize("plane_coefficients1", coefficients)
 @pytest.mark.parametrize("control_points_1", control_points)
 @pytest.mark.parametrize("length1", length)
+def test_surface_intersection(plane_coefficients1, control_points_1, length1):  # plane_coefficients1
 
+    print(plane_coefficients1, control_points_1, length1)
 
-def test_surface_intersection(plane_coefficients1, control_points_1, length1): #plane_coefficients1
+    # plane_coefficients1 = np.array([-1, 1, -1, 7])
+    plane_coefficients2 = np.array([2, -1, -1, 3])
 
-        print(plane_coefficients1, control_points_1, length1)
+    def cosx(x):
+        return math.cos(3 * x)
 
+    length2 = [5, 7]
+    control_points_2 = [10, 11]
+    samples = [200, 200]
 
-        #plane_coefficients1 = np.array([-1, 1, -1, 7])
-        plane_coefficients2 = np.array([2, -1, -1, 3])
+    sapp2 = SurfApprox(plane_coefficients2, length2, samples, control_points_2, cosx)
 
-        def cosx(x):
-            return math.cos(3 * x)
-
-        length2 = [5, 7]
-        control_points_2 = [10, 11]
-        samples = [200, 200]
-
-
-        sapp2 = SurfApprox(plane_coefficients2, length2, samples, control_points_2, cosx)
-
-
-        myplot = bp.Plotting((bp.PlottingPlotly()))
-        myplot.plot_surface_3d(sapp2.surfz, poles=False)
-        myplot.show() # view
-
-
-
+    myplot = bp.Plotting((bp.PlottingPlotly()))
+    myplot.plot_surface_3d(sapp2.surfz, poles=False)
+    myplot.show()  # view
 

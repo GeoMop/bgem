@@ -1,12 +1,7 @@
-import attr
-from typing import Union
 import numpy as np
-from gmsh_api import gmsh
-from gmsh_api import options
-from gmsh_api import field
-from fracture import FractureShape
-
-import gmsh as raw_gmsh
+from bgem.src.bgem.gmsh import gmsh_file
+from bgem.src.bgem.gmsh import options
+from bgem.src.bgem.stochastic.dfn import FrFamily as FractureShape
 
 """
 Script for creation of a parametrized EGS model with fixed set of fractures.
@@ -31,13 +26,6 @@ possible ways:
 """
 
 
-
-
-
-
-
-
-
 def generate_mesh():
     r""" Create mesh and write it to a file.
 
@@ -53,15 +41,13 @@ def generate_mesh():
       If set to 1, messages during mesh generation will be printed.
     """
 
-    # geometry prameters
+    # geometry parameters
     box_size = 600
     well_radius = 3
     well_length = 300
     well_shift = 100
 
-
-
-    factory = gmsh.GeometryOCC("three_frac_symmetric", verbose=True)
+    factory = gmsh_file.GeometryOCC("three_frac_symmetric", verbose=True)
     gopt = options.Geometry()
     gopt.Tolerance = 1e-5
     gopt.ToleranceBoolean = 1e-3
@@ -73,12 +59,12 @@ def generate_mesh():
     side_z0 = side.copy().translate([0, 0, -box_size / 2])
     side_z1 = side.copy().translate([0, 0, +box_size / 2])
     sides = dict(
-        side_z0 = side.copy().translate([0, 0, -box_size / 2]),
-        side_z1 = side.copy().translate([0, 0, +box_size / 2]),
-        side_y0 = side_z0.copy().rotate([-1, 0, 0], np.pi / 2),
-        side_y1 = side_z1.copy().rotate([-1, 0, 0], np.pi / 2),
-        side_x0 = side_z0.copy().rotate([0, 1, 0], np.pi / 2),
-        side_x1 = side_z1.copy().rotate([0, 1, 0], np.pi / 2)
+        side_z0=side.copy().translate([0, 0, -box_size / 2]),
+        side_z1=side.copy().translate([0, 0, +box_size / 2]),
+        side_y0=side_z0.copy().rotate([-1, 0, 0], np.pi / 2),
+        side_y1=side_z1.copy().rotate([-1, 0, 0], np.pi / 2),
+        side_x0=side_z0.copy().rotate([0, 1, 0], np.pi / 2),
+        side_x1=side_z1.copy().rotate([0, 1, 0], np.pi / 2)
     )
     for name, side in sides.items():
         side.modify_regions(name)
@@ -86,27 +72,27 @@ def generate_mesh():
     b_box = box.get_boundary().copy()
 
     # two vertical cut-off wells, just permeable part
-    well_z_shift = -well_length/2
-    left_center =  [-well_shift, 0, 0]
+    well_z_shift = -well_length / 2
+    left_center = [-well_shift, 0, 0]
     right_center = [+well_shift, 0, 0]
-    left_well = factory.cylinder(well_radius, axis=[0, 0, well_length])\
-                    .translate([0,0,well_z_shift]).translate(left_center)
-    right_well = factory.cylinder(well_radius, axis=[0, 0, well_length])\
-                    .translate([0, 0, well_z_shift]).translate(right_center)
+    left_well = factory.cylinder(well_radius, axis=[0, 0, well_length]) \
+        .translate([0, 0, well_z_shift]).translate(left_center)
+    right_well = factory.cylinder(well_radius, axis=[0, 0, well_length]) \
+        .translate([0, 0, well_z_shift]).translate(right_center)
 
-    left_center =  [-0.6*well_shift, 0, 0]
-    right_center = [+0.6*well_shift, 0, 0]
+    left_center = [-0.6 * well_shift, 0, 0]
+    right_center = [+0.6 * well_shift, 0, 0]
 
     b_right_well = right_well.get_boundary()
     b_left_well = left_well.get_boundary()
 
-    # fracutres
+    # fractures
     fractures = [
         FractureShape(r, centre, axis, angle, region) for r, centre, axis, angle, region in
         [
-            (1.5 * well_shift, left_center,  [0, 1, 0], np.pi/6, 'left_fr'),
-            (1.5 * well_shift, right_center, [0, 1, 0], np.pi/6, 'right_fr'),
-            (well_shift, [0,0,0],      [0, 1, 0], -np.pi/3, 'center_fr')
+            (1.5 * well_shift, left_center, [0, 1, 0], np.pi / 6, 'left_fr'),
+            (1.5 * well_shift, right_center, [0, 1, 0], np.pi / 6, 'right_fr'),
+            (well_shift, [0, 0, 0], [0, 1, 0], -np.pi / 3, 'center_fr')
         ]]
     fractures = factory.make_fractures(fractures, factory.rectangle())
     fractures_group = factory.group(*fractures)
@@ -134,8 +120,6 @@ def generate_mesh():
     b_fractures = factory.group(b_fr_left_well, b_fr_right_well, b_fractures_box)
     mesh_groups = [*box_all, fractures_fr, b_fractures]
 
-
-
     factory.keep_only(*mesh_groups)
     factory.remove_duplicate_entities()
     factory.write_brep()
@@ -144,11 +128,10 @@ def generate_mesh():
     fracture_el_size = box_size / 20
     max_el_size = box_size / 10
 
-
     fractures_fr.set_mesh_step(200)
-    #fracture_el_size = field.constant(100, 10000)
-    #frac_el_size_only = field.restrict(fracture_el_size, fractures_fr, add_boundary=True)
-    #field.set_mesh_step_field(frac_el_size_only)
+    # fracture_el_size = field.constant(100, 10000)
+    # frac_el_size_only = field.restrict(fracture_el_size, fractures_fr, add_boundary=True)
+    # field.set_mesh_step_field(frac_el_size_only)
 
     mesh = options.Mesh()
     mesh.ToleranceInitialDelaunay = 0.0001
@@ -160,10 +143,9 @@ def generate_mesh():
     mesh.MinimumCurvePoints = 12
 
     factory.make_mesh(mesh_groups)
-    factory.write_mesh(format=gmsh.MeshFormat.msh2)
+    factory.write_mesh(format=gmsh_file.MeshFormat.msh2)
 
     factory.show()
-
 
 
 if __name__ == "__main__":

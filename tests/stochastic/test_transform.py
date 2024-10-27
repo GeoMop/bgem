@@ -3,10 +3,11 @@ import numpy as np
 import math
 
 # from bgem
-from bgem.stochastic import fr_set
-from bgem.bspline import brep_writer as bw
-from bgem import Transform
-from fixtures import sandbox_fname
+from bgem.src.bgem.stochastic import fr_set
+from bgem.src.bgem.bspline import brep_writer as bw
+from bgem.src.bgem.transform import Transform
+from bgem.tests.fixtures import sandbox_fname
+
 
 def test_trans():
     """
@@ -14,9 +15,12 @@ def test_trans():
     """
     faces = []
     square_id = fr_set.RectangleShape().id
-    frac_X1= fr_set.Fracture(square_id, 1.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, -2.0, 1.0]])/np.linalg.norm(np.array([[1.0, -2.0, 1.0]])),math.pi/4)
-    frac_X2= fr_set.Fracture(square_id, 2.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, 1.0, 2.0]])/np.linalg.norm(np.array([[1.0, 1.0, 2.0]])),math.pi/3)
-    frac_X3= fr_set.Fracture(square_id, 5.0, np.array([1.0, 5.0, 3.0]), np.array([[3.0, 2.0, 1.0]])/np.linalg.norm(np.array([[3.0, 2.0, 1.0]])),math.pi/6)
+    frac_X1 = fr_set.Fracture(square_id, 1.0, np.array([1.0, 5.0, 3.0]),
+                              np.array([[1.0, -2.0, 1.0]]) / np.linalg.norm(np.array([[1.0, -2.0, 1.0]])), math.pi / 4)
+    frac_X2 = fr_set.Fracture(square_id, 2.0, np.array([1.0, 5.0, 3.0]),
+                              np.array([[1.0, 1.0, 2.0]]) / np.linalg.norm(np.array([[1.0, 1.0, 2.0]])), math.pi / 3)
+    frac_X3 = fr_set.Fracture(square_id, 5.0, np.array([1.0, 5.0, 3.0]),
+                              np.array([[3.0, 2.0, 1.0]]) / np.linalg.norm(np.array([[3.0, 2.0, 1.0]])), math.pi / 6)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)
@@ -26,22 +30,22 @@ def test_trans():
     X2_vertr = frac_X2.back_transform(X2_vert)
     X3_vertr = frac_X3.back_transform(X3_vert)
 
-    faces = get_face(X1_vert,faces)
-    faces = get_face(X2_vert,faces)
-    faces = get_face(X3_vert,faces)
+    faces = get_face(X1_vert, faces)
+    faces = get_face(X2_vert, faces)
+    faces = get_face(X3_vert, faces)
     faces = get_face(X1_vertr, faces)
     faces = get_face(X2_vertr, faces)
     faces = get_face(X3_vertr, faces)
 
     comp = bw.Compound(faces)
     loc = Transform([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
-    with open(sandbox_fname('trans_test','brep'), "w") as f:
+    with open(sandbox_fname('trans_test', 'brep'), "w") as f:
         bw.write_model(f, comp, loc)
 
     return
 
-def get_face(frac,faces):
 
+def get_face(frac, faces):
     v1 = bw.Vertex(frac[0, :])
     v2 = bw.Vertex(frac[1, :])
     v3 = bw.Vertex(frac[2, :])
