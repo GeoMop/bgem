@@ -6,6 +6,7 @@ def equivalent_scalar(loads, responses):
     assert loads.shape[1] == responses.shape[1] == 1
     return np.dot(loads[:, 0], responses[:, 0]) / np.dot(loads[:, 0], loads[:, 0])
 
+
 def equivalent_sym_tensor_3d(loads, responses):
     """
     :param loads: array, (N, dim), e.g grad pressure  grad_p(x)
@@ -67,7 +68,6 @@ _equivalent_sym_tensor = {
     2: equivalent_sym_tensor_2d,
     3: equivalent_sym_tensor_3d
 }
-
 
 
 def equivalent_posdef_tensor(loads, responses):

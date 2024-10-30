@@ -1,9 +1,10 @@
-import copy
 import enum
 import numpy as np
 from typing import *
 from . import bspline
-from bgem import Transform, check_matrix, ParamError
+from bgem.src.bgem.transform import Transform
+from bgem.src.bgem.transform import check_matrix
+from bgem.src.bgem.exceptions import ParamError
 
 '''
 TODO:
@@ -37,7 +38,7 @@ class BREPGroup(enum.IntEnum):
 class BREPObject:
     """
     Basic class of the BREP objects, define common methods necessary for the
-    file output. Objects forms a tree (or possibly DAG) and can be processed
+    file output. Objects form a tree (or possibly DAG) and can be processed
     be a graph search without maintaining global structures.
     """
 
@@ -131,8 +132,6 @@ class BREPObject:
         pass
 
 
-
-
 LocationPower = Tuple[Transform, int]
 
 
@@ -158,7 +157,6 @@ class Location(BREPObject):
             return _IdentityLocation.instance()
         else:
             return Location(transform)
-
 
     def __init__(self, transform: Transform):
         super().__init__(group=BREPGroup.locations)
@@ -186,9 +184,11 @@ class Location(BREPObject):
                 stream.write(" {}".format(number))
             stream.write("\n")
 
-Identity = Transform()
-class _IdentityLocation(Location):
 
+Identity = Transform()
+
+
+class _IdentityLocation(Location):
     @classmethod
     def instance(cls):
         if not hasattr(cls, '_instance'):
@@ -675,7 +675,7 @@ class Shape(BREPObject):
         assert hasattr(self, 'sub_types'), self
 
         # convert list of shape reference tuples to ShapeRef objects
-        # automaticaly wrap naked shapes into tuple.
+        # automatically wrap naked shapes into tuple.
         self._subshape_refs = []
         for child in children:
             self.append(child)  # append convert to ShapeRef
@@ -683,7 +683,7 @@ class Shape(BREPObject):
         self._dim = dim
         # Shape dimensionality.
 
-        # Thes flags are usualy produced by OCC for all other shapes safe vertices.
+        # These flags are usually produced by OCC for all other shapes safe vertices.
         self.flags = ShapeFlag(0, 1, 0, 1, 0, 0, 0)
 
         super().__init__(group=BREPGroup.shapes)
@@ -1138,13 +1138,13 @@ class Edge(Shape):
         for i, repr in enumerate(self.repr):
             if repr[0] == self.Repr.Curve2d:
                 curve_type, t_range, curve, surface, location = repr
-                #print(f"E2: {location.brep_id}")
+                # print(f"E2: {location.brep_id}")
                 stream.write("2 {} {} {} {} {}\n".format(
                     curve.brep_id, surface.brep_id, location.brep_id, t_range[0], t_range[1]))
 
             elif repr[0] == self.Repr.Curve3d:
                 curve_type, t_range, curve, location = repr
-                #print(f"E1: {location.brep_id}")
+                # print(f"E1: {location.brep_id}")
                 stream.write("1 {} {} {} {}\n".format(curve.brep_id, location.brep_id, t_range[0], t_range[1]))
         stream.write("0\n")
 
@@ -1303,7 +1303,7 @@ def make_locations(locations):
     """
     Expand composed Transforms.
     Create Locations for basic transforms.
-    Compress (reuse basic transfroms).
+    Compress (reuse basic transforms).
     """
     simple_loc_map = {}
     composed_loc_list = []
@@ -1317,6 +1317,7 @@ def make_locations(locations):
     for i, loc in enumerate(new_locations):
         loc._brep_id = i
     return new_locations
+
 
 def write_model(stream, compound, transform=Identity):
     """
@@ -1449,7 +1450,7 @@ class Factory:
         for f_bot in shape.children(recursive=True, of_type=Face):
             top_wires = [top_wire(bot_wire.shape) for bot_wire in f_bot.subrefs()]
             surf, loc = f_bot.repr[0]
-            f_top = Face(top_wires, surface=surf, transform= shift_transform @ loc.transform)
+            f_top = Face(top_wires, surface=surf, transform=shift_transform @ loc.transform)
             top_map[id(f_bot)] = f_top
 
             faces_extr_refs = [map_shape_ref(edge, extrusion_map) for edge in f_bot.edge_refs()]

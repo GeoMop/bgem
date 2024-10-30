@@ -1,6 +1,7 @@
-from . import idmap
-from .segment import right_side, left_side, out_vtx, in_vtx
+from bgem.src.bgem.polygons import idmap
+from bgem.src.bgem.polygons.segment import right_side, out_vtx
 import numpy as np
+
 
 class Polygon(idmap.IdObject):
 
@@ -10,7 +11,6 @@ class Polygon(idmap.IdObject):
         # outer boundary wire
         self.free_points = set()
         # Dict ID->pt of free points inside the polygon.
-
 
     def __repr__(self):
         outer = self.outer_wire.id
@@ -27,7 +27,7 @@ class Polygon(idmap.IdObject):
         """
         depth = 0
         wire = self.outer_wire
-        while (not wire.is_root()):
+        while not wire.is_root():
             depth += 1
             wire = wire.parent
         return depth
@@ -35,7 +35,7 @@ class Polygon(idmap.IdObject):
     def vertices(self):
         """
         LAYERS
-        Return list of polygon vertices (point objects) in counter clockwise direction.
+        Return list of polygon vertices (point objects) in counterclockwise direction.
         :return:
         """
         if self.outer_wire.is_root():
@@ -65,9 +65,7 @@ class Polygon(idmap.IdObject):
         return True
 
 
-
 class Wire(idmap.IdObject):
-
     def __init__(self):
         self.parent = self
         # Wire that contains this wire. None for the global outer boundary.
@@ -113,7 +111,7 @@ class Wire(idmap.IdObject):
     # def segments(self, start = (None, None), end = (None, None)):
     #     """
     #     DEBUG VERSION.
-    #     Yields all (segmnet, side) of the same wire as the 'start' segment side,
+    #     Yields all (segment, side) of the same wire as the 'start' segment side,
     #     up to end segment side.
     #     """
     #     if self.is_root():
@@ -135,11 +133,11 @@ class Wire(idmap.IdObject):
     #         if (seg_side[0], seg_side[1]) in visited:
     #
     #             assert False, "Repeated seg: {}\nVisited: {}".format(seg_side, visited)
-    #         assert not seg_side == start, "Inifinite loop."
+    #         assert not seg_side == start, "Infinite loop."
 
     def segments(self, start=(None, None), end=(None, None)):
         """
-        Yields all (segmnet, side) of the same wire as the 'start' segment side,
+        Yields all (segment, side) of the same wire as the 'start' segment side,
         up to end segment side.
         """
         if self.is_root():
@@ -150,17 +148,17 @@ class Wire(idmap.IdObject):
             end = start
 
         seg_side = start
-        while (1):
+        while 1:
             yield seg_side
             segment, side = seg_side
             seg_side = segment.next[side]
             if seg_side == end:
                 break
-            assert not seg_side == start, "Inifinite loop."
+            assert not seg_side == start, "Infinite loop."
 
     # def outer_segments(self):
     #     """
-    #     :return: List of boundary componencts without tails. Single component is list of segments (with orientation)
+    #     :return: List of boundary components without tails. Single component is list of segments (with orientation)
     #     that forms outer boundary, i.e. excluding internal tails, i.e. segments appearing just once.
     #     TODO: This is not reliable for dendrites with holes. We should use whole wire for plotting.
     #     Then remove this method.
@@ -171,7 +169,7 @@ class Wire(idmap.IdObject):
 
     def neighbors(self):
         """
-        Return list of all neighoring wires with same depth.
+        Return list of all neighbouring wires with same depth.
         :return:
         """
         return [seg.wire[1 - side] for seg, side in self.segments()]
@@ -226,5 +224,3 @@ class Wire(idmap.IdObject):
         yield self
         for child in self.childs:
             yield from child.child_wires()
-
-

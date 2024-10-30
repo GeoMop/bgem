@@ -1,10 +1,10 @@
 """
 Visualize meaning of the exponent in power law size distribution.
-Estimate Hausdorf dimension numericaly for a large set of fractures.
+Estimate Hausdorf dimension numerically for a large set of fractures.
 
 
 Conclusion:
-- fractures with homogeneous possition can not have Hausdorf dimension given by the power
+- fractures with homogeneous position can not have Hausdorf dimension given by the power
   parameter of the power law and have dimension close to 2 according to their density
 - we need to include the correlation between the positions (and possibly orientations)
 """
@@ -13,12 +13,11 @@ from PIL import ImageDraw
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import collections  as mc
-from bgem.stochastic import dfn
+from matplotlib import collections as mc
+from bgem.src.bgem.stochastic import dfn
 
 
 def boxcount(Z, k):
-
     S = np.add.reduceat(
         np.add.reduceat(Z, np.arange(0, Z.shape[1], k), axis=1),
         np.arange(0, Z.shape[0], k), axis=0)
@@ -30,14 +29,12 @@ def boxcount(Z, k):
 
 
 def fractal_dimension(img, threshold=1):
-
     a = np.array(img)
-    Z = a[:, : , 0]
+    Z = a[:, :, 0]
     # Only for 2d image
-    assert(len(Z.shape) == 2)
+    assert (len(Z.shape) == 2)
 
     # From https://github.com/rougier/numpy-100 (#87)
-
 
     # Transform Z into a binary array
     Z = (Z < threshold)
@@ -46,21 +43,21 @@ def fractal_dimension(img, threshold=1):
     p = min(Z.shape)
 
     # Greatest power of 2 less than or equal to p
-    n = 2**np.floor(np.log(p)/np.log(2))
+    n = 2 ** np.floor(np.log(p) / np.log(2))
 
     # Extract the exponent
-    n = int(np.log(n)/np.log(2))
+    n = int(np.log(n) / np.log(2))
 
     # Build successive box sizes (from 2**n down to 2**1)
-    sizes = 2**np.arange(n, 1, -1)
+    sizes = 2 ** np.arange(n, 1, -1)
 
     # Actual box counting with decreasing size
-    counts = [boxcount(Z, size) for size in sizes ]
+    counts = [boxcount(Z, size) for size in sizes]
     print("sizes: ", np.log(sizes))
     print("counts: ", np.log(counts) / np.log(sizes))
     # Fit the successive log(sizes) with log (counts)
     coeffs = np.polyfit(np.log(sizes), np.log(counts), 1)
-    plt.scatter(np.log(sizes), np.log(counts) )
+    plt.scatter(np.log(sizes), np.log(counts))
     plt.show()
     return -coeffs[0]
 
@@ -68,24 +65,24 @@ def fractal_dimension(img, threshold=1):
 def scale_cut(x, s):
     return tuple([max(0, min(sv, int(sv * xv))) for xv, sv in zip(x[:2], s)])
 
+
 def plot_sizes(sizes, sample_range, size_distr):
     N = 10000
     fig = plt.figure(figsize=(100, 100))
     ax = fig.add_subplot(1, 1, 1)
     ax.set_xscale('log')
-    #ax.hist(sizes, bins=100, cumulative=True)
+    # ax.hist(sizes, bins=100, cumulative=True)
     x = np.geomspace(*sample_range, 100)
-    #powlaw_scale = [x ** (1- power) / (1- power) for x in reversed(sample_range)]
-    #powlaw_scale = powlaw_scale[0] - powlaw_scale[1]
-    #ax.plot(x, 1/powlaw_scale * N * x**-power)
+    # powlaw_scale = [x ** (1- power) / (1- power) for x in reversed(sample_range)]
+    # powlaw_scale = powlaw_scale[0] - powlaw_scale[1]
+    # ax.plot(x, 1/powlaw_scale * N * x**-power)
     sizes.sort()
     ax.plot(sizes, np.linspace(0, N, len(sizes)), c='red')
-    ax.plot(x, [N*size_distr .cdf(xv, sample_range) for xv in x], c='green')
+    ax.plot(x, [N * size_distr.cdf(xv, sample_range) for xv in x], c='green')
     plt.show()
 
 
 def plot_dfn(power):
-
     s = (1000, 1000)
 
     im = Image.new('RGBA', s, (255, 255, 255, 255))
@@ -96,16 +93,16 @@ def plot_dfn(power):
     power = 2.1
     conf_range = [0.001, 1]
     p_32 = 100
-    #p_32 = 0.094
-    size = dfn.PowerLawSize.from_mean_area(power-1, conf_range, p_32, power)
+    # p_32 = 0.094
+    size = dfn.PowerLawSize.from_mean_area(power - 1, conf_range, p_32, power)
     family = dfn.FrFamily(
-                orientation=dfn.FisherOrientation(0, 90, 0),
-                size=size,
-                shape_angle=dfn.VonMisesOrientation(0, 0)
-               )
+        orientation=dfn.FisherOrientation(0, 90, 0),
+        size=size,
+        shape_angle=dfn.VonMisesOrientation(0, 0)
+    )
     pop = dfn.Population(
-            domain=(fracture_box[0], fracture_box[1], 0),
-            families=[family]
+        domain=(fracture_box[0], fracture_box[1], 0),
+        families=[family]
     )
     pop.set_sample_range(sample_range)
     pos_gen = dfn.UniformBoxPosition(fracture_box)
@@ -118,16 +115,16 @@ def plot_dfn(power):
         t = 0.5 * fr.r * np.array([-fr.normal[2], fr.normal[1], 0])
         a = scale_cut(0.5 + fr.center - t, s)
         b = scale_cut(0.5 + fr.center + t, s)
-        draw.line((a, b), fill=(0,0,0), width=1)
+        draw.line((a, b), fill=(0, 0, 0), width=1)
         sizes.append(fr.r)
 
-    #plot_sizes(sizes, sample_range, pop.families[0].size)
+    # plot_sizes(sizes, sample_range, pop.families[0].size)
 
-    #ax.imshow(np.asarray(im),  origin='lower')
+    # ax.imshow(np.asarray(im),  origin='lower')
     im.show()
 
     print("Minkowski–Bouligand dimension (computed): ", fractal_dimension(im))
-    print("Hausdorff dim (exp.): ", power-2)
+    print("Hausdorff dim (exp.): ", power - 2)
 
     # ax.line
     # pos_gen = fracture.UniformBoxPosition(fracture_box)

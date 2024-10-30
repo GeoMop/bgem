@@ -4,9 +4,10 @@
 # from matplotlib import patches as mp
 import pytest
 
-from bgem.polygons.polygons import *
-from bgem.polygons.decomp import PolygonChange
-from bgem.polygons.plot_polygons import plot_polygon_decomposition
+from bgem.src.bgem.polygons.polygons import *
+from bgem.src.bgem.polygons.polygons.decomp import PolygonChange
+
+
 #
 # def plot_polygon(self, polygon):
 #     if polygon is None or polygon.displayed or polygon.outer_wire.is_root():
@@ -47,11 +48,10 @@ from bgem.polygons.plot_polygons import plot_polygon_decomposition
 #
 #     plt.show()
 
-
 def test_snap_point():
     pd = PolygonDecomposition()
     decomp = pd.decomp
-    
+
     # vlines
     pd.add_line([0, 0], [0, 4])
     pd.add_line([1, 1], [1, 3])
@@ -67,13 +67,11 @@ def test_snap_point():
     pd.add_line([0, 4], [6, 4])
     # diagonal
     pd.add_line([0, 2], [2, 4])
-    #plot_polygon_decomposition(decomp)
-    #decomp.check_consistency()
+    # plot_polygon_decomposition(decomp)
+    # decomp.check_consistency()
     pd.add_line([0, 3], [1, 4])
     pd.add_line([0.5, 0], [0, 0.5])
     decomp.check_consistency()
-
-
 
     def check_snap(dim, obj, snap):
         dim_, obj_, param_ = snap
@@ -105,26 +103,27 @@ def test_check_displacement():
     pt0 = sg.vtxs[0]
     decomp.add_line((0, 0), (2, 0))
     decomp.add_line((0, 2), (2, 0))
-    pt = decomp.add_point((.5,.5))
-    decomp.add_line((0, 0), (.5,.5))
-    decomp.add_line((2, 0), (.5,.5))
-    decomp.add_line( (.5,.5), (0, 2))
-    #print(decomp)
-    #plot_polygon_decomposition(decomp)
+    pt = decomp.add_point((.5, .5))
+    decomp.add_line((0, 0), (.5, .5))
+    decomp.add_line((2, 0), (.5, .5))
+    decomp.add_line((.5, .5), (0, 2))
+    # print(decomp)
+    # plot_polygon_decomposition(decomp)
 
-    res = decomp.check_displacment([pt0, pt], (1.0, 1.0))
-    assert not res  #la.norm( step - np.array([0.45, 0.45]) ) < 1e-6
-    assert decomp.get_last_polygon_changes() == (PolygonChange.shape, [0,1,2,3], None)
+    res = decomp.check_displacement([pt0, pt], (1.0, 1.0))
+    assert not res  # la.norm( step - np.array([0.45, 0.45]) ) < 1e-6
+    assert decomp.get_last_polygon_changes() == (PolygonChange.shape, [0, 1, 2, 3], None)
 
-    res = decomp.check_displacment([pt0, pt], (0.4, 0.4))
+    res = decomp.check_displacement([pt0, pt], (0.4, 0.4))
     assert res
 
     decomp.move_points([pt], (0.4, 0.4))
-    assert la.norm( pt.xy - np.array([0.9, 0.9]) ) < 1e-6
+    assert la.norm(pt.xy - np.array([0.9, 0.9])) < 1e-6
 
-    res = decomp.check_displacment([pt], (1.0, 1.0))
+    res = decomp.check_displacement([pt], (1.0, 1.0))
     assert not res
-    assert decomp.get_last_polygon_changes() == (PolygonChange.shape, [1,2,3], None)
+    assert decomp.get_last_polygon_changes() == (PolygonChange.shape, [1, 2, 3], None)
+
 
 def test_delete():
     decomp = PolygonDecomposition()

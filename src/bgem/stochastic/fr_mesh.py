@@ -1,7 +1,7 @@
 """
 Fracture set meshing, interaction with GMSH, regularization, region and shape ID mappings.
 """
-
+from bgem.src.bgem.stochastic.fr_set import Fractures
 
 def create_fractures_rectangles(gmsh_geom, fractures, base_shape: 'ObjectSet'):
     # From given fracture date list 'fractures'.
@@ -28,7 +28,7 @@ def create_fractures_polygons(gmsh_geom, fractures):
     # transform the base_shape to fracture objects
     # fragment fractures by their intersections
     # return dict: fracture.region -> GMSHobject with corresponding fracture fragments
-    frac_obj = fracture.Fractures(fractures)
+    frac_obj = Fractures(fractures,)
     frac_obj.snap_vertices_and_edges()
     shapes = []
     for fr, square in zip(fractures, frac_obj.squares):

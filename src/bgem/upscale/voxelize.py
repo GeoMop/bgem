@@ -2,18 +2,13 @@ from typing import *
 from pathlib import Path
 import csv
 import itertools
-import math
-
 import attrs
 from functools import cached_property
-from bgem.stochastic import Fracture
-
-from bgem.core import array_attr
-from bgem.upscale import Grid
-from bgem.stochastic import FractureSet, EllipseShape, PolygonShape
-
+from bgem.src.bgem.stochastic.fr_set import Fracture, FractureSet, EllipseShape, PolygonShape
+from bgem.src.bgem.core.common import array_attr
+from bgem.src.bgem.upscale.fem import Grid
 import numpy as np
-from scipy import interpolate
+
 """
 Voxelization of fracture network.
 Task description:
@@ -33,21 +28,19 @@ Covered cases:
 
 TODO:
 1. More restricted API.
-   a) function to project bulk fiedls between grids, first implement using SCIPY interpolation.
-   b) computing intersection matrices to comibne bulk field on the target grid and fracture field values
-      into the traget grid field.
+   a) function to project bulk fields between grids, first implement using SCIPY interpolation.
+   b) computing intersection matrices to combine bulk field on the target grid and fracture field values
+      into the target grid field.
    c) function to apply intersection object to particular bulk and fracture fields (support of fields of arbitrary shape: scalar, vector, tensor valued fields)
        
 2. Future API using connected bulk and fracture field vectors and common sparse matrix.
-   Desing after experience with restriced API. 
+   Desing after experience with restricted API. 
 
 Possible intersection approaches:
 
 - for each fracture -> AABB -> loop over its cells -> intersection test -> area calculation
 - Monte Carlo : random points on each fracture (N ~ r**2), count point numbers in each cell, weights -> area/volume estimate
 """
-
-
 
 """
 TODO:
@@ -68,13 +61,14 @@ TODO:
    Test flow with rasterized fractures, compare different homogenization routines
    ENOUGH FOR SURAO
  
-3. For cells in AABB compute distance in parallel, simple fabric tenzor homogenization. 
+3. For cells in AABB compute distance in parallel, simple fabric tensor homogenization. 
    Possibly faster due to vectorization, possibly more precise for thin fractures.
 4. Comparison of conservative homo + direct upscaling on fine grid with fabric homogenization.
 
 5. Improved determination of candidate cells and distance, differential algorithm.    
 
 """
+
 
 def base_shape_interior_grid(shape, step:float) -> np.ndarray:
     """
@@ -97,7 +91,7 @@ class FracturedDomain:
     The input of the voxelization procedure.
 
     Specification of the fracture - target grid geometry.
-    This is in priciple enough to construct basic voxelization case.
+    This is in principle enough to construct basic voxelization case.
     other cases may need information about source grid/mesh.
     """
     dfn: FractureSet                #
@@ -105,13 +99,12 @@ class FracturedDomain:
     grid: Grid                      # target homogenization grid
 
 
-
 @attrs.define
 class Intersection:
     """
     Intersection of fractures with the grid.
     That is a sparse matrix for contribution of the fractures,
-    1 - rowsum  is scaling factor of the underlaied bulk array.
+    1 - rowsum  is scaling factor of the underlined bulk array.
 
     First we will proceed with this design moving to actual sparse matrix implementation later on.
     The interpolation would be:
@@ -125,8 +118,8 @@ class Intersection:
     i_cell = array_attr(shape=(-1,), dtype=int)     # sparse matrix rows, cell idx of intersection
     i_fr = array_attr(shape=(-1,), dtype=int)       # sparse matrix columns
     isec = array_attr(shape=(-1,), dtype=float)     # effective volume of the intersection
-    #bulk_scale: np.ndarray    #
-                              # used to scale bulk field
+    # bulk_scale: np.ndarray
+    # used to scale bulk field
 
     @classmethod
     def const_isec(cls, domain, i_cell, i_fr, isec):
@@ -176,8 +169,8 @@ class Intersection:
         #     assert np.allclose(np.array(source_grid.dimensions), np.array(self.grid.dimensions))
         #     grid_points = source_grid.axes_cell_coords()
         #     target_points = self.grid.barycenters()
-        #     # !! Interpolation problem, we have piecewise values at input, but want to interpolate them linearly to th eoutput grid
-        #     # finner output grid points are out of the range of the input grid.
+        #     !! Interpolation problem, we have piecewise values at input, but want to interpolate them linearly to th eoutput grid
+        #     finner output grid points are out of the range of the input grid.
         #     bulk_field = interpolate.interpn(grid_points,
         #                                      bulk_field.reshape(*source_grid.shape, *bulk_field.shape[1:]),
         #                                      target_points, method='linear')
@@ -200,8 +193,9 @@ class Intersection:
         return fr_cond_scalar[:, None, None] * (np.eye(3) - dfn.normal[:, :, None] * dfn.normal[:, None, :]) #/ normal_axis_step
 
     def perm_aniso_fr_values(fractures, fr_transmisivity: np.array, grid_step) -> np.ndarray:
-        '''Calculate anisotrop
-            assert source_grid.origin == self.originic permeability tensor for each cell of ECPM
+        """
+        Calculate anisotrop
+        assert source_grid.origin == self.originic permeability tensor for each cell of ECPM
            intersected by one or more fractures. Discard off-diagonal components
            of the tensor. Assign background permeability to cells not intersected
            by fractures.
@@ -213,19 +207,20 @@ class Intersection:
            T = [] containing intrinsic transmissivity for each fracture
            d = length of cell sides
            k_background = float background permeability for cells with no fractures in them
-        '''
+        """
         assert len(fractures) == len(fr_transmisivity)
-        # Construc array of fracture tensors
+        # Construct array of fracture tensors
+
         def full_tensor(n, fr_cond):
             normal = np.array(n)
             normal_axis_step = grid_step[np.argmax(np.abs(n))]
             return fr_cond * (np.eye(3) - normal[:, None] * normal[None, :]) / normal_axis_step
 
-        return np.array([full_tensor(fr.normal, fr_cond)  for fr, fr_cond in zip(fractures, fr_transmisivity)])
-
+        return np.array([full_tensor(fr.normal, fr_cond) for fr, fr_cond in zip(fractures, fr_transmisivity)])
 
     def perm_iso_fr_values(fractures, fr_transmisivity: np.array, grid_step) -> np.ndarray:
-        '''Calculate isotropic permeability for each cell of ECPM intersected by
+        """
+        Calculate isotropic permeability for each cell of ECPM intersected by
          one or more fractures. Sums fracture transmissivities and divides by
          cell length (d) to calculate cell permeability.
          Assign background permeability to cells not intersected by fractures.
@@ -235,7 +230,7 @@ class Intersection:
          T = [] containing intrinsic transmissivity for each fracture
          d = length of cell sides
          k_background = float background permeability for cells with no fractures in them
-        '''
+        """
         assert len(fractures) == len(fr_transmisivity)
         fr_norm = np.array([fr.normal for fr in fractures])
         normalised_transmissivity = fr_transmisivity / grid_step[np.argmax(np.abs(fr_norm), axis=1)]

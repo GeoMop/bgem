@@ -1,7 +1,13 @@
 """
-Various DFN plotting and vizualization functions.
+Various DFN plotting and visualisation functions.
 """
-
+import plotly.offline as pl
+import plotly.graph_objs as go
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import defaultdict
+from bgem.src.bgem.stochastic.dfn import FisherOrientation
+from bgem.tests.stochastic.test_dfn import to_polar
 
 
 def plotly_fractures(fr_set, fr_points):
@@ -11,27 +17,23 @@ def plotly_fractures(fr_set, fr_points):
     :param fr_set: List[np.array(n, 2)] local point coordinates on fractures
     :return:
     """
-    import plotly.offline as pl
-    import plotly.graph_objs as go
-    # import plotly.graph_objects as go
     for ifr, (fr, points) in enumerate(zip(fr_set, fr_points)):
         n_side = 5
         boundary = np.empty((4, n_side, 3))
         corners = np.array([[-0.5, -0.5, 0], [0.5, -0.5, 0], [0.5, 0.5, 0], [-0.5, 0.5, 0]])
         for s in range(4):
             start, end = corners[s, :], corners[(s + 1) % 4, :]
-            boundary[s, :, :] = start[None, :] + (end - start)[None, :] * np.linspace(0, 1, n_side, endpoint=False)[:,
-                                                                          None]
+            boundary[s, :, :] = start[None, :] + (end - start)[None, :] * np.linspace(0, 1, n_side, endpoint=False)[:, None]
         boundary = boundary.reshape((-1, 3))
         boundary = fr.transform(boundary)
         points = fr.transform(points)
 
         fig = go.Figure(data=[
-                go.Scatter3d(x=boundary[:, 0], y=boundary[:, 1], z=boundary[:, 2],
-                             marker=dict(size=1, color='blue')),
-                go.Scatter3d(x=points[:, 0], y=points[:, 1], z=points[:, 2],
-                             marker=dict(size=1.5, color='red'))
-                ])
+            go.Scatter3d(x=boundary[:, 0], y=boundary[:, 1], z=boundary[:, 2],
+                         marker=dict(size=1, color='blue')),
+            go.Scatter3d(x=points[:, 0], y=points[:, 1], z=points[:, 2],
+                         marker=dict(size=1.5, color='red'))
+        ])
         fig.update_layout(
             scene=dict(
                 # xaxis=dict(range=[-2, 2]),
@@ -45,20 +47,17 @@ def plotly_fractures(fr_set, fr_points):
         pl.plot(fig, filename='fractures.html')
 
 
-
-
 def plot_fr_orientation(fractures):
-    family_dict = collections.defaultdict(list)
+    family_dict = defaultdict(list)
     for fr in fractures:
         x, y, z = \
-        fracture.FisherOrientation.rotate(np.array([0, 0, 1]), axis=fr.rotation_axis, angle=fr.rotation_angle)[0]
+            FisherOrientation.rotate(np.array([0, 0, 1]), axis=fr.rotation_axis, angle=fr.rotation_angle)[0]
         family_dict[fr.region].append([
             to_polar(z, y, x),
             to_polar(z, x, -y),
             to_polar(y, x, z)
         ])
 
-    import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 3, subplot_kw=dict(projection='polar'))
     for name, data in family_dict.items():
         # data shape = (N, 3, 2)

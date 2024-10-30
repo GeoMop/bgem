@@ -33,10 +33,8 @@ class CurvePoint:
             it = self.it[0] + self.interface_flag
             self.it.append(it)
 
-
     def curve_boundary_intersection(self):
         """
-
         #:param t: parameter value as double
         #:param ti: parameter interval as numpy array (2x1)
         :return:
@@ -45,7 +43,6 @@ class CurvePoint:
                             "0" corresponds to the interior points of the curve
         boundary_flag as    "1" if parameter corresponds to the surface boundary, i.e, equal to 0 or 1
                             "0" otherwise
-
         """
 
         t0 = self.surf.basis.knots[self.it[0] + 2]
@@ -58,9 +55,3 @@ class CurvePoint:
 
         if np.logical_or(self.t == 0, self.t == 1):
             self.boundary_flag = 1
-
-
-
-
-
-

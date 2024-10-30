@@ -3,25 +3,24 @@
 2. DONE, generate square fracture, side a = 1,
    uniform random orientation f(theta) = sin(theta)
    centre in cube (-a sqrt(2)) (1,1,1) : (1+a sqrt(2))(1,1,1)
-3. DONE, if positive intersetion area -> accept
+3. DONE, if positive intersection area -> accept
 4. DONE, generate mesh
-   random corsssection (0.01, 0.1)*a
+   random cross section (0.01, 0.1)*a
 5. compute three fluxes in single flow123d calculation (three rotations of the simplex + fracture)
 6. write down:
    fracture angles, conductivity angles
    conductivity eigenvalues
-   fracture size, crossection
+   fracture size, cros section
    intersection area
    intersection center of mass
 
 7. generate minimum 10 000 samples
-8.
 """
 
 from typing import List
 import attr
-from gmsh_api import gmsh
-import fracture as fg
+import gmsh
+import bgem.src.bgem.stochastic.dfn as fg
 import numpy as np
 import os
 import subprocess
@@ -48,17 +47,16 @@ class Realization:
     fr_side = 1
     el_size = 0.1
 
-    def __init__(self, geo, base_dir, dir,  population, summary_file):
+    def __init__(self, geo, base_dir, dir, population, summary_file):
         self.geo = geo
         self.base_dir = base_dir
-        self.sample = SimplexSample(dir = dir, fr_size=self.fr_side)
+        self.sample = SimplexSample(dir=dir, fr_size=self.fr_side)
 
         self.setup_dir(dir)
         self.summary_file = self.base_file(summary_file)
 
         self.make_mesh(population)
         self.setup_flow123d()
-
 
     def setup_dir(self, dir):
         self.dir = os.path.join(self.base_dir, "samples", dir)
@@ -131,7 +129,6 @@ class Realization:
             .translate([6, 0, 0]).modify_regions("{}_zxy")
         return [xyz_instance, yzx_instance, zxy_instance]
 
-
     def make_mesh(self, population):
         print("  ... geometry")
         self.geo.reinit()
@@ -141,7 +138,7 @@ class Realization:
         geopt.MatchMeshTolerance = 1e-3
         geopt.Tolerance = 1e-3
 
-        #self.geo.keep_only()
+        # self.geo.keep_only()
         self.make_primitive_shapes()
 
         while not self.random_fr(population):
@@ -179,7 +176,6 @@ class Realization:
         self.mesh_file = mesh_file[:-1]
         os.rename(mesh_file, self.mesh_file)
 
-
     @staticmethod
     def substitute_placeholders(file_in, file_out, params):
         """
@@ -201,12 +197,10 @@ class Realization:
             dst.write(text)
         return used_params
 
-
-
     def setup_flow123d(self):
         print("  ... flow setup")
-        #self.sample.fr_cross_section = np.random.uniform(0.01, 0.1)
-        self.sample.fr_cross_section = 0.1 #np.random.uniform(0.01, 0.1)
+        # self.sample.fr_cross_section = np.random.uniform(0.01, 0.1)
+        self.sample.fr_cross_section = 0.1  # np.random.uniform(0.01, 0.1)
         self.sample.conductivity_base = 1
         self.sample.fr_conductivity = 100
 
@@ -231,7 +225,7 @@ class Realization:
         with open(self.sample_file("stdout"), "w") as stdout:
             with open(self.sample_file("stderr"), "w") as stderr:
                 completed = subprocess.run(args, cwd=self.dir,
-                                   stdout=stdout, stderr=stderr)
+                                           stdout=stdout, stderr=stderr)
         if completed.returncode == 0:
             self.sample.result_fluxes = self.extract_results().tolist()
         else:
@@ -242,13 +236,12 @@ class Realization:
             line = str(attr.asdict(self.sample)) + "\n"
             f.write(line)
 
-
     def extract_results(self):
         with open(os.path.join(self.dir, "output", "water_balance.yaml")) as f:
             balance = yaml.load(f)
         data = balance['data']
-        homo_cond_tn = np.zeros((3,3), dtype=float)
-        ori_face_map = {'xyz':0, 'yzx':1, 'zxy':2 }
+        homo_cond_tn = np.zeros((3, 3), dtype=float)
+        ori_face_map = {'xyz': 0, 'yzx': 1, 'zxy': 2}
         face_map = {'xface': 0, 'yface': 1, 'zface': 2}
         for item in data:
             region = item['region']
@@ -269,22 +262,11 @@ class Realization:
         return homo_cond_tn
 
 
-
-
-
-
-
-
-
-
-
-
-
 def create_samples(id_range, base_dir):
     geo = gmsh.GeometryOCC("three_frac_symmetric", verbose=False)
 
     # Uniform fractures on sphere
-    #fracture_population = fg.FisherOrientation(0, 0, 0)
+    # fracture_population = fg.FisherOrientation(0, 0, 0)
     fracture_population = fg.FisherOrientation(0, 0, np.inf)
     summary_file = "summary_{}_{}.txt".format(*id_range)
     full_summary = os.path.join(base_dir, summary_file)
@@ -292,15 +274,16 @@ def create_samples(id_range, base_dir):
         dir = "{:06d}".format(id)
         try:
             x = Realization(geo, base_dir, dir, fracture_population, summary_file)
-            #print(attr.asdict(x.sample))
+            # print(attr.asdict(x.sample))
             x.run()
         except Exception:
             pass
-    #geo.show()
+    # geo.show()
     return full_summary
 
-pbs_script_template =\
-"""
+
+pbs_script_template = \
+    """
 #!/bin/bash
 #PBS -l select=1:ncpus=1:mem=1gb:scratch_local=50mb
 #PBS -l walltime=01:00:00
@@ -341,27 +324,28 @@ cp $SCRATCHDIR/samples/*.failed $WORKDIR/failed
 
 
 def pbs_file(id_range, case_name):
-      content = pbs_script_template.format(id_min=id_range[0], id_max=id_range[1],
-                                           py_script=os.path.basename(__file__), case=case_name)
-      script_name = "pbs_homo_{}_{}.sh".format(*id_range)
-      return script_name, content
+    content = pbs_script_template.format(id_min=id_range[0], id_max=id_range[1],
+                                         py_script=os.path.basename(__file__), case=case_name)
+    script_name = "pbs_homo_{}_{}.sh".format(*id_range)
+    return script_name, content
+
 
 def sample_pbs(n_packages, per_package, case_name):
-    case_dir = "{}_{}".format(case_name, str(n_packages*per_package))
+    case_dir = "{}_{}".format(case_name, str(n_packages * per_package))
     base_dir = os.path.join("..", "homogenization", case_dir)
     os.makedirs(base_dir)
-    
+
     for i in range(n_packages):
-        id_range = [i*per_package, (i+1)*per_package]
+        id_range = [i * per_package, (i + 1) * per_package]
         fname, content = pbs_file(id_range, case_name)
         fname = os.path.join(base_dir, fname)
-        
+
         with open(fname, "w") as f:
-            f.write(content)        
+            f.write(content)
         print("Sumbitting: ", fname)
         subprocess.run(["qsub", "-q", "charon_2h", fname])
-        
-        
+
+
 class Process:
     def __init__(self, results_file):
         self.dir = os.path.dirname(results_file)
@@ -369,7 +353,6 @@ class Process:
         self.correct = []
         self.wrong_result = []
         self.load_df(results_file)
-
 
     def load_df(self, res_file):
         total_size = os.path.getsize(res_file)
@@ -382,12 +365,11 @@ class Process:
                     print("Loading ... {}%".format(percent))
                     # if percent > 20:
                     #     break
-                #line_dict = json.loads(line)
+                # line_dict = json.loads(line)
                 line_dict = yaml.load(line)
                 self.precompute(SimplexSample(**line_dict))
 
         print("Failed: {}, correct: {} wrong: {}".format(len(self.failed), len(self.correct), len(self.wrong_result)))
-
 
     def precompute(self, sample):
         if sample.result_fluxes == 'None':
@@ -395,7 +377,7 @@ class Process:
             return
         try:
             tensor = np.array(sample.result_fluxes, dtype=float)
-            assert tensor.shape == (3,3)
+            assert tensor.shape == (3, 3)
             sample.tn = tensor
             sample.sym_tn = (tensor + tensor.T) / 2
             sample.sym_err = np.linalg.norm(tensor - sample.sym_tn)
@@ -406,9 +388,6 @@ class Process:
             self.correct.append(sample)
         except Exception:
             self.wrong_result.append(sample)
-
-
-
 
     def analyse(self):
         """
@@ -473,13 +452,13 @@ class Process:
     def mass_cond(self):
         fig = plt.figure(figsize=(5, 5))
         ax = fig.add_subplot(1, 1, 1)
-        cond_mass = [ (-s.sym_eval[0], s.mass*s.fr_cross_section) for s in self.correct if -s.sym_eval[0] > 0.1]
+        cond_mass = [(-s.sym_eval[0], s.mass * s.fr_cross_section) for s in self.correct if -s.sym_eval[0] > 0.1]
         cond, mass = zip(*cond_mass)
         fit = np.polyfit(np.log(mass), np.log(cond), deg=1)
         print("mass_cond_fit:", fit)
         reg_line = np.poly1d(fit)
 
-        ax.scatter(mass, cond,  s=1)
+        ax.scatter(mass, cond, s=1)
         ax.set_ylim(0.1, 20)
         x_lim = [0.0001, 1]
         ax.set_xlim(*x_lim)
@@ -519,7 +498,6 @@ class Process:
     #
     #     f.savefig(os.path.join(self.dir, "anisotropy.pdf"))
 
-
     def anisotropy_test(self):
         cos_angle = np.empty((len(self.correct)))
         for i, s in enumerate(self.correct):
@@ -541,8 +519,8 @@ def main():
         else:
             base_dir = "../homogenization"
         results_file = create_samples(id_range, base_dir=base_dir)
-        #proc = Process(results_file)
-        #proc.analyse()
+        # proc = Process(results_file)
+        # proc.analyse()
 
 
     elif command == 'sample_pbs':
@@ -559,7 +537,7 @@ def main():
         proc = Process(results_file)
         proc.analyse()
     else:
-      print("Missing command!")
-  
+        print("Missing command!")
+
 
 main()

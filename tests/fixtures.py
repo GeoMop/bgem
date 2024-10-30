@@ -4,9 +4,7 @@ Common code for tests.
 import os
 from pathlib import Path
 from time import perf_counter
-from contextlib import contextmanager
-
-from bgem import stochastic
+from bgem.src.bgem.stochastic.dfn import Population, UniformBoxPosition
 import numpy as np
 
 
@@ -38,9 +36,6 @@ class catch_time(object):
 
     def __repr__(self):
         return str(self)
-
-
-
 
 
 fracture_stats = dict(
@@ -83,16 +78,17 @@ fracture_stats = dict(
      'dip': 4
      })
 
+
 def get_dfn_sample(box_size=100, seed=123):
     # generate fracture set
     np.random.seed(seed)
     fracture_box = 3 * [box_size]
     # volume = np.product()
-    pop = stochastic.Population.from_cfg(fracture_stats, fracture_box)
+    pop = Population.from_cfg(fracture_stats, fracture_box)
     # pop.initialize()
     pop = pop.set_range_from_size(sample_size=30)
     mean_size = pop.mean_size()
     print("total mean size: ", mean_size)
-    pos_gen = stochastic.UniformBoxPosition(fracture_box)
+    pos_gen = UniformBoxPosition(fracture_box)
     fractures = pop.sample(pos_distr=pos_gen, keep_nonempty=True)
     return fractures

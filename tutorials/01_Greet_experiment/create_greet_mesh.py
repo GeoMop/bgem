@@ -1,10 +1,9 @@
-import sys
 import os
 import yaml
 import numpy as np
 
 '''
-Demonstrate creation of a more complex geometry using BGEM GSMH-OCC interface. 
+Demonstrate creation of a more complex geometry using BGEM GMSH-OCC interface. 
 
 Main difficulty is the tilted tunnel.
 
@@ -17,12 +16,12 @@ Reports lot of unknown OpenCASCADE entities:
  
  .. but meshing continues.
 '''
+from bgem.src.bgem.gmsh import gmsh_file as gmsh
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-#sys.path.append(os.path.join(script_dir, '../src/bgem/gmsh'))
 
-from bgem.gmsh import gmsh
-from bgem.gmsh import options
+
+# sys.path.append(os.path.join(script_dir, '../src/bgem/gmsh'))
 
 
 def create_box(gmsh_occ, box_geom):
@@ -32,11 +31,11 @@ def create_box(gmsh_occ, box_geom):
     rot_y = float(box_geom["rot_y"])
     rot_z = float(box_geom["rot_z"])
     if rot_x != 0:
-        box.rotate([1,0,0], rot_x)
+        box.rotate([1, 0, 0], rot_x)
     if rot_y != 0:
-        box.rotate([0,1,0], rot_y)
+        box.rotate([0, 1, 0], rot_y)
     if rot_z != 0:
-        box.rotate([0,0,1], rot_z)
+        box.rotate([0, 0, 1], rot_z)
 
     box.translate(box_geom["center"])
     return box
@@ -48,15 +47,14 @@ def create_plane(gmsh_occ, plane_geom):
 
 
 def create_cylinder(gmsh_occ, cyl_geom, stretch_factor=0.005):
-
     radius = float(cyl_geom["radius"])
     start = np.array((cyl_geom["start"]))
     end = np.array((cyl_geom["end"]))
 
     dc = stretch_factor
-    u = end-start
-    start_t = start - dc*u
-    end_t = end + dc*u
+    u = end - start
+    start_t = start - dc * u
+    end_t = end + dc * u
 
     # middle = (start+end)/2
     # box_lz = np.abs(end_t[2] - start_t[2]) + 2* radius
@@ -65,7 +63,7 @@ def create_cylinder(gmsh_occ, cyl_geom, stretch_factor=0.005):
     # box_ly = np.abs(end[1] - start[1])
     # box = gmsh_occ.box([box_lx, box_ly, box_lz], middle)
 
-    cylinder = gmsh_occ.cylinder(radius, end_t-start_t, start_t)
+    cylinder = gmsh_occ.cylinder(radius, end_t - start_t, start_t)
     # cylinder = gmsh_occ.cylinder_discrete(radius, end_t - start_t, middle, 24)
     # cylinder_cut = cylinder.intersect(box)
     #
@@ -81,7 +79,7 @@ def create_cylinder(gmsh_occ, cyl_geom, stretch_factor=0.005):
     #
     # cylinder_cut.translate(cyl_geom["center"])
     # cylinder_cut.set_region(cyl_geom["name"])
-    return cylinder #, box
+    return cylinder  # , box
 
 
 def fuse_tunnels(gmsh_occ, geom):
@@ -130,7 +128,7 @@ def fuse_tunnels(gmsh_occ, geom):
     box.translate(+box_s * n)
     tunnel_2_x = tunnel_2_c.intersect(box)
 
-    box2 = gmsh_occ.box([box_s, box_s, box_s]).translate([0, tunnel_end[1] + box_s/2, 0])
+    box2 = gmsh_occ.box([box_s, box_s, box_s]).translate([0, tunnel_end[1] + box_s / 2, 0])
     tunnel_2_xx = tunnel_2_x.intersect(box2)
 
     tunnel_fuse = tunnel_1_x.fuse(tunnel_2_xx)
@@ -143,17 +141,17 @@ def fuse_tunnels(gmsh_occ, geom):
     part_y = t1_length_y / n_parts  # y dimension of a single part
 
     y_split = tunnel_start[1] - part_y
-    for i in range(n_parts-1):
+    for i in range(n_parts - 1):
         split = split_plane.copy().translate([0, y_split, 0])
         splits.append(split)
         y_split = y_split - part_y  # move split to the next one
-    splits.append(plane)    # add cutting plane in the middle
+    splits.append(plane)  # add cutting plane in the middle
 
     t2_length_y = np.abs(tunnel_end[1] - tunnel_mid[1])
     part_y = t2_length_y / n_parts  # y dimension of a single part
 
     y_split = tunnel_mid[1] - part_y
-    for i in range(n_parts-1):
+    for i in range(n_parts - 1):
         split = split_plane.copy().translate([0, y_split, 0])
         splits.append(split)
         y_split = y_split - part_y  # move split to the next one
@@ -320,14 +318,14 @@ def generate_mesh(geom):
     # for sb in split_boxes:
     #     gen.model.remove(sb.dim_tags)
 
-    i=0
+    i = 0
     for b in box_all:
         print("i={0} ".format(i))
         for r in b.regions:
             print("{0} ({1}) ".format(r.name, r.id))
         for dt in b.dim_tags:
             print(dt)
-        i = i+1
+        i = i + 1
 
     # mesh_all = [*tunnel]
     mesh_all = [*box_all]
@@ -351,7 +349,7 @@ def generate_mesh(geom):
 
 
 if __name__ == "__main__":
-    #sample_dir = sys.argv[1]
+    # sample_dir = sys.argv[1]
     sample_dir = script_dir
     with open(os.path.join(script_dir, "geometry.yaml"), "r") as f:
         geometry_dict = yaml.safe_load(f)

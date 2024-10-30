@@ -4,6 +4,7 @@ import time
 
 __report_indent_level = 0
 
+
 def report(fn):
     @wraps(fn)
     def do_report(*args, **kwargs):

@@ -1,12 +1,9 @@
 import pytest
-from bgem.gmsh.gmsh_io import GmshIO
-
+from bgem.src.bgem.gmsh.gmsh_io import GmshIO
 import os
 import filecmp
 
-
 MESHES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "meshes")
-
 
 # Need a fix, never ends
 @pytest.mark.skip

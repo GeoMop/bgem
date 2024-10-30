@@ -1,15 +1,17 @@
 import numpy as np
-
-from bgem.bspline import \
-    bspline as bs, \
-    bspline_approx as bs_approx,\
-    brep_writer as bw
+from bgem.src.bgem.bspline.bspline_approx import SurfaceApprox
+from bgem.src.bgem.bspline import brep_writer as bw
+from bgem.src.bgem.bspline import bspline as bs
+from bgem.src.bgem.bspline.surface_point_set import SurfacePointSet
 
 import os
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
+
 
 def function_sin_cos(x):
     return np.sin(x[0] * 4) * np.cos(x[1] * 4)
+
 
 def make_a_test_grid(output_path, func, nuv):
     """
@@ -27,10 +29,10 @@ def make_a_test_grid(output_path, func, nuv):
     n_points = grid.shape[0]
     subindices = np.random.choice(n_points, size=int(0.7 * n_points))
     grid = grid[subindices, :]
-    dx = 0.2 * 1/nuv[0]
-    dy = 0.2 * 1/nuv[1]
-    dz = 0.01 * np.ptp(grid[:, 2])       # value range
-    grid += np.random.randn(*grid.shape) * np.array([dx,dy,dz])[None, :]
+    dx = 0.2 * 1 / nuv[0]
+    dy = 0.2 * 1 / nuv[1]
+    dz = 0.01 * np.ptp(grid[:, 2])  # value range
+    grid += np.random.randn(*grid.shape) * np.array([dx, dy, dz])[None, :]
     np.savetxt(output_path, grid)
 
 
@@ -39,22 +41,22 @@ def make_surface_approx(path):
     Make a full XYZ bspline surface approximation a point grid from a file.
     """
 
-    ### Make an approximation.
+    # Make an approximation.
 
     # Load point set from the grid file.
-    surf_point_set = bs_approx.SurfacePointSet.from_file(path)
+    surf_point_set = SurfacePointSet.from_file(path)
 
     # Compute minimal surface bounding rectangular of points projected to the XY plane.
     # or use own XY rectangle given as array of shape (4,2) of the four vertices.
     # quad = surf_point_set.compute_default_quad()
 
     # Crate the approximation object.
-    surf_approx = bs_approx.SurfaceApprox(surf_point_set)
+    surf_approx = SurfaceApprox(surf_point_set)
 
-    # Try to guess dimensions of a (semi regular) grid.
-    #nuv = surf_approx._compute_default_nuv()
+    # Try to guess dimensions of a (semi-regular) grid.
+    # nuv = surf_approx._compute_default_nuv()
     # We want usually  much sparser approximation.
-    #nuv = nuv / 5
+    # nuv = nuv / 5
 
     # 4. Compute the approximation.
     surface = surf_approx.compute_approximation()
@@ -64,21 +66,21 @@ def make_surface_approx(path):
     return surface.make_full_surface()
 
 
-
 def make_shell_brep(surface_3d):
     # Make surface
     bw_surface = bw.surface_from_bs(surface_3d)
 
     # make Vertices for the corners
     vertices = [bw.Vertex.on_surface(u, v, bw_surface)
-                for u, v in [(0,0), (1,0), (1,1), (0,1)]]
+                for u, v in [(0, 0), (1, 0), (1, 1), (0, 1)]]
     vertices.append(vertices[0])
-    edges = [bw.Edge(*vertices[i:i+2]).attach_to_surface(bw_surface) for i in range(4)]
-    face = bw.Face([bw.Wire(edges)],bw_surface)
+    edges = [bw.Edge(*vertices[i:i + 2]).attach_to_surface(bw_surface) for i in range(4)]
+    face = bw.Face([bw.Wire(edges)], bw_surface)
     shell = bw.Shell([face])
     compound = bw.Compound([shell])
     compound.set_free_shapes()
     return compound
+
 
 def test_make_shell():
     nuv = (50, 50)
@@ -88,7 +90,7 @@ def test_make_shell():
     make_a_test_grid(grid_path, function_sin_cos, nuv)
     surface_3d = make_surface_approx(grid_path)
     brep_obj = make_shell_brep(surface_3d)
-    with open(grid_path+".brep", 'wt') as f:
+    with open(grid_path + ".brep", 'wt') as f:
         bw.write_model(f, brep_obj)
 
 

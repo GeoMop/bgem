@@ -1,16 +1,15 @@
 import numpy as np
 
+
 class SurfacePoint:
     """
     Class to represent a point on the surface including the patch coordinates.
-
     """
     def __init__(self, surf, iuv, uv):
         """
         :param surf: surface
         :param iuv: numpy array 2x1, corresponds to the position of the patch on the surface (defined by knot vectors )
         :param uv: numpy array 2x1 of local coordinates
-
         """
 
         # TODO: document attributes
@@ -68,7 +67,6 @@ class SurfacePoint:
                             "0" corresponds to the interior points of the curve
         boundary_flag as    "1" if parameter corresponds to the surface boundary, i.e, equal to 0 or 1
                             "0" otherwise
-
         """
 
         ti = np.zeros((2, 2))
@@ -77,18 +75,18 @@ class SurfacePoint:
         ti[1, 0:2] = self.surf.v_basis.knots[self.iuv[0][1] + 2:self.iuv[0][1] + 4]
 
         # TODO: tolerances better
-        #print('point')
-        #print(ti[0, 0:2], self.uv[0])
-        #print(ti[1, 0:2],self.uv[1])
+        # print('point')
+        # print(ti[0, 0:2], self.uv[0])
+        # print(ti[1, 0:2],self.uv[1])
 
         tol = 1e-10
 
         for i in range(2):
             if abs(ti[i, 0] - self.uv[i]) < tol:
-                #print(abs(ti[i, 0] - self.uv[i]) < 1e-10)
+                # print(abs(ti[i, 0] - self.uv[i]) < 1e-10)
                 self.interface_flag[i] = int(-1)
             if abs(ti[i, 1] - self.uv[i]) < tol:
-                #print(abs(ti[i, 1] - self.uv[i]) < 1e-10)
+                # print(abs(ti[i, 1] - self.uv[i]) < 1e-10)
                 self.interface_flag[i] = int(1)
 
             # max/ min parameter value instead of 0 / 1
