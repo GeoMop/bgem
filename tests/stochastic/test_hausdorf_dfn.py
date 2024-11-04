@@ -91,7 +91,7 @@ def plot_dfn(power):
     im = Image.new('RGBA', s, (255, 255, 255, 255))
     draw = ImageDraw.Draw(im)
 
-    fracture_box = [1, 1, 0]
+    fracture_box = [1, 1, 1]
     sample_range = (0.001, 1)
     power = 2.1
     conf_range = [0.001, 1]
