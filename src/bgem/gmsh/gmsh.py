@@ -7,6 +7,7 @@ import numpy as np
 import gmsh
 import re
 import warnings
+import inspect
 
 from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
@@ -659,6 +660,80 @@ class GeometryOCC:
         if bad_entities:
             print("Bad entities:", bad_entities)
 
+    def get_elements(self, obj_set: 'ObjectSet'):
+        """
+        Get a (dim, tag) dict -> `elementTypes', `elementTags', `nodeTags'
+        :param obj_set:
+        :return:
+        """
+        return {
+                (dim, tag):  gmsh.model.mesh.getElements(dim, tag)
+                for dim, tag in obj_set.dimtags
+            }
+
+    def mesh_new_region_from_elements(self, dim, region_name, el_tags, el_coords):
+        el_type = [15, 1, 2, 4][dim]
+        i_entity = self.model.addDiscreteEntity(dim, -1, [])
+        self.model.mesh.addElementsByType(i_entity,  el_type, el_tags, el_coords)
+
+    # def mesh_level_field_regions(self, obj_set:'ObjectSet', level_fn=None, bins:List[float] = None, region: Union[str, List[str]] = None):
+    #     """
+    #     Assign region to the elements of the given model entities (dimtags).
+    #     level_fn is given, the regions in form "<region>_<i>" are assigned to the elements
+    #     on which the level_fn is in the bin [x_i, x_{i+1}]. The level_fn is evaluated in nodes,
+    #     elements on the boundary are assigned to the bin for which the nodes have larger total weight.
+    #     Weight of node X is distance of level_fn(X) from the bin borders.
+    #     :param model_entities:
+    #     :param level_fn: a scalar level-set function on set of 3D points, Nx3 -> N
+    #     :param bins: [x_0, x_1, .... ,x_n] define n bins
+    #     default single bin [0,1]
+    #     :param region: str
+    #     default: region = "levelset"
+    #     for List of regions, the ragions assigned to individual bins
+    #     :return:
+    #
+    #     TODO: It is more tricky to implement as GMSH could assign a single PhysicalGroup to an entity.
+    #     See tutorial X2 from GMSH manual.
+    #     So one has to create a new discrete entity for each discrete level bin.
+    #     gmsh.model.addDiscreteEntity(dim, tag)
+    #     Boundary entities may be specified to allo GMSH perform correct topology operations.
+    #     No need in our case as we will just write down the mesh.
+    #     Then we could possibly assign elements:
+    #     gmsh.model.mesh.addElementsByType(tag, elementType, elementTags, nodeTags):
+    #     """
+    #     entity_dict = self.get_elements(obj_set)
+    #     node_dict = {}
+    #     for dim,tag in entity_dict.keys():
+    #         node_ids, node_coords = self.model.getNodes(dim, tag)
+    #         node_dict.update(dict(zip(node_ids, node_coords)))
+    #     unique_ids, unique_coords = zip((k, v) for k, v in node_dict.items())
+    #     unique_levels = level_fn(unique_coords)
+    #     node_levels = dict(unique_ids, unique_levels)
+    #
+    #     self.model.model.addPhysicalGroup
+    #
+    #
+    #     def mean_level(nodes):
+    #         return np.mean(node_levels[node] for node in nodes)
+    #
+    #     def bin(level):
+    #         return 1
+    #     def reg_el_tags(el_tags, el_nodes):
+    #         el_regions = [bin(mean_level(nodes)) for nodes in el_nodes]
+    #         zip(el_tags, el_regions)
+    #
+    #
+    #
+    #     el_data = zip(el_tuple for el_tuple in entity_dict.values())
+    #     concatenate = lambda x : list(itertools.chain.from_iterable(x))
+    #     el_ids, el_tags, el_nodes = [concatenate(x) for x in el_data]
+    #     self.mesh_new_region_from_elements(dim, region, el_tags, el_nodes)
+    #
+    #
+    #     unique_bins = bin(unique_levels)
+    #     {n_id, for n_id, coord in node_dict.items()
+
+
     def write_brep(self, filename=None):
         self.synchronize()
         if filename is None:
@@ -743,7 +818,6 @@ class GeometryOCC:
 
 
 
-
 class ObjectSet:
     default_mesh_step = 0
 
@@ -793,6 +867,18 @@ class ObjectSet:
         g.mesh_step_size = mesh_step_size
         return g
 
+    @property
+    def attr(self):
+        """
+        A dynamic dataclass of attribute maps.
+        - single attribute : defined name and aggregation operation, own global dimtag map
+        - global map assigning attribute dicts to dimtags
+          or track dimtags through operations with associated attributes.
+          However region and mesh_Step tracking didn't quite work.
+        -
+        :return:
+        """
+        pass
 
     def __init__(self, factory: 'GeometryOCC', dim_tags: List[DimTag], regions: List[Region]) -> None:
         self.factory = factory
@@ -817,6 +903,10 @@ class ObjectSet:
     @property
     def size(self):
         return len(self.dim_tags)
+
+    def min_dim(self):
+        dims = [d for d, t in self.dim_tags]
+        return min(dims, default=1)
 
     def max_dim(self):
         dims = [d for d, t in self.dim_tags]
@@ -909,15 +999,115 @@ class ObjectSet:
         # split the Objectset by dimtags
         return all_obj.split_by_dimension()
 
+    def fillet(self, curve_obj, radii, removeVolume=True):
+        """
+        gmsh.model.occ.fillet(volumeTags, curveTags, radii, removeVolume=True)
+
+        Fillet the volumes `volumeTags' on the curves `curveTags' with `radii'.
+        It has effect on the edge curves of the volume rounding them with given radius.
+
+         The `radii' vector can either contain a single radius, as many
+        radii as `curveTags', or twice as many as `curveTags' (in which case
+        different radii are provided for the begin and end points of the curves).
+        Return the filleted entities in `outDimTags' as a vector of (dim, tag)
+        pairs. Remove the original volume if `removeVolume' is set.
+
+        Return `outDimTags'.
+
+        Types:
+        - `volumeTags': vector of integers
+        - `curveTags': vector of integers
+        - `radii': vector of doubles
+        - `outDimTags': vector of pairs of integers
+        - `removeVolume': boolean
+        """
+        assert self.min_dim() == self.max_dim() == 3
+        volume_tags = self.tags
+        assert curve_obj.min_dim() == curve_obj.max_dim() == 1
+        curve_tags = curve_obj.tags
+        radii = np.atleast_1d(radii)
+        try:
+            outDimTags = self.factory.model.fillet(volume_tags, curve_tags, radii, removeVolume)
+        except ValueError as err:
+            message = "\nFillet failed!\ndimtags: {}".format(str(self.dim_tags[:10]))
+            gerr = gmsh_exceptions.BoolOperationError(message)
+            self._raise_gmsh_exception(gerr, err)
+
+        regions = [Region.default_region[dim] for dim, tag in outDimTags]
+        all_obj = ObjectSet(self.factory, outDimTags, regions)
+
+        self.factory._need_synchronize = True
+        # split the Objectset by dimtags
+        return all_obj
+
+        def chamfer(volumeTags, curveTags, surfaceTags, distances, removeVolume=True):
+            """
+            gmsh.model.occ.chamfer(volumeTags, curveTags, surfaceTags, distances, removeVolume=True)
+
+            Chamfer the volumes `volumeTags' on the curves `curveTags' with distances
+            `distances' measured on surfaces `surfaceTags'. The `distances' vector can
+            either contain a single distance, as many distances as `curveTags' and
+            `surfaceTags', or twice as many as `curveTags' and `surfaceTags' (in which
+            case the first in each pair is measured on the corresponding surface in
+            `surfaceTags', the other on the other adjacent surface). Return the
+            chamfered entities in `outDimTags'. Remove the original volume if
+            `removeVolume' is set.
+
+            Return `outDimTags'.
+
+            Types:
+            - `volumeTags': vector of integers
+            - `curveTags': vector of integers
+            - `surfaceTags': vector of integers
+            - `distances': vector of doubles
+            - `outDimTags': vector of pairs of integers
+            - `removeVolume': boolean
+            """
+            pass
+
+    def get_mass(self):
+        """
+        Total mass of the object dim tags, no sense for mixed dimensions
+        :return:
+        """
+        return sum(self.factory.model.getMass(dim, tag) for dim, tag in self.dim_tags)
+
     def copy(self) -> 'ObjectSet':
+        dim_lists = self.split_by_dimension()
+        copy_dimensions = [
+            dim_obj._copy_simple()
+            for dim_obj in dim_lists
+        ]
+        return ObjectSet.group(*copy_dimensions)
+    def _copy_simple(self) -> 'ObjectSet':
         """
         Problem: gmsh.model.occ.copy fails to copy boundary dimtags.
+        Problem: it seems to copy only highest dimension tags even if the lower dim tags are not part of the boundary.
         """
         copy_tags = self.factory.model.copy(self.dim_tags)
         self.factory._need_synchronize = True
-        copy_obj = ObjectSet(self.factory, copy_tags, self.regions)
+        copy_regions = self.regions
+        copy_obj = ObjectSet(self.factory, copy_tags, copy_regions)
         copy_obj.mesh_step_size = self.mesh_step_size.copy()
         return copy_obj
+
+    def unique(self):
+        """
+        Unique dim_tag list.
+        :return:
+        """
+        seen = set()
+        dimtags = []
+        regions = []
+
+        # remove duplicate dimtags
+        for dt, r in zip(self.dim_tags, self.regions):
+            if dt not in seen:
+                seen.add(dt)
+                dimtags.append(dt)
+                regions.append(r)
+
+        return ObjectSet(self.factory, dimtags, regions)
 
     def get_boundary(self, combined=False):
         """
@@ -1227,6 +1417,40 @@ class ObjectSet:
         self.dim_tags = dimtags
         self.regions = regions
         return self
+
+def _transfrom_op(op, obj_list, *args, **kwargs):
+    if isinstance(obj_list, (list, tuple, set)):
+        type_constructor = type(obj_list)
+        return type_constructor(
+            _transfrom_op(op, item, *args, **kwargs)
+            for item in obj_list)
+    elif isinstance(obj_list, dict):
+        return {
+            k: _transfrom_op(op, item, *args, **kwargs)
+            for k, item in obj_list
+        }
+    else:
+        return op(obj_list, *args, **kwargs)
+
+def _apply_recursive(fn):
+    def recursive_fn(data, *args, **kwargs):
+        return _transfrom_op(fn, data, *args, **kwargs)
+    return recursive_fn
+# Apply transformop to all ObjectSet methods
+
+for name, method in inspect.getmembers(ObjectSet, predicate=inspect.isfunction):
+    globals()[name] = _apply_recursive(method)
+
+
+# def translate(obj_list, vector):
+#     return _transfrom_op(ObjectSet.translate, obj_list, vector)
+#
+# def rotate(obj_list, axis, angle, center=[0, 0, 0]):
+#     return _transfrom_op(ObjectSet.rotate, obj_list, axis, angle, center)
+#
+# def scale(obj_list, scale_vector, center=[0, 0, 0]):
+#     return _transfrom_op(ObjectSet.scale, obj_list, scale_vector, center)
+
 
 
 def rotation_matrix(axis, theta):
