@@ -1093,7 +1093,7 @@ class FractureSet:
             shape = shape.scale([fr.rx, fr.ry, 1]) \
                 .rotate(axis=[0, 0, 1], angle=fr.shape_angle) \
                 .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
-                .translate(fr.center + shift) \
+                .translate(fr.center) \
                 .set_region(region_name)
             region_map[region_name] = i
             shapes.append(shape)

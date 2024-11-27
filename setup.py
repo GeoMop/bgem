@@ -42,7 +42,7 @@ setuptools.setup(
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
     
-    packages=['bgem', 'bgem.polygons', 'bgem.bspline', 'bgem.gmsh', 'bgem.external', 'bgem.geometry', 'bgem.stochastic'], #setuptools.find_packages(where='src'),
+    packages=['bgem', 'bgem.core', 'bgem.polygons', 'bgem.bspline', 'bgem.gmsh', 'bgem.external', 'bgem.geometry', 'bgem.stochastic'], #setuptools.find_packages(where='src'),
     package_dir={'': 'src'},
     #py_modules=[os.path.splitext(os.path.basename(path))[0] for path in glob.glob('src/*.py')],
     # package_data={

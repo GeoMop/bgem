@@ -631,8 +631,8 @@ class GeometryOCC:
 
         # set physical groups
         for reg, tags in reg_to_tags.values():
-            reg._gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
-            gmsh.model.setPhysicalName(reg.dim, reg._gmsh_id, reg.name)
+            reg_gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
+            gmsh.model.setPhysicalName(reg.dim, reg_gmsh_id, reg.name)
 
 
     def _set_mesh_step(self, obj: 'ObjectSet'):
