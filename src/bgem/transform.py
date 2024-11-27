@@ -81,11 +81,16 @@ class Transform:
         Constructor for elementary afine transformation.
         :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
         Last column is the translation vector.
+        The full affine transform matrix is available through the full_affine_matrix property.
+        TODO: allow passing the full affine transfrom
         """
         self._composition = []
         if matrix is None:
             self._matrix = None
         else:
+            if matrix.shape == (4, 4):
+                assert np.allclose(matrix[3],   [0, 0, 0, 1])
+                matrix = matrix[:3]
             check_matrix(matrix, [3, 4], (int, float))
             self._matrix = np.array(matrix, dtype=float)
 
@@ -105,6 +110,9 @@ class Transform:
         else:
             return self._matrix
 
+    @property
+    def affine_matrix(self):
+        return np.concatenate((self._matrix, np.array([[0,0,0,1]])))
 
     def __call__(self, points:np.array) -> np.array:
         """
