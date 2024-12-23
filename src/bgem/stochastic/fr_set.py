@@ -873,12 +873,13 @@ class FractureSet:
         corners = self.center[:,None, :] + np.stack([-max_radii, +max_radii], axis=1)[:, :, None]
         return corners
 
-
-    @fn.cached_property
-    def rotation_mat(self):
+    @staticmethod
+    def rotation_matrix_from_normals(normal, shape_axis):
         """
-        Rotate and scale matrices for the fractures. The full transform involves 'self.center' as well:
-        ambient_space_points = self.center + self.transform_mat @ local_fr_points[:, None, :]
+        Compute rotation matrices for the fractures:
+        normal - shape (n_fr, 3); normal vectors of fractures, assumed normalized.
+        shape_axis - shape (n_fr, 2); the fracture shape is first rotated in XY plane by a X axis -> shape_axis rotation.
+
 
         The Z- local axis is transformed to normal N (assumed unit).
         The shape_axis S = [sx, sy, 0] must be rotated  to SS by the rotation that rotates Z -> N.
@@ -907,21 +908,21 @@ class FractureSet:
         TODO: find a better vector representation of the rotations, allowing faster construction of the transfrom matrix
         :return: Shape (N, 3, 3).
         """
-        N = self.normal
-        assert np.allclose(np.linalg.norm(N, axis=1), 1)
-        Nxy = np.stack([-N[:, 1], N[:, 0]], axis=1)
+
+        assert np.allclose(np.linalg.norm(normal, axis=1), 1)
+        Nxy = np.stack([-normal[:, 1], normal[:, 0]], axis=1)
         norm_Nxy = np.linalg.norm(Nxy, axis=1)
         K = Nxy / norm_Nxy[:, None]
         arg_small = np.argwhere(norm_Nxy < 1e-13)[:, 0]
         K[arg_small, :] = np.array([1, 0], dtype=float)
-        K_dot_S = self.shape_axis[:, None, :] @ K[:, :, None]
+        K_dot_S = shape_axis[:, None, :] @ K[:, :, None]
         S_p = K_dot_S[:, 0, :] * K
-        S_o = self.shape_axis - S_p
-        cos_th = N[:, 2:3]
+        S_o = shape_axis - S_p
+        cos_th = normal[:, 2:3]
         SS_xy = S_p + cos_th * S_o
         # ?? th is in (0, pi) -> sin(th) always positive
-        #pos_nx = np.logical_xor(N[:, 0] > 0, N[:, 2] < 0)
-        pos_nx = (N[:, None, 0:2] @ self.shape_axis[:, :, None])[:, 0, 0] > 0
+        # pos_nx = np.logical_xor(N[:, 0] > 0, N[:, 2] < 0)
+        pos_nx = (normal[:, None, 0:2] @ shape_axis[:, :, None])[:, 0, 0] > 0
         sin_th = norm_Nxy
         sin_th[pos_nx] = - sin_th[pos_nx]
         SS_z = np.linalg.norm(S_o, axis=1) * sin_th
@@ -931,96 +932,21 @@ class FractureSet:
             SS_xy,
             SS_z[:, None]
         ], axis=1)
-        scaled_trans_x = SS     #* self.radius[:, 0:1]
-        scaled_trans_y = np.cross(N, SS, axis=1)    #* self.radius[:, 1:2]
-        trans_z = N
+        scaled_trans_x = SS  # * self.radius[:, 0:1]
+        scaled_trans_y = np.cross(normal, SS, axis=1)  # * self.radius[:, 1:2]
+        trans_z = normal
         rot_mat = np.stack([scaled_trans_x, scaled_trans_y, trans_z], axis=2)
         return rot_mat
 
+    @fn.cached_property
+    def rotation_mat(self):
+        """
+        The full transform involves 'self.center' as well:
+        ambient_space_points = self.center + scale_mat @ self.transform_mat @ local_fr_points[:, None, :]
 
-    # @fn.cached_property
-    # def rotation_mat(self):
-    #     """
-    #     Rotate and scale matrices for the fractures. The full transform involves 'self.center' as well:
-    #     ambient_space_points = self.center + self.transform_mat @ local_fr_points[:, None, :]
-    #
-    #     The Z- local axis is transformed to normal N (assumed unit).
-    #     The shape_axis S = [sx, sy, 0] must be rotated  to SS by the rotation that rotates Z -> N.
-    #     Then SS is transformation of the local X axis.
-    #     The transformation of the Y axis is then computed by the corss product.
-    #
-    #     Let's compute S':
-    #     1. Z -> N rotation unit axis K = [-Ny, Nx, 0] / Nxy
-    #     2. K . S = Sx Ny - Sy Nx
-    #     3. follow Rodriguez formula proof, split S into part parallel (p) with K and ortogonal (o) to K
-    #        Sp = (K.S) K
-    #        So = S - Sp
-    #     4. In the plane perpendicular to K,
-    #        we have vertical component giving: cos(th) = Nz
-    #        and horizontal component giving sin(th) = Nxy = sqrt(Nx^2 + Ny^2)
-    #     5. We rotate So by angle th:
-    #        SSo[z] = -|So| Nxy *sng(Nx)
-    #        SSo[x,y] = (So [x,y]) Nz
-    #     6. SSp = Sp
-    #     7. Sum:
-    #        SS = SSo + SSp :
-    #        SSx = Spx + (Nz)Sox
-    #        SSy = Spy + (Nz)Soy
-    #        SSz = -|So| Nxy *sng(Nx)
-    #     Finally, the third vector of the rotated bases is   cross(N, S')
-    #     TODO: find a better vector representation of the rotations, allowing faster construction of the transfrom matrix
-    #     :return: Shape (N, 3, 3).
-    #     """
-    #     N = self.normal
-    #     assert np.allclose(np.linalg.norm(N, axis=1), 1)
-    #     Nxy = N[:, 0:2]
-    #     norm_Nxy = np.linalg.norm(Nxy, axis=1)
-    #     Nxy_norm = Nxy / norm_Nxy
-    #     arg_small = np.argwhere(Nxy_norm < 1e-13)[:, 0]
-    #     Nxy_norm[arg_small, :] = np.array([1, 0], dtype=float)
-    #
-    #     #Nxy_ort = np.stack([-N[:, 1], N[:, 0]], axis=1)
-    #     #norm_Nxy_ort = np.linalg.norm(Nxy_ort, axis=1)
-    #     # axis of rotation (0, 0, 1) -> normal
-    #     #K = Nxy_ort / norm_Nxy_ort[:, None]
-    #     #arg_small = np.argwhere(norm_Nxy_ort < 1e-13)[:, 0]
-    #     #K[arg_small, :] = np.array([1, 0], dtype=float)
-    #     #K_dot_S = self.shape_axis[:, None, :] @ K[:, :, None]
-    #
-    #     S_dot_Nxy = (self.shape_axis[:, None, :] @ Nxy_norm[:, :, None])[:, 0, :]
-    #
-    #     # component of shape_axis parallel with axis L
-    #     #S_p = K_dot_S[:, 0, :] * K
-    #     # component of shape_axis ortogonal to axis
-    #     #S_o = self.shape_axis - S_p
-    #
-    #     S_o_ = S_dot_Nxy * Nxy_norm
-    #     S_p_ = self.shape_axis - S_o_
-    #
-    #     # We compute sin and cos of the rotation angle theta
-    #     cos_th = N[:, 2:3]
-    #     SS_xy = S_p_ + cos_th * S_o_
-    #     # S_o is in direction of Nxy, but sign may differ
-    #     # sin_th is negative iff sign(S_o) == Nxy
-    #     # sin_th is positive iff sign(S_o) != Nxy
-    #     ## ?? th is in (0, pi) -> sin(th) always positive
-    #     ## pos_nx = np.logical_xor(N[:, 0] > 0, N[:, 2] < 0)
-    #
-    #     neg_sin = S_dot_Nxy[:, 0] > 0
-    #     sin_th = norm_Nxy
-    #     sin_th[neg_sin] = - sin_th[neg_sin]
-    #     SS_z = np.linalg.norm(S_o_, axis=1) * sin_th
-    #
-    #     # Construct the rotated X axis SS vector, shape (N, 3)
-    #     SS = np.concatenate([
-    #         SS_xy,
-    #         SS_z[:, None]
-    #     ], axis=1)
-    #     scaled_trans_x = SS     #* self.radius[:, 0:1]
-    #     scaled_trans_y = np.cross(N, SS, axis=1)    #* self.radius[:, 1:2]
-    #     trans_z = N
-    #     rot_mat = np.stack([scaled_trans_x, scaled_trans_y, trans_z], axis=2)
-    #     return rot_mat
+        :return:
+        """
+        return self.rotation_matrix_from_normals(self.normal, self.shape_axis)
 
     @fn.cached_property
     def transform_mat(self):
