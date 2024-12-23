@@ -3,6 +3,8 @@ from . import idmap
 in_vtx = left_side = 1
 # vertex where edge comes in; side where next segment is connected through the in_vtx
 out_vtx = right_side = 0
+
+
 # vertex where edge comes out; side where next segment is connected through the out_vtx
 
 
@@ -18,7 +20,6 @@ class Segment(idmap.IdObject):
         # (left_next, right_next); next edge for left and right side;
         self.update_vector()
         # precomputed direction vector of the segment
-
 
     def update_vector(self):
         self._vector = (self.vtxs[in_vtx].xy - self.vtxs[out_vtx].xy)
@@ -49,7 +50,6 @@ class Segment(idmap.IdObject):
         # Tuple of IDs of the endpoints.
         return (self.vtxs[out_vtx].id, self.vtxs[in_vtx].id)
 
-
     def polygons(self):
         """
         Return pair of polygons on the sides of the segment.
@@ -63,7 +63,7 @@ class Segment(idmap.IdObject):
     @property
     def vector(self):
         # Direction vector of the segment.
-        #if np.any(self._vector != (self.vtxs[in_vtx].xy - self.vtxs[out_vtx].xy)):
+        # if np.any(self._vector != (self.vtxs[in_vtx].xy - self.vtxs[out_vtx].xy)):
         #    pass
         return self._vector.copy()
 
@@ -77,7 +77,7 @@ class Segment(idmap.IdObject):
 
     def previous(self, side):
         """
-        Oposite of seg.next[side]. Implemented through loop around a node.
+        Opposite of seg.next[side]. Implemented through loop around a node.
         :param seg:
         :param side:
         :return: (previous segment, previous side), i.e. prev_seg.next[prev_side] == (self, side)
@@ -96,7 +96,6 @@ class Segment(idmap.IdObject):
             return in_vtx
         else:
             return None
-
 
     ###############################
     # setting functions
@@ -146,17 +145,17 @@ class Segment(idmap.IdObject):
         side_next = vtx_idx
         next = self.next[side_next]
         if next[0] == self:
-            # veertex not conneected, i.e. dendrite tip
+            # vertex not connected, i.e. dendrite tip
             return None
         wire = self.wire[side_next]
 
-        side_prev = 1 - vtx_idx  # prev side is next side of oposite vertex
+        side_prev = 1 - vtx_idx  # prev side is next side of opposite vertex
         prev = self.previous(side_prev)
         return (prev, next, wire)
 
     def disconnect_vtx(self, vtx_idx):
         """
-        Disconect next links of one vtx side of self segment.
+        Disconnect next links of one vtx side of self segment.
         :param vtx_idx: out_vtx or in_vtx
         """
         self.vtxs[vtx_idx].rm_segment(self, vtx_idx)
@@ -181,10 +180,9 @@ class Segment(idmap.IdObject):
                                                                                                           wire)
                 assert not wire.segment[0] == self
 
-
     def is_on_x_line(self, xy):
         """
-        Returns true if the segment is on the right horizontal halfline. starting in given point.
+        Returns true if the segment is on the right horizontal half line. starting in given point.
 
         Evaluation of condition is_on_line is unstable for xy close to the segment,
         however still the best approximation of the condition. Nevertheless,
@@ -214,7 +212,7 @@ class Segment(idmap.IdObject):
         """
 
         def min_max(aa):
-            # sort pair of values
+            # sort the pair of values
             if aa[0] > aa[1]:
                 return (aa[1], aa[0])
             return aa
@@ -235,5 +233,3 @@ class Segment(idmap.IdObject):
             return is_on_line
 
         return False
-
-

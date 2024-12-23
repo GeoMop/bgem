@@ -1,10 +1,8 @@
-import warnings
-
 
 def make_warning(cls):
     """
     Takes 'class_name' of an object and creates new type 'class_nameWarning'
-    as an descendant of Warning class.
+    as a descendant of Warning class.
     Used for retyping error classes to warnings.
     """
     return type(cls.__name__ + "Warning", (Warning,), {})

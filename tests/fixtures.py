@@ -4,8 +4,6 @@ Common code for tests.
 import os
 from pathlib import Path
 from time import perf_counter
-from contextlib import contextmanager
-
 from bgem import stochastic
 import numpy as np
 
@@ -15,10 +13,10 @@ def sandbox_fname(base_name, ext):
     Path(work_dir).mkdir(parents=True, exist_ok=True)
     return os.path.join(work_dir, f"{base_name}.{ext}")
 
+
 # Timing context manager
 
-
-#@contextmanager
+# @contextmanager
 class catch_time(object):
     """
     Usage:
@@ -26,6 +24,7 @@ class catch_time(object):
         ...
     print(f"... time: {t}")
     """
+
     def __enter__(self):
         self.t = perf_counter()
         return self
@@ -40,48 +39,46 @@ class catch_time(object):
         return str(self)
 
 
-
-
-
 fracture_stats = dict(
     NS={'concentration': 17.8,
-     'p_32': 0.094,
-     'plunge': 1,
-     'power': 2.5,
-     'r_max': 564,
-     'r_min': 0.038,
-     'trend': 292},
+        'p_32': 0.094,
+        'plunge': 1,
+        'power': 2.5,
+        'r_max': 564,
+        'r_min': 0.038,
+        'trend': 292},
     NE={'concentration': 14.3,
-     'p_32': 0.163,
-     'plunge': 2,
-     'power': 2.7,
-     'r_max': 564,
-     'r_min': 0.038,
-     'trend': 326},
+        'p_32': 0.163,
+        'plunge': 2,
+        'power': 2.7,
+        'r_max': 564,
+        'r_min': 0.038,
+        'trend': 326},
     NW={'concentration': 12.9,
-     'p_32': 0.098,
-     'plunge': 6,
-     'power': 3.1,
-     'r_max': 564,
-     'r_min': 0.038,
-     'trend': 60},
+        'p_32': 0.098,
+        'plunge': 6,
+        'power': 3.1,
+        'r_max': 564,
+        'r_min': 0.038,
+        'trend': 60},
     EW={'concentration': 14.0,
-     'p_32': 0.039,
-     'plunge': 2,
-     'power': 3.1,
-     'r_max': 564,
-     'r_min': 0.038,
-     'trend': 15},
+        'p_32': 0.039,
+        'plunge': 2,
+        'power': 3.1,
+        'r_max': 564,
+        'r_min': 0.038,
+        'trend': 15},
     HZ={'concentration': 15.2,
-     'p_32': 0.141,
-     'power': 2.38,
-     'r_max': 564,
-     'r_min': 0.038,
-     #'trend': 5
-     #'plunge': 86,
-     'strike': 95,
-     'dip': 4
-     })
+        'p_32': 0.141,
+        'power': 2.38,
+        'r_max': 564,
+        'r_min': 0.038,
+        # 'trend': 5
+        # 'plunge': 86,
+        'strike': 95,
+        'dip': 4
+        })
+
 
 def get_dfn_sample(box_size=100, seed=123):
     # generate fracture set

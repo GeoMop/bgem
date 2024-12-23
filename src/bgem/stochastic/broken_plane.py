@@ -1,6 +1,6 @@
 from bgem.polygons import polygons as poly
-import numpy as np
 import scipy.linalg as la
+
 
 class FracPlane:
     """
@@ -8,7 +8,7 @@ class FracPlane:
 
     """
 
-    def __init__(self, vertices,vert_id,fracture):
+    def __init__(self, vertices, vert_id, fracture):
         """
         :param vertices: vertices of the fracture as numpy array 3x4
         :param x_loc: normalized vector of local x-axis as numpy array 3x1
@@ -16,12 +16,10 @@ class FracPlane:
         :param area: as area of the surface
         """
 
-
-
         self.vertices = vertices
         self.vert_id = vert_id
         self.n_vertices = vertices.shape[1]
-        #self.zero =
+        # self.zero =
 
         self.x_loc = x_loc
         self.y_loc = y_loc
@@ -30,15 +28,14 @@ class FracPlane:
         self.nisecs = -1
         self.pd = poly.PolygonDecomposition()
 
+        # sg_a, = self.pd.add_line(np.array([0,0]), np.array([1,0]))
+        # sg_b, = self.pd.add_line(np.array([1,0]), np.array([1,1]))
+        # sg_c, = self.pd.add_line(np.array([1,1]), np.array([0,1]))
+        # sg_d, = self.pd.add_line(np.array([0,1]), np.array([0,0]))
 
-        #sg_a, = self.pd.add_line(np.array([0,0]), np.array([1,0]))
-        #sg_b, = self.pd.add_line(np.array([1,0]), np.array([1,1]))
-        #sg_c, = self.pd.add_line(np.array([1,1]), np.array([0,1]))
-        #sg_d, = self.pd.add_line(np.array([0,1]), np.array([0,0]))
-#       # in_wire = sg_a.wire[left_side]
+    #       # in_wire = sg_a.wire[left_side]
 
-
-    #@staticmethod
+    # @staticmethod
     def _add_intersection_point(self, isp):
         self.isecs[self.nisecs].append(isp)
 
@@ -46,7 +43,7 @@ class FracPlane:
         self.nisecs += 1
         self.isecs.append([])
 
-    def _check_duplicity(self,coor,tol,duplicity_with):
+    def _check_duplicity(self, coor, tol, duplicity_with):
 
         if duplicity_with != -1:
             for i in range(0, 4):
@@ -57,4 +54,3 @@ class FracPlane:
                     break
 
         return duplicity_with
-

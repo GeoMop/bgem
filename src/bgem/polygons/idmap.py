@@ -1,10 +1,12 @@
 """
-A dictionary that automaticaly assign unique IDs to appended objects
+A dictionary that automatically assign unique IDs to appended objects
 - IDs are set to the objects
 - Objects can be compared by IDs.
 TODO: Make auxiliary class for producing IDs and allow
 several IdMaps to source from common ID source
 """
+
+
 class IdObject:
 
     def __init__(self):
@@ -20,6 +22,7 @@ class IdObject:
 class IdSource:
     pass
 
+
 class IdMap(dict):
     def __init__(self):
         self._next_id = -1
@@ -27,7 +30,6 @@ class IdMap(dict):
         self._free_ids = []
         # List of free ids
         super().__init__()
-
 
     def get_new_id(self):
         if self._free_ids:

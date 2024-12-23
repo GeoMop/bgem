@@ -25,13 +25,12 @@ def test_simple():
     decomp.add_line_for_points(pt3, pt4)
     decomp.add_line_for_points(pt4, pt1)
     res = decomp.get_last_polygon_changes()
-    #assert res[0] == PolygonChange.add
+    # assert res[0] == PolygonChange.add
     polygon = decomp.polygons[res[2]]
     decomp.set_attr(polygon, reg)
 
     # add layer to layer geometry
     lg.add_stratum_layer(decomp, top_iface, decomp, bot_iface)
-
 
     # generate mesh file
     lg.filename_base = sandbox_fname("mesh_simple", "")
@@ -68,7 +67,7 @@ def test_fracture():
     decomp.add_line_for_points(pt3, pt4)
     decomp.add_line_for_points(pt4, pt1)
     res = decomp.get_last_polygon_changes()
-    #assert res[0] == PolygonChange.add
+    # assert res[0] == PolygonChange.add
     polygon = decomp.polygons[res[2]]
     decomp.set_attr(polygon, reg)
 
@@ -84,7 +83,7 @@ def test_fracture():
     fr_decomp.add_line_for_points(pt2, pt3)
     fr_decomp.add_line_for_points(pt3, pt1)
     res = fr_decomp.get_last_polygon_changes()
-    #assert res[0] == PolygonChange.add
+    # assert res[0] == PolygonChange.add
     polygon = fr_decomp.polygons[res[2]]
     fr_decomp.set_attr(polygon, fr_reg)
 
@@ -92,7 +91,6 @@ def test_fracture():
     lg.add_stratum_layer(decomp, top_iface, decomp, fr_iface)
     lg.add_fracture_layer(fr_decomp, fr_iface)
     lg.add_stratum_layer(decomp, fr_iface, decomp, bot_iface)
-
 
     # generate mesh file
     lg.filename_base = sandbox_fname("mesh_fracture", "")

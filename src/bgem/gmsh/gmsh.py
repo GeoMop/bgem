@@ -13,8 +13,6 @@ from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
 from bgem.gmsh import gmsh_io
 
-
-
 """
 Structure:
 gmsh
@@ -48,9 +46,9 @@ gmsh_api, issues:
 - gmsh.model.occ.setMeshSize - seems have no effect, in particular in combination with getBoundary
   (Confirmed, replaced by similar function in other module)
 - no constant field
-  (Resolved by the shpere field)
+  (Resolved by the sphere field)
 - gmsh.model.occ.removeAllDuplicates ... doesn't work
-  (No sure, it works at least partialy.) 
+  (No sure, it works at least partially.) 
 - seems that occ.copy() doesn't preserve boundaries, so boundary dim tags are copied twice
   (It does exactly what it is asked for just copy the given shapes)
 (Problem resolved by introduction of select_by_intersection)
@@ -91,7 +89,7 @@ class Region:
     @classmethod
     def get(cls, name, dim=None):
         """
-        Return a unique possibly uncomplete region.
+        Return a unique possibly uncompleted region.
         """
         return Region(dim, cls.get_region_id(), name)
 
@@ -111,10 +109,12 @@ class Region:
 
 # Initialize class attribute
 Region.default_region = [Region.get("default_{}d".format(dim), dim) for dim in range(4)]
+
+
 class MeshFormat(enum.IntEnum):
     msh = 1
     unv = 2
-    msh2 = 3    # only for extension, code unknown
+    msh2 = 3  # only for extension, code unknown
     auto = 10
     vtk = 16
     vrml = 19
@@ -141,6 +141,7 @@ DimTag = Tuple[int, int]
 
 
 
+
 class Mesh:
     """
     Interface to the GMSH mesh object with access to suitable mesh processing for
@@ -156,18 +157,18 @@ class Mesh:
 
 
     """
-
-
+    pass
+  
+  
 class GeometryOCC:
     """
     User friendly and mesh consistent interface to gmsh_api (gmsh_sdk package).
     Only single instance is allowed (due to limitation of gmsh_sdk and OCC).
     TODO: use a singleton pattern
-    TODO: add remining creation methods
+    TODO: add remaining creation methods
     TODO: add documentation
     """
     _have_instance = False
-
 
     # def addPoint(self, x, y, z, size):
     #     return self.object(0, self.model.addPoint(x, y, z, size))
@@ -226,7 +227,6 @@ class GeometryOCC:
     # removeAllDuplicates
     #
     # synchronize
-
 
     def __init__(self, model_name, model_str='occ', **kwargs):
         """
@@ -298,7 +298,7 @@ class GeometryOCC:
         self._region_names[name] = region
         return region
 
-    def object(self, dim:int, tag:int) -> 'ObjectSet':
+    def object(self, dim: int, tag: int) -> 'ObjectSet':
         """
         Create new object set from a dimtag.
         """
@@ -352,7 +352,7 @@ class GeometryOCC:
         a: tuple(float, float, float)
         Add a point with given coordinates or
 
-        a: ObjectSet containg a single point.
+        a: ObjectSet containing a single point.
         return: the point (dim, id)
         """
         if isinstance(a, (tuple, list)):
@@ -362,18 +362,17 @@ class GeometryOCC:
         assert dim == 0
         return tag
 
-
     def line(self, a, b):
         """
         Make line between points a,b.
         return: Object set with a single dimtag.
         """
-        point_ids = [self._get_point(p) for p in [a,b]]
-        #point_ids = [self.model.addPoint(*p) for p in [a, b]]
+        point_ids = [self._get_point(p) for p in [a, b]]
+        # point_ids = [self.model.addPoint(*p) for p in [a, b]]
         res = self.model.addLine(*point_ids)
         self._need_synchronize = True
         return self.object(1, res)
-        
+
     def rectangle(self, xy_sides=[1, 1], center=[0, 0, 0]):
         """
         TODO: Better match GMSH API, possibly use origin as the default left corner.
@@ -483,7 +482,7 @@ class GeometryOCC:
         if n < 5e-15:
             v = [0, 0, 1]
 
-        v = np.cross(v, axis)   # directional vector in disc plane
+        v = np.cross(v, axis)  # directional vector in disc plane
         v = v / np.linalg.norm(v)  # normalize
         dphi = 2 * np.pi / n_points  # differential angle between circ points
         for i in range(0, n_points):
@@ -514,7 +513,7 @@ class GeometryOCC:
             mesh_step = np.full(len(points), mesh_step)
         vertices = [self.model.addPoint(*p, step, tag=-1) for p, step in zip(points, mesh_step)]
         vertices.append(vertices[0])
-        lines = [self.model.addLine(a, b) for a,b in zip(vertices[0:-1], vertices[1:])]
+        lines = [self.model.addLine(a, b) for a, b in zip(vertices[0:-1], vertices[1:])]
         loop = self.model.addCurveLoop(lines, tag=-1)
         surface = self.model.addPlaneSurface([loop], tag=-1)
         return self.object(2, surface)
@@ -530,8 +529,6 @@ class GeometryOCC:
         self._need_synchronize = True
         return ObjectSet(self, shapes, [Region.default_region[dim] for dim, _ in shapes])
 
-
-
     def synchronize(self):
         """
         Not clear which actions requires synchronization. Seems that it should be called after calculation of
@@ -540,7 +537,6 @@ class GeometryOCC:
         if self._need_synchronize:
             self.model.synchronize()
             self._need_synchronize = False
-
 
     def make_rectangle(self, scale) -> int:
         # Vertices of the rectangle
@@ -582,7 +578,7 @@ class GeometryOCC:
         all_dimtags = list(itertools.chain(*[o.dim_tags for o in object_sets]))
         # copy_all_dimtags = ObjectSet(self, all_dimtags).copy()
         if len(all_dimtags) == 1:
-            new_tags, tags_map = all_dimtags, [all_dimtags  ]
+            new_tags, tags_map = all_dimtags, [all_dimtags]
         else:
             try:
                 new_tags, tags_map = self.model.fragment(all_dimtags, [], removeObject=True, removeTool=True)
@@ -634,7 +630,6 @@ class GeometryOCC:
             reg._gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
             gmsh.model.setPhysicalName(reg.dim, reg._gmsh_id, reg.name)
 
-
     def _set_mesh_step(self, obj: 'ObjectSet'):
         self.synchronize()
         step_to_dimtags = {}
@@ -654,8 +649,8 @@ class GeometryOCC:
             # self.model.mesh.setSize(dimtags, step)
 
     def _set_size_recursive(self, dimtags, step):
-        # Workaround for non-functional occ.setSize.
-        # Get boundary resursive to obtain nodes
+        # Workaround for the non-functional occ.setSize.
+        # This method retrieves boundary nodes recursively
         try:
             b_dimtags = gmsh.model.getBoundary(dimtags, combined=False, oriented=False, recursive=True)
         except ValueError as err:
@@ -664,8 +659,6 @@ class GeometryOCC:
 
         nodes = [(dim, tag) for dim, tag in b_dimtags if dim == 0]
         gmsh.model.mesh.setSize(nodes, step)
-
-
 
     def set_mesh_step_field(self, field: 'Field') -> None:
         field.reset_id()
@@ -705,7 +698,7 @@ class GeometryOCC:
             filename = self.model_name
         gmsh.write(filename + '.brep')
 
-    def write_mesh(self, filename: Optional[str] = None, format:MeshFormat = MeshFormat.auto) -> None:
+    def write_mesh(self, filename: Optional[str] = None, format: MeshFormat = MeshFormat.auto) -> None:
         """
         Write a mesh generated by 'make_mesh' to the file 'filename'.
         Format is given by extension (see MeshFormat for supported formats)
@@ -758,7 +751,7 @@ class GeometryOCC:
                 if res:
                     dim, tag = int(res[1]), int(res[2])
                     idx = remove_dimtags.index((dim, tag))
-                    remove_dimtags = remove_dimtags[idx+1:]
+                    remove_dimtags = remove_dimtags[idx + 1:]
                 else:
                     raise e
             else:
@@ -774,14 +767,11 @@ class GeometryOCC:
     def __del__(self):
         gmsh_io.gmsh_finalize()
 
-
     def group(self, *obj_list: Union['ObjectSet', List['ObjectSet']]) -> 'ObjectSet':
         if obj_list:
             return ObjectSet.group(*obj_list)
         else:
             return ObjectSet(self, [], [])
-
-
 
 
 class ObjectSet:
@@ -810,7 +800,6 @@ class ObjectSet:
         # for obj in new_obj_list:
         #     if iobj
 
-
         # Wrap dim_tags
         # for obj in new_obj_list
         # elif isinstance(item, tuple):
@@ -833,12 +822,11 @@ class ObjectSet:
         g.mesh_step_size = mesh_step_size
         return g
 
-
     def __init__(self, factory: 'GeometryOCC', dim_tags: List[DimTag], regions: List[Region]) -> None:
         self.factory = factory
         self.dim_tags = dim_tags
         # TODO: allow no region to be assigned, but that makes problem later in region operations
-        #if regions is None:
+        # if regions is None:
         #    regions = [None]
         if len(regions) == 1:
             self.regions = [regions[0] for _ in dim_tags]
@@ -939,7 +927,8 @@ class ObjectSet:
         Parameters numElements, heights, recombine have not been investigated yet.
         """
         try:
-            outDimTags = self.factory.model.revolve(self.dim_tags, *center, *axis, angle, numElements, heights, recombine)
+            outDimTags = self.factory.model.revolve(self.dim_tags, *center, *axis, angle, numElements, heights,
+                                                    recombine)
         except ValueError as err:
             message = "\nRevolving failed!\ndimtags: {}".format(str(self.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
@@ -981,7 +970,7 @@ class ObjectSet:
         self.factory.synchronize()
         try:
             dimtags = gmsh.model.getBoundary(self.dim_tags, combined=combined, oriented=False)
-        except ValueError as err :
+        except ValueError as err:
             message = "\nGetting boundary failed!\nobj dimtags: {}".format(str(self.dim_tags[:10]))
             gerr = gmsh_exceptions.GetBoundaryError(message)
             self._raise_gmsh_exception(gerr, err)
@@ -1029,14 +1018,13 @@ class ObjectSet:
         TODO: Return Group
         """
 
-
         reg_sets = self.split_by_region()
         b_sets = []
         for rset in reg_sets:
             reg = rset.regions[0]
             b_reg_name = format.format(reg.name)
             b_reg = Region.get(b_reg_name, dim=reg.dim - 1)
-            #self.factory.get_region_name()
+            # self.factory.get_region_name()
             boundary = rset.get_boundary(combined=True).set_region(b_reg)
             b_sets.append(boundary)
 
@@ -1071,7 +1059,6 @@ class ObjectSet:
         self.mesh_step_size = [step for _ in self.dim_tags]
         return self
 
-
     def mesh_step_direct(self, step):
         """
         Set mesh step 'step' IMMEDIATELY to all nodes recursively to all dimtags in the ObjectSet.
@@ -1081,9 +1068,9 @@ class ObjectSet:
 
         Returns self.
 
-        TODO: be resistent to nonexisting dimtags
+        TODO: be resistant to nonexistent dimtags
         """
-        # Get boundary resursive to obtain nodes
+        # Get boundary recursive to obtain nodes
         self.factory.synchronize()
         try:
             dimtags = gmsh.model.getBoundary(self.dim_tags, combined=False, oriented=False, recursive=True)
@@ -1124,7 +1111,7 @@ class ObjectSet:
     def split_by_cut(self, *tool_objects: 'ObjectSet') -> Tuple['ObjectSet', 'ObjectSet', 'ObjectSet', 'ObjectSet']:
         """
         Cut self object and return both cut object and the remainder object.
-        Doesn't work preprely for boundaries due to a bug i OCC.
+        Doesn't work properly for boundaries due to a bug i OCC.
 
         :param tool_objects: any number of ObjectSet
         :return: cut objectset, intersection objectset, tool remainder objectset
@@ -1141,8 +1128,8 @@ class ObjectSet:
         isec_obj = {k: dict_obj[k] for k in isec_set}
         isec_tool = {k: dict_tool[k] for k in isec_set}
 
-        out_objs = [ ObjectSet(factory, list(d.keys()), list(d.values()))
-                        for d in [cut_obj, cut_tool, isec_obj, isec_tool] ]
+        out_objs = [ObjectSet(factory, list(d.keys()), list(d.values()))
+                    for d in [cut_obj, cut_tool, isec_obj, isec_tool]]
         return out_objs
 
     def set_region_from_dimtag(self):
@@ -1160,8 +1147,9 @@ class ObjectSet:
         tool_objects = self.factory.group(*tool_objects).copy()
         try:
             new_tags, old_tags_map = operation(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
-        except ValueError as err :
-            message = "\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]), str(tool_objects.dim_tags[:10]))
+        except ValueError as err:
+            message = "\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]),
+                                                                   str(tool_objects.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
             self._raise_gmsh_exception(gerr, err)
 
@@ -1190,7 +1178,7 @@ class ObjectSet:
         """
         Cut self object with 'tool_objects'.
         Returns the cut object, self is destroyed, tool_objects are preserved (we use their copy).
-        Regions set on self are transfered to the result.
+        Regions set on self are transferred to the result.
         """
         return self._apply_operation(tool_objects, self.factory.model.cut)
 
@@ -1198,7 +1186,7 @@ class ObjectSet:
         """
         Intersect self object with 'tool_objects'.
         Returns the intersected object, self is destroyed, tool_objects are preserved (we use their copy).
-        Regions set on self are transfered to the result.
+        Regions set on self are transferred to the result.
         """
         return self._apply_operation(tool_objects, self.factory.model.intersect)
 
@@ -1206,7 +1194,7 @@ class ObjectSet:
         """
         Fragment self object with 'tool_objects'.
         Returns the fragmented object, self is destroyed, tool_objects are preserved (we use their copy).
-        Regions set on self are transfered to the result.
+        Regions set on self are transferred to the result.
         """
         return self._apply_operation(tool_objects, self.factory.model.fragment)
 
@@ -1220,10 +1208,11 @@ class ObjectSet:
         # tool_objects = self.factory.group(*tool_objects).copy()
         tool_objects = self.factory.group(*tool_objects)
         try:
-            new_tags, old_tags_map = self.factory.model.fuse(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
+            new_tags, old_tags_map = self.factory.model.fuse(self.dim_tags, tool_objects.dim_tags, removeObject=True,
+                                                             removeTool=True)
         except ValueError as err:
             message = "Fusion failed!\nobj dimtags: {}\ntool dimtags: {}".format(str(self.dim_tags[:10]),
-                                                                   str(tool_objects.dim_tags[:10]))
+                                                                                 str(tool_objects.dim_tags[:10]))
             gerr = gmsh_exceptions.BoolOperationError(message)
             self._raise_gmsh_exception(gerr, err)
 
@@ -1250,10 +1239,10 @@ class ObjectSet:
         mass_total = 0
         for dimtag in self.dim_tags:
             mass = self.factory.model.getMass(*dimtag)
-            center += mass*np.array(self.factory.model.getCenterOfMass(*dimtag))
+            center += mass * np.array(self.factory.model.getCenterOfMass(*dimtag))
             mass_total += mass
         if mass_total > 0.0:
-            return center/mass_total, mass_total
+            return center / mass_total, mass_total
         else:
             return 0, 0
 
@@ -1262,7 +1251,7 @@ class ObjectSet:
         Remove objects with the mass under the limit.
         """
         masses = [self.factory.model.getMass(*dt) for dt in self.dim_tags]
-        #for dt, mass in zip(self.dim_tags, masses):
+        # for dt, mass in zip(self.dim_tags, masses):
         #    print(dt, mass)
 
         dimtags = [dt for dt, m in zip(self.dim_tags, masses) if m > mass_limit]

@@ -3,6 +3,7 @@ import pytest
 
 from bgem.gmsh import heal_mesh, gmsh_io
 
+
 # def test_check_flat_element():
 #     h = 0.01
 #     nodes = np.array([[0,0,0], [1,1,0], [0,1,h], [1,0,h]], dtype=float)
@@ -27,12 +28,13 @@ def test_tet_common_normal():
     nodes = np.array([[0, 0, 0], [1, 1, 0], [0, 1, h], [1, 0, h]], dtype=float)
     shape = heal_mesh.Tetrahedron(nodes)
     common_norm = shape.common_normal()
-    assert np.allclose(np.zeros(6), shape.edge_vectors @ common_norm, atol=2*h)
+    assert np.allclose(np.zeros(6), shape.edge_vectors @ common_norm, atol=2 * h)
 
     nodes = np.array([[0, 0, h], [1, 0, 0], [0, 1, 0], [0.2, 0.2, h]], dtype=float)
     shape = heal_mesh.Tetrahedron(nodes)
     common_norm = shape.common_normal()
-    assert np.allclose(np.zeros(6), shape.edge_vectors @ common_norm, atol=2*h)
+    assert np.allclose(np.zeros(6), shape.edge_vectors @ common_norm, atol=2 * h)
+
 
 def test_check_flat_quad():
     h = 0.005
@@ -40,12 +42,13 @@ def test_check_flat_quad():
     mesh_io = gmsh_io.GmshIO()
     for inn, n in enumerate(nodes):
         mesh_io.nodes[inn] = n
-    mesh_io.elements[0] = (4, (1,2,3), [0,1,2,3])
+    mesh_io.elements[0] = (4, (1, 2, 3), [0, 1, 2, 3])
 
     hm = heal_mesh.HealMesh(mesh_io)
     hm.gamma_tol = 0.01
     ele = hm._make_element(0)
     hm._check_flat_tetra(ele)
+
 
 def test_check_flat_quad_degen():
     h = 0.005
@@ -53,12 +56,13 @@ def test_check_flat_quad_degen():
     mesh_io = gmsh_io.GmshIO()
     for inn, n in enumerate(nodes):
         mesh_io.nodes[inn] = n
-    mesh_io.elements[0] = (4, (1,2,3), [0,1,2,3])
+    mesh_io.elements[0] = (4, (1, 2, 3), [0, 1, 2, 3])
 
     hm = heal_mesh.HealMesh(mesh_io)
     hm.gamma_tol = 0.01
     ele = hm._make_element(0)
     hm._check_flat_tetra(ele)
+
 
 def test_move_all():
     h = 1
@@ -66,8 +70,8 @@ def test_move_all():
     mesh_io = gmsh_io.GmshIO()
     for inn, n in enumerate(nodes):
         mesh_io.nodes[inn] = n
-    mesh_io.elements[0] = (4, (1,2,3), [0,1,2,3])
+    mesh_io.elements[0] = (4, (1, 2, 3), [0, 1, 2, 3])
 
     hm = heal_mesh.HealMesh(mesh_io)
-    hm.move_all([1,2,3])
-    assert np.allclose(hm.mesh.nodes[0], [1,2,3])
+    hm.move_all([1, 2, 3])
+    assert np.allclose(hm.mesh.nodes[0], [1, 2, 3])

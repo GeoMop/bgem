@@ -1,6 +1,5 @@
 from bgem.polygons.polygons import *
 
-
 enable_undo()
 
 
@@ -13,8 +12,8 @@ class DState:
     def __eq__(self, other):
         if isinstance(other, DState):
             return self.points == other.points and \
-                   self.segments == other.segments and \
-                   self.polygons_keys == other.polygons_keys
+                self.segments == other.segments and \
+                self.polygons_keys == other.polygons_keys
         else:
             return NotImplemented
 
@@ -86,6 +85,7 @@ def test_rm_segment():
 
     undo.stack().redo()
     assert DState(decomp) == s1
+
 
 def test_split_segment():
     decomp = PolygonDecomposition()

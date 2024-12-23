@@ -9,8 +9,9 @@ import gmsh
 import pytest
 from fixtures import sandbox_fname
 
-
 work_dir = "sandbox"
+
+
 def out_fname(base_name, ext):
     return os.path.join(work_dir, f"{base_name}.{ext}")
 
@@ -34,18 +35,18 @@ def test_extrude_polygon():
     v = np.array([0, 1, 1])
     v = v / np.linalg.norm(v)
 
-    #normal
-    n = np.cross(u,v)
+    # normal
+    n = np.cross(u, v)
     n = n / np.linalg.norm(n)
 
     # add some points in the plane
-    points= []
+    points = []
     points.append(u)
     points.append(2 * u + 1 * v)
     points.append(5 * u + -2 * v)
     points.append(5 * u + 3 * v)
     points.append(4 * u + 5 * v)
-    points.append(-2 * u + 3*v)
+    points.append(-2 * u + 3 * v)
     points.append(v)
 
     point_tags = [gmsh.model.occ.addPoint(*p) for p in points]
@@ -54,7 +55,7 @@ def test_extrude_polygon():
     cl = gmsh.model.occ.addCurveLoop(lines)
     pol = gmsh.model.occ.addPlaneSurface([cl])
 
-    ext_dimtags = gmsh.model.occ.extrude([(2, pol)], *(3*n))
+    ext_dimtags = gmsh.model.occ.extrude([(2, pol)], *(3 * n))
     tube_dimtags = [ext_dimtags[1]]
 
     gmsh.model.occ.synchronize()
@@ -79,7 +80,6 @@ def test_extrude_polygon():
     gmsh.finalize()
 
 
-
 @pytest.mark.skip
 def generate_mesh():
     gmsh.initialize()
@@ -91,12 +91,10 @@ def generate_mesh():
     rec2 = gmsh.model.occ.addRectangle(-1200, -1200, 0, 2400, 2400)
     rec1_dt = (2, rec1)
     rec2_dt = (2, rec2)
-    gmsh.model.occ.rotate([rec2_dt], 0,0,0,  0,1,0, np.pi/2)
+    gmsh.model.occ.rotate([rec2_dt], 0, 0, 0, 0, 1, 0, np.pi / 2)
     rectangle, map = gmsh.model.occ.fragment([rec1_dt, rec2_dt], [])
 
-
-    box = [(3,box)]
-
+    box = [(3, box)]
 
     box_copy = gmsh.model.occ.copy(box)
     dim_tags, map = gmsh.model.occ.intersect(rectangle, box_copy)
@@ -107,7 +105,6 @@ def generate_mesh():
     box_cut, map = gmsh.model.occ.fragment(box_copy, dim_tags_copy)
     gmsh.model.occ.removeAllDuplicates()
     gmsh.model.occ.synchronize()
-
 
     b = gmsh.model.addPhysicalGroup(3, [tag for dim, tag in box_cut])
     gmsh.model.setPhysicalName(3, b, "box")
@@ -122,13 +119,8 @@ def generate_mesh():
     gmsh.model.setPhysicalName(1, bc_rect, ".rectangle")
     gmsh.model.occ.setMeshSize(bc_nodes, 50)
 
-
-
-
-    #gmsh.model.mesh.embed(2, [tag for dim, tag in dim_tags], 3, box_copy[0][1])
-    #factory.synchronize()
-
-
+    # gmsh.model.mesh.embed(2, [tag for dim, tag in dim_tags], 3, box_copy[0][1])
+    # factory.synchronize()
 
     model = gmsh.model
 
@@ -136,7 +128,7 @@ def generate_mesh():
     gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 1)
     gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
     gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
-    #gmsh.option.setNumber("Mesh.CharacteristicLengthMin", 100)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthMin", 100)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 300)
 
     gmsh.write(file_name + '.brep')
@@ -150,10 +142,6 @@ def generate_mesh():
     gmsh.finalize()
 
     return len(bad_entities)
-
-
-
-
 
 
 @pytest.mark.skip
@@ -173,7 +161,7 @@ def test_mesh_size():
 
     rec1 = gmsh.model.occ.addPlaneSurface([cl])
 
-    #rec1 = gmsh.model.occ.addRectangle(-800, -800, 0, 1600, 1600)
+    # rec1 = gmsh.model.occ.addRectangle(-800, -800, 0, 1600, 1600)
 
     gmsh.model.occ.synchronize()
     nodes = gmsh.model.getBoundary([(2, rec1)], combined=False, oriented=False, recursive=True)
@@ -183,11 +171,10 @@ def test_mesh_size():
     gmsh.model.occ.synchronize()
     # generate mesh, write to file and output number of entities that produced error
     gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 1)
-    #gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
-    #gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", 50)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 200)
-
 
     gmsh.model.mesh.generate(2)
     gmsh.model.mesh.removeDuplicateNodes()
@@ -207,7 +194,7 @@ def test_tolerances():
     gmsh.option.setNumber("General.Terminal", 1)
 
     gmsh.option.setNumber("Geometry.Tolerance", 10)
-    #gmsh.option.setNumber("Geometry.ToleranceBoolean", 10)
+    # gmsh.option.setNumber("Geometry.ToleranceBoolean", 10)
 
     box = gmsh.model.occ.addBox(0, 0, 0, 1000, 1000, 1000)
     box = (3, box)
@@ -226,25 +213,21 @@ def test_tolerances():
         if not new_for_orig:
             continue
         dim = new_for_orig[0][0]
-        group_id = gmsh.model.addPhysicalGroup(dim, [tag for dim,tag in new_for_orig])
+        group_id = gmsh.model.addPhysicalGroup(dim, [tag for dim, tag in new_for_orig])
         gmsh.model.setPhysicalName(dim, group_id, name)
     gmsh.model.occ.synchronize()
 
     gmsh.option.setNumber("Mesh.AngleToleranceFacetOverlap", 1)
     gmsh.option.setNumber("Mesh.AnisoMax", 0.05)
 
-
-    #gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 1)
-    #gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 1)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", 100)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 200)
     gmsh.model.mesh.generate(3)
     gmsh.write("test_tolerances.msh")
     gmsh.fltk.run()
     gmsh.finalize()
-
-
-
 
 
 @pytest.mark.skip
@@ -254,6 +237,7 @@ def test_boundary_fragment_inconsistency():
     Possible workaround: Mention the boundary before the entity or fragment only the entity and
     select the new boundary after that using original boundary.
     """
+
     def make_geometry():
         gmsh.initialize()
         gmsh.option.setNumber("General.Terminal", 0)
@@ -285,19 +269,17 @@ def test_boundary_fragment_inconsistency():
         b_holes = b_lhole + b_rhole
         return b_box, holes, b_holes, names
 
-
     def list_and_mesh(orig_shapes, orig_map, names, filename):
         for om, shape in zip(orig_map, orig_shapes):
             for dim, tag in om:
                 group_id = gmsh.model.addPhysicalGroup(dim, [tag])
                 gmsh.model.setPhysicalName(dim, group_id, "({}, {})".format(dim, tag))
-            #named = [ (dimtag, names.get(dimtag, 'None')) for dimtag in om ]
+            # named = [ (dimtag, names.get(dimtag, 'None')) for dimtag in om ]
             print("Shape: {:7s} {:13s}    {}".format(str(shape), names.get(shape, 'None'), om))
 
         gmsh.model.mesh.generate(3)
         gmsh.write(filename)
         gmsh.finalize()
-
 
     print("\n## fragment returns wrong map.")
     b_box, holes, b_holes, names = make_geometry()
@@ -308,7 +290,6 @@ def test_boundary_fragment_inconsistency():
     gmsh.model.occ.synchronize()
     list_and_mesh(orig_shapes, orig_map, names, filename="model_wrong_ids.msh")
 
-
     print("\n## fragment returns right map.")
     b_box, holes, b_holes, names = make_geometry()
     # Good order, fragment by boundary first seems to work
@@ -317,6 +298,7 @@ def test_boundary_fragment_inconsistency():
     dimtags, orig_map = gmsh.model.occ.fragment(b_box, tools)
     gmsh.model.occ.synchronize()
     list_and_mesh(orig_shapes, orig_map, names, filename="model_right_ids.msh")
+
 
 """
 # main box
@@ -346,7 +328,6 @@ Shape: (2, 16) rhole_back       [(2, 26), (2, 32), (2, 37)]
 Shape: (2, 17) rhole_bottom     [(2, 17)]                       # BUG should be (2, 25)  is already right side of the left hole
 Shape: (2, 18) rhole_top        [(2, 18)]                       # BUG should be (2, 31)  is already top left side of the left hole
 """
-
 
 """
 This seems to be correct.

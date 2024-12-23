@@ -2,9 +2,7 @@
 from __future__ import print_function
 import threading
 import os.path
-import struct
 import numpy as np
-import enum
 import gmsh
 
 
@@ -40,13 +38,14 @@ class ModelDataItem:
         self.tags = tags
         self.values = values
 
+
 class GmshIO:
     """This is a class for storing nodes and elements. Based on Gmsh.py
 
     Members:
     nodes -- A dict of the form { nodeID: [ xcoord, ycoord, zcoord] }
     elements -- A dict of the form { elemID: (type, [tags], [nodeIDs]) }
-                Usual tags: (physical_tag, enityt_tag)
+                Usual tags: (physical_tag, entity_tag)
     physical -- A dict of the form { name: (id, dim) }
 
     Methods:
@@ -76,7 +75,7 @@ class GmshIO:
     def normalize(self):
         """
         Due to GMSH bug the API did not preserve node and element IDs
-        in MSH2 format. As workaround we write the mash and read it from the GMSH model
+        in MSH2 format. As workaround, we write the mash and read it from the GMSH model
         to normalize the IDs.
         """
         gmsh.initialize(argv=[])
@@ -107,8 +106,8 @@ class GmshIO:
         for i, node_tag in enumerate(nodeTags):
             offset = i * 3
             self.nodes[int(node_tag)] = [float(coord[offset]),
-                                       float(coord[offset + 1]),
-                                       float(coord[offset + 2])]
+                                         float(coord[offset + 1]),
+                                         float(coord[offset + 2])]
 
     def _read_elements(self):
         # elements
@@ -170,7 +169,6 @@ class GmshIO:
 
         gmsh_finalize()
 
-
     def get_reg_ids_by_physical_names(self, reg_names, check_dim=-1):
         """
         Returns ids of regions given by names.
@@ -191,7 +189,7 @@ class GmshIO:
         """
         Supposes one region per element, on the first position in element tags.
         :param reg_ids: region indices
-        :return: indices of elements of the specified region indices
+        :return:  of elements of the specified region indices
         """
         ele_ids_list = []
         for eid, elem in self.elements.items():
@@ -225,7 +223,7 @@ class GmshIO:
         max_entity_tag = 0
         for type, tags, node_tags in self.elements.values():
             entity_tag = tags[1]
-            dim = self.tdict[type]-1
+            dim = self.tdict[type] - 1
             if dim == 0 and entity_tag > max_entity_tag:
                 max_entity_tag = entity_tag
         node_entity_tag = max_entity_tag + 1
@@ -237,16 +235,15 @@ class GmshIO:
             coords.extend(coord)
         gmsh.model.mesh.addNodes(0, node_entity_tag, node_tags, coords)
 
-
     def _write_elements(self):
         # elements
-        #created_nodes = set()
+        # created_nodes = set()
         created_entities = set()
         physical_dict = {}
         for element_tag, (type, tags, node_tags) in self.elements.items():
             physical_tag = tags[0]
             entity_tag = tags[1]
-            dim = self.tdict[type]-1
+            dim = self.tdict[type] - 1
 
             # create entity
             if (dim, entity_tag) not in created_entities:
@@ -281,10 +278,11 @@ class GmshIO:
 
                     if data_type == "ElementNodeData":
                         first_el_n_nodes = len(self.elements[data_item.tags[0]][2])
-                        n_comp =  first_el_value_shape // first_el_n_nodes
+                        n_comp = first_el_value_shape // first_el_n_nodes
                     else:
                         n_comp = first_el_value_shape
-                    self._write_model_data(f_handle, data_type, data_item.tags, name, data_item.values, data_item.time, step, n_comp)
+                    self._write_model_data(f_handle, data_type, data_item.tags, name, data_item.values, data_item.time,
+                                           step, n_comp)
 
     def write(self, filename, binary=False, format='auto'):
         """
@@ -301,9 +299,9 @@ class GmshIO:
         if binary:
             argv.append("-bin")
         argv.extend(["-format", format])
-        #gmsh.setMesh.Format
+        # gmsh.setMesh.Format
         gmsh.initialize(argv=argv)
-        #if format == 'msh2':
+        # if format == 'msh2':
         #    self.set_preserve_ids()
 
         model_name = "model"
@@ -353,15 +351,15 @@ class GmshIO:
         :return:
 
         """
-        n_els = len(values)     # works as shape[0] for arrays
+        n_els = len(values)  # works as shape[0] for arrays
 
         header = (f'1\n'
-                  f'"{str(name)}"\n' 
+                  f'"{str(name)}"\n'
                   f"1\n"
                   f"{time}\n"
                   f"3\n"
-                  f"{time_idx}\n" 
-                  f"{n_comp}\n" 
+                  f"{time_idx}\n"
+                  f"{n_comp}\n"
                   f"{n_els}\n")
 
         f.write('${}\n'.format(data_type))
@@ -415,17 +413,16 @@ class GmshIO:
         """
         Append the (element) field data to the `file_name` file.
         :param file_name: Target file (or None for current mesh file)
-        :param ele_ids: Element IDs in computational mesh corrsponding to order of
+        :param ele_ids: Element IDs in computational mesh corresponding to order of
         field values in element's barycenter.
         :param fields: {'field_name' : values_array, ..}
         """
         if not file_name:
             file_name = self.filename
         with open(file_name, "a") as fout:
-            #fout.write('$MeshFormat\n2.2 0 8\n$EndMeshFormat\n')
+            # fout.write('$MeshFormat\n2.2 0 8\n$EndMeshFormat\n')
             for name, values in fields.items():
                 self.write_element_data(fout, ele_ids, name, values)
-
 
     # def read_element_data(self):
     #     """

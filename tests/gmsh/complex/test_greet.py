@@ -5,6 +5,7 @@ import os
 
 this_source_dir = os.path.dirname(os.path.realpath(__file__))
 
+
 def geometry():
     return dict(
         outer_box=dict(
@@ -43,18 +44,18 @@ def create_cylinder(gmsh_occ, cyl_geom, stretch_factor=0.005):
     end = np.array((cyl_geom["end"]))
 
     dc = stretch_factor
-    u = end-start
-    start_t = start - dc*u
-    end_t = end + dc*u
+    u = end - start
+    start_t = start - dc * u
+    end_t = end + dc * u
 
-    middle = (start+end)/2
+    middle = (start + end) / 2
     box_lz = np.abs(end_t[2] - start_t[2]) + 2 * radius
     box_lx = np.abs(end_t[0] - start_t[0]) + 2 * radius
-    box_ly = 0.99*np.abs(end[1] - start[1])
+    box_ly = 0.99 * np.abs(end[1] - start[1])
     # box_ly = np.abs(end[1] - start[1])
     box = gmsh_occ.box([box_lx, box_ly, box_lz], middle)
 
-    cylinder = gmsh_occ.cylinder(radius, end_t-start_t, start_t)
+    cylinder = gmsh_occ.cylinder(radius, end_t - start_t, start_t)
     return cylinder, box
 
 
@@ -67,7 +68,7 @@ def test_empty_mesh():
     The fragmentation of the tunnels is a dead end, however, we do not understand the behaviour above.
 
     JB: I can not reproduce seg faults but the meshing problem comes from trying to mesh a rounded tip
-    of the two tunnels intersection, that may leads to creating to overleaping surface elements on different
+    of the two tunnels intersection, that may lead to creating overlapping surface elements on different
     surfaces.
     """
     os.chdir(this_source_dir)
@@ -140,11 +141,9 @@ def test_empty_mesh():
     #   Warning : 32 elements remain invalid in surface 45
     #   Error   : Invalid boundary mesh (overlapping facets) on surface 39 surface 40
 
-
-
-    # Sucessfull test run:
+    # Successful test run:
     # Info    : Found volume 6
-    # Info    : It. 0 - 0 nodes created - worst tet radius 1.14137 (nodes removed 0 0)
+    # Info    : It. 0 - 0 nodes created - the worst tet radius 1.14137 (nodes removed 0 0)
     # Info    : 3D refinement terminated (2567 nodes total):
     # Info    :  - 0 Delaunay cavities modified for star shapeness
     # Info    :  - 0 nodes could not be inserted
@@ -335,7 +334,7 @@ def test_fuse_tunnel():
 def test_fuse_tunnel_2():
     """
     Test shows, how to fuse two cylinders cross-secting each in a common plane under given angle.
-    In contrast to previous test, we rotate the second tunnel around extremal point EP of the intersetion ellipse
+    In contrast to previous test, we rotate the second tunnel around extremal point EP of the intersection ellipse
     and then fuses both into final object.
 
     -> RESULT: not a good approach - the point EP is found correctly, however the cylinders stick out
@@ -370,17 +369,16 @@ def test_fuse_tunnel_2():
     # directional vectors of the cutting plane
     angle_12 = np.pi - np.arccos(np.dot(v_t1, v_t2))
     d = radius / np.sin(angle_12)
-    u = d*(v_t1 + v_t2) # points from the center to the extremal point of the ellipse E
+    u = d * (v_t1 + v_t2)  # points from the center to the extremal point of the ellipse E
 
     # distance we have to move both cylinder, so they meet at E with their corners
-    delta = np.sqrt(np.dot(u, u) - radius*radius)
+    delta = np.sqrt(np.dot(u, u) - radius * radius)
 
     # create prolongated tunnels for fusion
     tunnel_mid_1 = tunnel_mid + delta * v_t1
     tunnel_mid_2 = tunnel_mid + delta * v_t2
     tunnel_1 = gen.cylinder(radius, tunnel_mid_1 - tunnel_start, tunnel_start)
     tunnel_2 = gen.cylinder(radius, tunnel_mid_2 - tunnel_end, tunnel_end)
-
 
     # if needed, make the cutting ellipse plane
     v = np.cross(v_t1, v_t2)
@@ -395,7 +393,6 @@ def test_fuse_tunnel_2():
 
     # move the cutting plane into the connecting point
     plane.translate(tunnel_mid)
-
 
     print("fuse...")
     # tunnel = tunnel_1.copy().fuse(tunnel_2.copy())
@@ -413,7 +410,7 @@ def test_fuse_tunnel_2():
 
     # mesh_all = [tunnel]
 
-    # uncomment one of the following (and the corresponding above) to see auxilliary objects
+    # uncomment one of the following (and the corresponding above) to see auxiliary objects
     mesh_all = [tunnel, plane]
     # mesh_all = [plane, tunnel_1, tunnel_2]
     # mesh_all = [tunnel_1, tunnel_2, tunnel, plane, tunnel_3, tunnel_4]

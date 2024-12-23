@@ -15,13 +15,12 @@ class PolygonChange(enum.Enum):
     join = 5
 
 
-
 class Decomposition:
     """
     Decomposition of a plane into (non-convex) polygonal subsets (not necessarily domains).
-    - should contain only topological operations (with exception of checking point in wire, which
+    - should contain only topological operations (with an exception on checking a point in wire, which
       has to be made as robust as possible)
-    - all snapping of raw cooridinates should be done in frontend class PolygonDecomposition
+    - all snapping of raw coordinates should be done in frontend class PolygonDecomposition
     - all operations have its inverse.
     - all elementary operations are marked into history, history should be general enough to
       contain messages from different classes and groups of operations. Operations on this class
@@ -31,7 +30,7 @@ class Decomposition:
     Segment:
 
       intersection - tolerance for snapping to the end points, fixed eps = 1e-10
-                   - snapping only to one of intersectiong segments
+                   - snapping only to one of intersecting segments
 
       is_on_x_line - no tolerance, but not sure about numerical stability
 
@@ -55,11 +54,11 @@ class Decomposition:
         self.points = idmap.IdMap()
         # Points dictionary ID -> Point
         self.segments = idmap.IdMap()
-        # Segmants dictionary ID - > Segmant
+        # Segments dictionary ID - > Segment
         self.pt_to_seg = {}
         # dict (a.id, b.id) -> segment
         self.wires = idmap.IdMap()
-        # Closed loops possibly degenerated) of segment sides. Single wire can be tracked through segment.next links.
+        # Closed loops possibly degenerated of segment sides. Single wire can be tracked through segment.next links.
         self.polygons = idmap.IdMap()
         # Polygon dictionary ID -> Polygon
         self.shapes = [self.points, self.segments, self.polygons]
@@ -73,7 +72,6 @@ class Decomposition:
         self.outer_polygon = Polygon(outer_wire)
         self.polygons.append(self.outer_polygon)
         outer_wire.polygon = self.outer_polygon
-
 
         self.last_polygon_change = (PolygonChange.add, self.outer_polygon, self.outer_polygon)
         # Last polygon operation.
@@ -94,9 +92,8 @@ class Decomposition:
 
     def __eq__(self, other):
         return len(self.points) == len(other.points) \
-               and len(self.segments) == len(other.segments) \
-               and len(self.polygons) == len(other.polygons)
-
+            and len(self.segments) == len(other.segments) \
+            and len(self.polygons) == len(other.polygons)
 
     def check_consistency(self):
         # print(self)
@@ -155,8 +152,6 @@ class Decomposition:
                 assert seg.vtxs[side] == pt
         return True
 
-
-
     ###############################
     # Public invertible operations.
 
@@ -176,7 +171,6 @@ class Decomposition:
         assert point.segment[0] is None
         point.poly.free_points.remove(point)
         self.points.remove(point)
-
 
     def new_segment(self, a_pt, b_pt):
         """
@@ -289,7 +283,7 @@ class Decomposition:
 
     def join_segments(self, mid_point, seg0, seg1):
         """
-        Join splited segments, return free mid point.
+        Join split segments, return free mid point.
         seg0 is used for the joined segment, seg1 is removed
         Resulting middle point is in invalid state and has to be deleted explicitly using 'remove_free_point'.
         return mid_pt
@@ -306,7 +300,6 @@ class Decomposition:
 
         del self.pt_to_seg[seg1.point_ids()]
         del self.pt_to_seg[seg0.point_ids()]
-
 
         # Assert that no other segments are joined to the mid_point
         assert seg0.next[seg0_in_vtx] == (seg1, seg1_in_vtx)
@@ -341,19 +334,11 @@ class Decomposition:
         self.pt_to_seg[seg0.point_ids()] = seg0
 
         self._destroy_segment(seg1)
-        mid_point.set_polygon(seg0.wire[left_side].polygon) # any side
+        mid_point.set_polygon(seg0.wire[left_side].polygon)  # any side
 
         return mid_point
 
-
-
-
-    #######################################3
     # Internal invertible operations.
-
-
-
-
 
     def _new_wire(self, polygon, a_pt, b_pt):
         """
@@ -383,9 +368,6 @@ class Decomposition:
         self.wires.remove(wire)
         self._destroy_segment(segment)
 
-
-
-
     def _wire_add_dendrite(self, points, r_insert, root_idx):
         """
         Add new dendrite tip segment.
@@ -397,12 +379,11 @@ class Decomposition:
         polygon = free_pt.poly
         r_prev, r_next, wire = r_insert
 
-        #assert wire.polygon == free_pt.polygons, "point polygons: {} insert: {}".format(free_pt.polygons, r_insert)
+        # assert wire.polygon == free_pt.polygons, "point polygons: {} insert: {}".format(free_pt.polygons, r_insert)
         # if wire.polygon != free_pt.polygons:
         #     import geomop.plot_polygons as pp
         #     pp.plot_polygon_decomposition(self, [free_pt, r_prev[0].vtxs[r_prev[1]]])
         #     print("False")
-
 
         seg = self._make_segment(points)
         seg.connect_vtx(root_idx, r_insert)
@@ -424,9 +405,6 @@ class Decomposition:
         self._destroy_segment(segment)
         self.last_polygon_change = (PolygonChange.shape, [polygon], None)
 
-
-
-
     def _join_wires(self, a_pt, b_pt, a_insert, b_insert):
         """
         Join two wires of the same polygon by new segment.
@@ -435,7 +413,6 @@ class Decomposition:
         b_prev, b_next, b_wire = b_insert
         assert a_wire != b_wire
         assert a_wire.polygon == b_wire.polygon
-
 
         polygon = a_wire.polygon
         self.last_polygon_change = (PolygonChange.shape, [polygon], None)
@@ -461,7 +438,7 @@ class Decomposition:
         else:
             keep_wire = new_seg.wire[keep_wire_side]
             rm_wire = new_seg.wire[1 - keep_wire_side]
-            parent_wire = keep_wire.parent  # parent wire to set for childs of rm_wire
+            parent_wire = keep_wire.parent  # parent wire to set for children of rm_wire
             polygon.outer_wire = keep_wire
 
         # update segment links to rm_wire
@@ -476,7 +453,6 @@ class Decomposition:
 
         # update parent link to rm_wire
         rm_wire.parent.childs.remove(rm_wire)
-        #####################
         self.wires.remove(rm_wire)
 
         return new_seg
@@ -519,17 +495,17 @@ class Decomposition:
             polygon.outer_wire = outer_wire
             outer_wire.set_parent(orig_parent)  # outer keep parent of original wire
             inner_wire.set_parent(outer_wire)
-            # childs of the orig wire are in outer wire
+            # children of the orig wire are in outer wire
             for ch in list(a_wire.childs):
                 ch.set_parent(outer_wire)
             # possible wires in the new inner_wire bubble
             for seg, side in inner_wire.segments():
-                side_wire = seg.wire[1-side]
+                side_wire = seg.wire[1 - side]
                 if side_wire != inner_wire:
                     assert inner_wire.contains_wire(side_wire)
                     side_wire.set_parent(inner_wire)
 
-            #self._update_wire_parents(orig_parent, outer_wire, inner_wire)
+            # self._update_wire_parents(orig_parent, outer_wire, inner_wire)
 
         else:
             # both wires are holes
@@ -548,16 +524,13 @@ class Decomposition:
     # def _update_wire_parents(self, orig_wire, outer_wire, inner_wire):
     #     # Auxiliary method of _split_wires.
     #     # update all wires having orig wire as parent
-    #     # TODO: use wire childs
+    #     # TODO: use wire children
     #     for wire in self.wires.values():
     #         if wire.parent == orig_wire:
     #             if inner_wire.contains_wire(wire):
     #                 wire.set_parent(inner_wire)
     #             else:
     #                 wire.set_parent(outer_wire)
-
-
-
 
     def _split_poly(self, a_pt, b_pt, a_insert, b_insert):
         """
@@ -604,7 +577,7 @@ class Decomposition:
             else:
                 inner_wire, outer_wire = right_wire, left_wire
 
-            # fix childs of orig_wire
+            # fix children of orig_wire
             for child in list(orig_wire.childs):
                 child.set_parent(outer_wire)
 
@@ -667,7 +640,7 @@ class Decomposition:
         for pt in list(new_polygon.free_points):
             pt.set_polygon(orig_polygon)
 
-        # set parent for keeped wire
+        # set parent for kept wire
         # right_wire.set_parent(orig_polygon.outer_wire)
 
         rm_wire.set_parent(rm_wire)  # disconnect
@@ -684,7 +657,6 @@ class Decomposition:
         self._destroy_segment(segment)
         self.wires.remove(rm_wire)
         self.polygons.remove(new_polygon)
-
 
     ###################################
     # Helper change operations.
@@ -705,8 +677,3 @@ class Decomposition:
         self.pt_to_seg.pop((a, b), None)
         self.pt_to_seg.pop((b, a), None)
         self.segments.remove(seg)
-
-
-
-
-

@@ -1,5 +1,5 @@
 """
-Test of homogenization techniquest within a two-scale problem.
+Test of homogenization techniques within a two-scale problem.
 - reference solution is evaluated by Flow123d, using direct rasterization of full DFN sample
   The pressure field is projected to the nodes of the rectangular grid,
   velocity filed is averaged over rectangular cells.
@@ -12,7 +12,7 @@ Test of homogenization techniquest within a two-scale problem.
 
 TODO:
 - use large fractures in first test in order to have no difference between ellipse and rectangle shapes
-- set parameters to have signifficant difference between fracture and bulk velocities
+- set parameters to have significant difference between fracture and bulk velocities
 - fix ref velocity projection
 - homogenization test
 - implement ellipse shape meshing for flow
@@ -24,13 +24,12 @@ import shutil
 from pathlib import Path
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-
 import numpy as np
 import pyvista as pv
-
 from bgem import stochastic
 from bgem.gmsh import gmsh, options
 from mesh_class import Mesh
@@ -41,15 +40,15 @@ from scipy.interpolate import LinearNDInterpolator
 script_dir = Path(__file__).absolute().parent
 workdir = script_dir / "sandbox"
 from joblib import Memory
+
 memory = Memory(workdir, verbose=0)
 
 
-
-def fracture_random_set(seed, size_range, max_frac = 1e21):
+def fracture_random_set(seed, size_range, max_frac=1e21):
     rmin, rmax = size_range
     box_dimensions = (rmax, rmax, rmax)
-    fr_cfg_path = script_dir/"fractures_conf.yaml"
-    #with open() as f:
+    fr_cfg_path = script_dir / "fractures_conf.yaml"
+    # with open() as f:
     #    pop_cfg = yaml.load(f, Loader=yaml.SafeLoader)
     fr_pop = stochastic.Population.from_cfg(fr_cfg_path, box_dimensions, shape=stochastic.EllipseShape())
     if fr_pop.mean_size() > max_frac:
@@ -59,15 +58,16 @@ def fracture_random_set(seed, size_range, max_frac = 1e21):
     pos_gen = stochastic.UniformBoxPosition(fr_pop.domain)
     np.random.seed(seed)
     fractures = fr_pop.sample(pos_distr=pos_gen, keep_nonempty=True)
-    #for fr in fractures:
+    # for fr in fractures:
     #    fr.region = gmsh.Region.get("fr", 2)
     return fractures
+
 
 def fracture_fixed_set():
     rmin, rmax = size_range
     box_dimensions = (rmax, rmax, rmax)
-    fr_cfg_path = script_dir/"fractures_conf.yaml"
-    #with open() as f:
+    fr_cfg_path = script_dir / "fractures_conf.yaml"
+    # with open() as f:
     #    pop_cfg = yaml.load(f, Loader=yaml.SafeLoader)
     fr_pop = stochastic.Population.from_cfg(fr_cfg_path, box_dimensions, shape=stochastic.EllipseShape())
     if fr_pop.mean_size() > max_frac:
@@ -78,11 +78,9 @@ def fracture_fixed_set():
     np.random.seed(seed)
     stochastic.FractureSet.from_list()
     fractures = fr_pop.sample(pos_distr=pos_gen, keep_nonempty=True)
-    #for fr in fractures:
+    # for fr in fractures:
     #    fr.region = gmsh.Region.get("fr", 2)
     return fractures
-
-
 
 
 def ref_solution_mesh(work_dir, domain_dimensions, fractures, fr_step, bulk_step):
@@ -96,33 +94,34 @@ def ref_solution_mesh(work_dir, domain_dimensions, fractures, fr_step, bulk_step
     fractures, fr_region_map = create_fractures_rectangles(factory, fractures, factory.rectangle())
     fractures_group = factory.group(*fractures).intersect(box)
     box_fr, fractures_fr = factory.fragment(box, fractures_group)
-    fractures_fr.mesh_step(fr_step) #.set_region("fractures")
+    fractures_fr.mesh_step(fr_step)  # .set_region("fractures")
     objects = [box_fr, fractures_fr]
-    factory.write_brep(str(work_dir / factory.model_name) )
-    #factory.mesh_options.CharacteristicLengthMin = cfg.get("min_mesh_step", cfg.boreholes_mesh_step)
+    factory.write_brep(str(work_dir / factory.model_name))
+    # factory.mesh_options.CharacteristicLengthMin = cfg.get("min_mesh_step", cfg.boreholes_mesh_step)
     factory.mesh_options.CharacteristicLengthMax = bulk_step
-    #factory.mesh_options.Algorithm = options.Algorithm3d.MMG3D
+    # factory.mesh_options.Algorithm = options.Algorithm3d.MMG3D
 
     # mesh.Algorithm = options.Algorithm2d.MeshAdapt # produce some degenerated 2d elements on fracture boundaries ??
     # mesh.Algorithm = options.Algorithm2d.Delaunay
     # mesh.Algorithm = options.Algorithm2d.FrontalDelaunay
 
     factory.mesh_options.Algorithm = options.Algorithm3d.Delaunay
-    #mesh.ToleranceInitialDelaunay = 0.01
+    # mesh.ToleranceInitialDelaunay = 0.01
     # mesh.ToleranceEdgeLength = fracture_mesh_step / 5
-    #mesh.CharacteristicLengthFromPoints = True
-    #factory.mesh_options.CharacteristicLengthFromCurvature = False
-    #factory.mesh_options.CharacteristicLengthExtendFromBoundary = 2  # co se stane if 1
-    #mesh.CharacteristicLengthMin = min_el_size
-    #mesh.CharacteristicLengthMax = max_el_size
+    # mesh.CharacteristicLengthFromPoints = True
+    # factory.mesh_options.CharacteristicLengthFromCurvature = False
+    # factory.mesh_options.CharacteristicLengthExtendFromBoundary = 2  # co se stane if 1
+    # mesh.CharacteristicLengthMin = min_el_size
+    # mesh.CharacteristicLengthMax = max_el_size
 
-    #factory.keep_only(*objects)
-    #factory.remove_duplicate_entities()
+    # factory.keep_only(*objects)
+    # factory.remove_duplicate_entities()
     factory.make_mesh(objects, dim=3)
-    #factory.write_mesh(me gmsh.MeshFormat.msh2) # unfortunately GMSH only write in version 2 format for the extension 'msh2'
+    # factory.write_mesh(me gmsh.MeshFormat.msh2) # unfortunately GMSH only write in version 2 format for the extension 'msh2'
     f_name = work_dir / (factory.model_name + ".msh2")
     factory.write_mesh(str(f_name), format=gmsh.MeshFormat.msh2)
     return f_name, fr_region_map
+
 
 def fr_cross_section(fractures, cross_to_r):
     return [cross_to_r * fr.r for fr in fractures]
@@ -130,21 +129,19 @@ def fr_cross_section(fractures, cross_to_r):
 
 def fr_field(mesh, dfn, reg_id_to_fr, fr_values, bulk_value):
     """
-    Provide impoicit fields on fractures as input.
+    Provide implicit fields on fractures as input.
     :param mesh:
     :param fractures:
     :param fr_values:
     :param bulk_value:
     :return:
     """
-    fr_map = mesh.fr_map(dfn, reg_id_to_fr) # np.array of fracture indices of elements, n_frac for nonfracture elements
+    fr_map = mesh.fr_map(dfn, reg_id_to_fr)  # np.array of fracture indices of elements, n_frac for nonfracture elements
     fr_values_ = np.concatenate((
         np.array(fr_values),
         np.atleast_1d(bulk_value)))
     field_vals = fr_values_[fr_map]
     return field_vals
-
-
 
 
 # def velocity_p0(grid_step, min_corner, max_corner, mesh, values):
@@ -172,41 +169,42 @@ def reference_solution(fr_media: FracturedMedia, dimensions, bc_gradient):
     workdir = script_dir / "sandbox"
     workdir.mkdir(parents=True, exist_ok=True)
 
-    # Input crssection and conductivity
+    # Input cross-section and conductivity
     mesh_file, fr_region_map = ref_solution_mesh(workdir, dimensions, dfn, fr_step=7, bulk_step=7)
-    full_mesh = Mesh.load_mesh(mesh_file, heal_tol = 0.001) # gamma
+    full_mesh = Mesh.load_mesh(mesh_file, heal_tol=0.001)  # gamma
     fields = dict(
         conductivity=fr_field(full_mesh, dfn, fr_region_map, fr_media.fr_conductivity, bulk_conductivity),
         cross_section=fr_field(full_mesh, dfn, fr_region_map, fr_media.fr_cross_section, 1.0)
     )
     cond_file = full_mesh.write_fields(str(workdir / "input_fields.msh2"), fields)
     cond_file = Path(cond_file)
-    cond_file =  cond_file.rename(cond_file.with_suffix(".msh"))
+    cond_file = cond_file.rename(cond_file.with_suffix(".msh"))
     # solution
     flow_cfg = dotdict(
         flow_executable=[
-         "/home/jb/workspace/flow123d/bin/fterm",
-         "--no-term",
-#        - flow123d/endorse_ci:a785dd
-#        - flow123d/ci-gnu:4.0.0a_d61969
-         "dbg",
-         "run",
-         "--profiler_path",
-         "profile"
+            "/home/jb/workspace/flow123d/bin/fterm",
+            "--no-term",
+            #        - flow123d/endorse_ci:a785dd
+            #        - flow123d/ci-gnu:4.0.0a_d61969
+            "dbg",
+            "run",
+            "--profiler_path",
+            "profile"
         ],
         mesh_file=cond_file,
         pressure_grad=bc_gradient
     )
     f_template = "flow_upscale_templ.yaml"
-    shutil.copy( (script_dir / f_template), workdir)
+    shutil.copy((script_dir / f_template), workdir)
     with workdir_mng(workdir):
         flow_out = call_flow(flow_cfg, f_template, flow_cfg)
 
     # Project to target grid
     print(flow_out)
-    #vel_p0 = velocity_p0(target_grid, flow_out)
+    # vel_p0 = velocity_p0(target_grid, flow_out)
     # projection of fields
     return flow_out
+
 
 def project_ref_solution_(flow_out, grid: fem.Grid):
     #     Velocity P0 projection
@@ -217,14 +215,15 @@ def project_ref_solution_(flow_out, grid: fem.Grid):
     #     :return:
     pvd_content = pv.get_reader(flow_out.hydro.spatial_file.path)
     pvd_content.set_active_time_point(0)
-    dataset = pvd_content.read()[0] # Take first block of the Multiblock dataset
+    dataset = pvd_content.read()[0]  # Take first block of the Multiblock dataset
     cell_centers_coords = dataset.cell_centers().points
     grid_min_corner = -grid.dimensions / 2
     centers_ijk_grid = (cell_centers_coords - grid_min_corner) // grid.step[None, :]
     centers_ijk_grid = centers_ijk_grid.astype(np.int32)
     assert np.alltrue(centers_ijk_grid < grid.shape[None, :])
 
-    grid_cell_idx = centers_ijk_grid[:, 0] + grid.shape[0] * (centers_ijk_grid[:, 1] + grid.shape[1] * centers_ijk_grid[:, 2])
+    grid_cell_idx = centers_ijk_grid[:, 0] + grid.shape[0] * (
+                centers_ijk_grid[:, 1] + grid.shape[1] * centers_ijk_grid[:, 2])
     sized = dataset.compute_cell_sizes()
     cell_volume = np.abs(sized.cell_data["Volume"])
     grid_sum_cell_volume = np.zeros(grid.n_elements)
@@ -239,6 +238,7 @@ def project_ref_solution_(flow_out, grid: fem.Grid):
 
     return grid_velocities.reshape((*grid.shape, 3))
 
+
 def det33(mat):
     """
     mat: (N, 3, 3)
@@ -246,9 +246,10 @@ def det33(mat):
     :return: (N, )
     """
     return sum(
-        np.prod(mat[:, [(col, (row+step)%3) for col in range(3)]])
-        for row in [0, 1, 2] for step in [1,2]
+        np.prod(mat[:, [(col, (row + step) % 3) for col in range(3)]])
+        for row in [0, 1, 2] for step in [1, 2]
     )
+
 
 @memory.cache
 def refine_barycenters(element, level):
@@ -258,21 +259,20 @@ def refine_barycenters(element, level):
     """
     return np.mean(refine_element(element, level), axis=1)
 
+
 @memory.cache
 def project_adaptive_source_quad(flow_out, grid: fem.Grid):
-    grid_cell_volume = np.prod(grid.step)/27
+    grid_cell_volume = np.prod(grid.step) / 27
 
     ref_el_2d = np.array([(0, 0), (1, 0), (0, 1)])
     ref_el_3d = np.array([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])
 
     pvd_content = pv.get_reader(flow_out.hydro.spatial_file.path)
     pvd_content.set_active_time_point(0)
-    dataset = pvd_content.read()[0] # Take first block of the Multiblock dataset
+    dataset = pvd_content.read()[0]  # Take first block of the Multiblock dataset
 
     velocities = dataset.cell_data['velocity_p0']
     cross_section = dataset.cell_data['cross_section']
-
-
 
     p_dataset = dataset.cell_data_to_point_data()
     p_dataset.point_data['velocity_magnitude'] = np.linalg.norm(p_dataset.point_data['velocity_p0'], axis=1)
@@ -283,17 +283,15 @@ def project_adaptive_source_quad(flow_out, grid: fem.Grid):
     plotter.add_mesh(p_dataset, color='white', opacity=0.3, label='Original Dataset')
     plotter.add_mesh(cut_dataset, scalars='velocity_magnitude', cmap='viridis', label='Velocity Magnitude')
 
-
     # Add legend and show the plot
     plotter.add_scalar_bar(title='Velocity Magnitude')
     plotter.add_legend()
     plotter.show()
 
-
-    #num_cells = dataset.n_cells
-    #shifts = np.zeros((num_cells, 3))
-    #transform_matrices = np.zeros((num_cells, 3, 3))
-    #volumes = np.zeros(num_cells)
+    # num_cells = dataset.n_cells
+    # shifts = np.zeros((num_cells, 3))
+    # transform_matrices = np.zeros((num_cells, 3, 3))
+    # volumes = np.zeros(num_cells)
 
     weights_sum = np.zeros((grid.n_elements,))
     grid_velocities = np.zeros((grid.n_elements, 3))
@@ -308,24 +306,24 @@ def project_adaptive_source_quad(flow_out, grid: fem.Grid):
 
         # Shift: the first vertex of the cell
         shift = points[0]
-        #shifts[i] = shift
+        # shifts[i] = shift
 
         transform_matrix = points[1:] - shift
         if len(points) == 4:  # Tetrahedron
             # For a tetrahedron, we use all three vectors formed from the first vertex
-            #transform_matrices[i] = transform_matrix[:3].T
+            # transform_matrices[i] = transform_matrix[:3].T
             # Volume calculation for a tetrahedron:
             volume = np.abs(np.linalg.det(transform_matrix[:3])) / 6
             ref_el = ref_el_3d
         elif len(points) == 3:  # Triangle
             # For a triangle, we use only two vectors
-            #transform_matrices[i, :2] = transform_matrix.T
+            # transform_matrices[i, :2] = transform_matrix.T
             # Area calculation for a triangle:
             volume = 0.5 * np.linalg.norm(np.cross(transform_matrix[0], transform_matrix[1])) * cross_section[i]
             ref_el = ref_el_2d
-        level = max(int(np.log2(volume/grid_cell_volume) / 3.0), 0)
+        level = max(int(np.log2(volume / grid_cell_volume) / 3.0), 0)
         levels[i] = level
-        ref_barycenters = refine_barycenters(ref_el[None, :, :],level)
+        ref_barycenters = refine_barycenters(ref_el[None, :, :], level)
         barycenters = shift[None, :] + ref_barycenters @ transform_matrix
         grid_indices = grid.project_points(barycenters)
         weights_sum[grid_indices] += volume
@@ -441,6 +439,7 @@ def plot_triangles(triangles):
     plt.title('Refined Triangles Visualization')
     plt.show()
 
+
 @pytest.mark.skip
 def test_refine_triangle():
     # Example usage
@@ -454,7 +453,6 @@ def test_refine_triangle():
     print("Total triangles:", len(refined_triangles))
 
     plot_triangles(refined_triangles)
-
 
 
 def plot_tetrahedra(tetrahedra):
@@ -486,6 +484,7 @@ def plot_tetrahedra(tetrahedra):
     plt.title('Refined Tetrahedra Visualization')
     plt.show()
 
+
 @pytest.mark.skip
 def test_refine_tetra():
     initial_tetrahedron = np.array(
@@ -498,9 +497,9 @@ def test_refine_tetra():
 
 
 """
-Projection using aditional quad points on the source mesh.
+Projection using additional quad points on the source mesh.
 We need to generate baricenters of an L-order refinement of a simplex.
-Vertices of first reinement of triangle:
+Vertices of first refinement of triangle:
 vertices coords relative to V0, V1, V2 (bary coords)
 T0: (1, 0, 0), (1/2, 1/2, 0), (1/2, 0, 1/2) 
 T1: (1/2, 1/2, 0), (0, 1, 0),  (0, 1/2, 1/2) 
@@ -513,12 +512,13 @@ T1: (1/2, 1/2, 0), (0, 1, 0),  (0, 1/2, 1/2)
 T2: (1/2, 1/2, 0), (0, 1/2, 1/2), (0, 0, 1), 
 T3: (1/2, 1/2, 0), (1/2, 1/2, 0), (1/2, 0, 1/2) 
 
-... tensor (4, 3, 3) ... n_childes, n_source_veritices, n_result verites (same as source)
+... tensor (4, 3, 3) ... n_childes, n_source_vertices, n_result vertices (same as source)
 source_vertices ... shape (n_vertices, coords_3d)
-.... T[:n_childs, :n_vertices, :, None] * source_vertices[None, :, None, :] 
+.... T[:n_children, :n_vertices, :, None] * source_vertices[None, :, None, :] 
 
-Iterative aplication of the tensor + finaly barycenters.
+Iterative application of the tensor + finally barycenters.
 """
+
 
 def project_ref_solution(flow_out, grid: fem.Grid):
     #     Velocity P0 projection
@@ -529,7 +529,7 @@ def project_ref_solution(flow_out, grid: fem.Grid):
     #     :return:
     pvd_content = pv.get_reader(flow_out.hydro.spatial_file.path)
     pvd_content.set_active_time_point(0)
-    dataset = pvd_content.read()[0] # Take first block of the Multiblock dataset
+    dataset = pvd_content.read()[0]  # Take first block of the Multiblock dataset
     cell_centers_coords = dataset.cell_centers().points
     velocities = dataset.cell_data['velocity_p0']
     interpolator = LinearNDInterpolator(cell_centers_coords, velocities, 0.0)
@@ -537,7 +537,7 @@ def project_ref_solution(flow_out, grid: fem.Grid):
     return grid_velocities
 
 
-def homo_decovalex(fr_media: FracturedMedia, grid:fem.Grid):
+def homo_decovalex(fr_media: FracturedMedia, grid: fem.Grid):
     """
     Homogenize fr_media to the conductivity tensor field on grid.
     :return: conductivity_field, np.array, shape (n_elements, n_voight)
@@ -551,11 +551,12 @@ def homo_decovalex(fr_media: FracturedMedia, grid:fem.Grid):
     k_voigt = k_iso_xyz[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
     return k_voigt
 
-#@pytest.mark.skip
+
+# @pytest.mark.skip
 def test_two_scale():
     # Fracture set
     domain_size = 100
-    #fr_range = (30, domain_size)
+    # fr_range = (30, domain_size)
     fr_range = (50, domain_size)
 
     # Random fractures
@@ -563,70 +564,69 @@ def test_two_scale():
 
     # Fixed fracture set
     shape_id = stochastic.EllipseShape.id
-    fr  = lambda c, n : stochastic.Fracture(shape_id, [100, 100], c, n)
+    fr = lambda c, n: stochastic.Fracture(shape_id, [100, 100], c, n)
     fractures = [
-        #fr([30,-10, 10], [0, 1, 0]),
-        fr([0,0,0], [1, 1, 0]),
-        #fr([-30,10,-10], [0, 1, 0])
+        # fr([30,-10, 10], [0, 1, 0]),
+        fr([0, 0, 0], [1, 1, 0]),
+        # fr([-30,10,-10], [0, 1, 0])
     ]
     dfn = stochastic.FractureSet.from_list(fractures)
     # Cubic law transmissvity
     fr_media = FracturedMedia.fracture_cond_params(dfn, 1e-4, 0.001)
 
     # Fractures and properties from DFNWorks
-    #fr_media = FracturedMedia.from_dfn_works("", bulk_conductivity)
-
+    # fr_media = FracturedMedia.from_dfn_works("", bulk_conductivity)
 
     # Coarse Problem
-    #steps = (50, 60, 70)
+    # steps = (50, 60, 70)
     steps = (9, 10, 11)
-    #steps = (50, 60, 70)
-    #steps = (3, 4, 5)
+    # steps = (50, 60, 70)
+    # steps = (3, 4, 5)
     fem_grid = fem.fem_grid(domain_size, steps, fem.Fe.Q(dim=3), origin=-domain_size / 2)
     bc_pressure_gradient = [1, 0, 0]
     grid_cond = homo_decovalex(fr_media, fem_grid.grid)
-    #grid_cond = np.ones(grid.n_elements)[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
+    # grid_cond = np.ones(grid.n_elements)[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
     pressure = fem_grid.solve_sparse(grid_cond, np.array(bc_pressure_gradient)[None, :])
     assert not np.any(np.isnan(pressure))
 
     flow_out = reference_solution(fr_media, fem_grid.grid.dimensions, bc_pressure_gradient)
     project_fn = project_adaptive_source_quad
-    #project_fn = project_ref_solution
-    #ref_velocity_grid = grid.cell_field_F_like(project_fn(flow_out, grid).reshape((-1, 3)))
+    # project_fn = project_ref_solution
+    # ref_velocity_grid = grid.cell_field_F_like(project_fn(flow_out, grid).reshape((-1, 3)))
     ref_velocity_grid = project_fn(flow_out, fem_grid.grid).reshape((-1, 3))
 
-    grad_pressure = fem_grid.field_grad(pressure)   # (n_vectors, n_els, dim)
+    grad_pressure = fem_grid.field_grad(pressure)  # (n_vectors, n_els, dim)
     grad_pressure = grad_pressure[0, :, :][:, :, None]  # (n_els, dim, 1)
-    velocity = -voigt_to_tn(grid_cond) @ grad_pressure    # (n_els, dim, 1)
-    #velocity = grad_pressure    # (n_els, dim, 1)
-    velocity = velocity[:, :, 0] # transpose
-    velocity_zyx = fem_grid.grid.cell_field_F_like(velocity)  #.reshape(*grid.n_steps, -1).transpose(2,1,0,3).reshape((-1, 3))
+    velocity = -voigt_to_tn(grid_cond) @ grad_pressure  # (n_els, dim, 1)
+    # velocity = grad_pressure    # (n_els, dim, 1)
+    velocity = velocity[:, :, 0]  # transpose
+    velocity_zyx = fem_grid.grid.cell_field_F_like(
+        velocity)  # .reshape(*grid.n_steps, -1).transpose(2,1,0,3).reshape((-1, 3))
     # Comparison
     # origin = [0, 0, 0]
 
-    #pv_grid = pv.StructuredGrid()
+    # pv_grid = pv.StructuredGrid()
     x, y, z = np.meshgrid(*fem_grid.grid.axes_linspace(), indexing='ij')
     pv_grid = pv.StructuredGrid(x, y, z)
-    #points = grid.nodes()
+    # points = grid.nodes()
     pv_grid_centers = pv_grid.cell_centers().points
     print(fem_grid.grid.barycenters())
     print(pv_grid_centers)
 
     cell_fields = dict(
-        ref_velocity = ref_velocity_grid,
-        homo_velocity = velocity_zyx,
-        diff = velocity_zyx - ref_velocity_grid,
-        homo_cond = fem_grid.grid.cell_field_F_like(grid_cond),
+        ref_velocity=ref_velocity_grid,
+        homo_velocity=velocity_zyx,
+        diff=velocity_zyx - ref_velocity_grid,
+        homo_cond=fem_grid.grid.cell_field_F_like(grid_cond),
     )
     point_fields = dict(
         homo_pressure=pressure[0]
     )
-    pv_grid = fem_plot.grid_fields_vtk(fem_grid.grid, cell_fields, vtk_path=workdir/'test_result.vtk')
-    plotter = fem_plot.create_plotter() #off_screen=True, window_size=(1024, 768))
+    pv_grid = fem_plot.grid_fields_vtk(fem_grid.grid, cell_fields, vtk_path=workdir / 'test_result.vtk')
+    plotter = fem_plot.create_plotter()  # off_screen=True, window_size=(1024, 768))
     plotter.add_mesh(pv_grid, scalars='ref_velocity')
     plotter.show()
-    #pv_grid.dimensions = grid.n_steps + 1
-    #pv_grid.cell_data['ref_velocity'] = np.arange(22*20*18).reshape((18,20,22)).transpose((2, 1, 0)).reshape((-1,))
+    # pv_grid.dimensions = grid.n_steps + 1
+    # pv_grid.cell_data['ref_velocity'] = np.arange(22*20*18).reshape((18,20,22)).transpose((2, 1, 0)).reshape((-1,))
 
-    #pv_grid.save(str(workdir / "test_result.vtk"))
-
+    # pv_grid.save(str(workdir / "test_result.vtk"))

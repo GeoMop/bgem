@@ -3,22 +3,20 @@ from typing import *
 from pathlib import Path
 import os
 import yaml
-import re
 from socket import gethostname
-from glob import iglob
-import fsspec
 from fsspec.implementations.local import LocalFileSystem
 import yaml_include
 
+
 class RelativeLocalFileSystem(LocalFileSystem):
     """
-    Auxiliary filesystem to allow specify the include path
+    Auxiliary filesystem that allows to specify the included path
     relative to the main config_file.
     """
+
     def __init__(self, main_dir, **kwargs):
         super().__init__(**kwargs)
         self.main_dir = Path(main_dir)
-
 
     def open(self, path, mode='rb', **kwargs):
         # Attempt to open the path directly
@@ -30,9 +28,9 @@ class RelativeLocalFileSystem(LocalFileSystem):
             return super().open(str(full_path), mode, **kwargs)
 
 
-
 class YamlLimitedSafeLoader(type):
     """Meta YAML loader that skips the resolution of the specified YAML tags."""
+
     def __new__(cls, name, bases, namespace, do_not_resolve: List[str]) -> Type[yaml.SafeLoader]:
         do_not_resolve = set(do_not_resolve)
         implicit_resolvers = {
@@ -46,11 +44,13 @@ class YamlLimitedSafeLoader(type):
             {**namespace, "yaml_implicit_resolvers": implicit_resolvers},
         )
 
+
 class YamlNoTimestampSafeLoader(
     metaclass=YamlLimitedSafeLoader, do_not_resolve={"tag:yaml.org,2002:timestamp"}
 ):
     """A safe YAML loader that leaves timestamps as strings."""
     pass
+
 
 class dotdict(dict):
     """
@@ -68,12 +68,12 @@ class dotdict(dict):
             return self.__getattribute__(item)
 
     @classmethod
-    def create(cls, cfg : Any):
+    def create(cls, cfg: Any):
         """
         - recursively replace all dicts by the dotdict.
         """
         if isinstance(cfg, dict):
-            items = ( (k, cls.create(v)) for k,v in cfg.items())
+            items = ((k, cls.create(v)) for k, v in cfg.items())
             return dotdict(items)
         elif isinstance(cfg, list):
             return [cls.create(i) for i in cfg]
@@ -85,7 +85,7 @@ class dotdict(dict):
     @staticmethod
     def serialize(cfg):
         if isinstance(cfg, (dict, dotdict)):
-            return { k:dotdict.serialize(v) for k,v in cfg.items()}
+            return {k: dotdict.serialize(v) for k, v in cfg.items()}
         elif isinstance(cfg, list):
             return [dotdict.serialize(i) for i in cfg]
         elif isinstance(cfg, tuple):
@@ -93,15 +93,18 @@ class dotdict(dict):
         else:
             return cfg
 
+
 Key = Union[str, int]
 Addr = Tuple[Key]
 VariantPatch = Dict[str, dotdict]
+
 
 @dataclass
 class AddrIter:
     path: Addr
     # full address path
     i: int = 0
+
     # actual level of the path; initial -1 is before first call to `idx` or `key`.
 
     def is_leaf(self):
@@ -125,7 +128,7 @@ class AddrIter:
         return '/'.join([str(v) for v in sub_path])
 
 
-def _item_update(key:Key, val:dotdict, sub_path:Key, sub:dotdict):
+def _item_update(key: Key, val: dotdict, sub_path: Key, sub: dotdict):
     sub_key, path = sub_path
     if key == sub_key:
         if path.empty():
@@ -136,7 +139,8 @@ def _item_update(key:Key, val:dotdict, sub_path:Key, sub:dotdict):
     else:
         return val
 
-def deep_update(cfg: dotdict, iter:AddrIter, substitute:dotdict):
+
+def deep_update(cfg: dotdict, iter: AddrIter, substitute: dotdict):
     if iter.is_leaf():
         return substitute
 
@@ -152,8 +156,7 @@ def deep_update(cfg: dotdict, iter:AddrIter, substitute:dotdict):
     return new_cfg
 
 
-
-def apply_variant(cfg:dotdict, variant:VariantPatch) -> dotdict:
+def apply_variant(cfg: dotdict, variant: VariantPatch) -> dotdict:
     """
     In the `variant` dict the keys are interpreted as the address
     in the YAML file. The address is a list of strings and ints separated by '/'
@@ -174,8 +177,9 @@ def apply_variant(cfg:dotdict, variant:VariantPatch) -> dotdict:
         new_cfg = deep_update(new_cfg, AddrIter(path), val)
     return new_cfg
 
-# Purpose of following was adding included files into config so that we can move it to the worksapce
-# Could be simplified as yaml_include provides a cusom_loader callback now from ver 2.0
+
+# Purpose of following was adding included files into config so that we can move it to the workspace
+# Could be simplified as yaml_include provides a custom_loader callback now from ver 2.0
 
 # class YamlInclude(yaml_include.Constructor):
 #     def __init__(self, *args, **kwargs):
@@ -210,7 +214,7 @@ def apply_variant(cfg:dotdict, variant:VariantPatch) -> dotdict:
 #             return reader_clz(pathname, encoding=encoding, loader_class=type(loader))()
 #         return self._read_file(pathname, loader, encoding)
 
-def resolve_machine_configuration(cfg:dotdict, hostname) -> dotdict:
+def resolve_machine_configuration(cfg: dotdict, hostname) -> dotdict:
     # resolve machine configuration
     if 'machine_config' not in cfg:
         return cfg
@@ -224,6 +228,7 @@ def resolve_machine_configuration(cfg:dotdict, hostname) -> dotdict:
     cfg.machine_config = machine_cfg
     return cfg
 
+
 def load_config(path, collect_files=False, hostname=None):
     """
     Load configuration from given file replace, dictionaries by dotdict
@@ -233,15 +238,18 @@ def load_config(path, collect_files=False, hostname=None):
     """
     path = Path(path)
     included_files = []
+
     def store_includes(inc_path, file, loader):
         inc_path = Path(inc_path)
         if not inc_path.is_absolute():
             inc_path = path.parent / inc_path
         included_files.append(inc_path.resolve())
         return yaml.load(file, loader)
+
     fs_hook = RelativeLocalFileSystem(main_dir=path.parent)
-    yaml.add_constructor("!include", yaml_include.Constructor(fs=fs_hook, custom_loader=store_includes), YamlNoTimestampSafeLoader)
-    #instance = YamlInclude.add_to_loader_class(loader_class=YamlNoTimestampSafeLoader, base_dir=os.path.dirname(path))
+    yaml.add_constructor("!include", yaml_include.Constructor(fs=fs_hook, custom_loader=store_includes),
+                         YamlNoTimestampSafeLoader)
+    # instance = YamlInclude.add_to_loader_class(loader_class=YamlNoTimestampSafeLoader, base_dir=os.path.dirname(path))
     cfg_dir = os.path.dirname(path)
     with open(path) as f:
         cfg = yaml.load(f, Loader=YamlNoTimestampSafeLoader)
@@ -256,9 +264,11 @@ def load_config(path, collect_files=False, hostname=None):
         dd['_file_refs'] = referenced
     return dd
 
+
 def dump_config(config):
     with open("__config_resolved.yaml", "w") as f:
         yaml.dump(config, f)
+
 
 def path_search(filename, path):
     if not isinstance(filename, str):
@@ -275,8 +285,11 @@ def path_search(filename, path):
             return [os.path.abspath(full_name)]
     return []
 
+
 FilePath = NewType('FilePath', str)
-def collect_referenced_files(cfg:dotdict, search_path:List[str]) -> List[FilePath]:
+
+
+def collect_referenced_files(cfg: dotdict, search_path: List[str]) -> List[FilePath]:
     if isinstance(cfg, (dict, dotdict)):
         referenced = [collect_referenced_files(v, search_path) for v in cfg.values()]
     elif isinstance(cfg, (list, tuple)):
@@ -285,7 +298,3 @@ def collect_referenced_files(cfg:dotdict, search_path:List[str]) -> List[FilePat
         return path_search(cfg, search_path)
     # flatten
     return [i for l in referenced for i in l]
-
-
-
-

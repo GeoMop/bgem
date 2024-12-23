@@ -1,12 +1,9 @@
 import numpy as np
 from bgem.bspline import bspline as bs, bspline_plot as bs_plot, bspline_approx as bs_approx
-# import math
-# #import matplotlib.pyplot as plt
-# #from mpl_toolkits.mplot3d import Axes3D
-# import time
-# import logging
 import os
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
+
 
 def make_a_test_grid(output_path, func, nuv):
     """
@@ -24,15 +21,16 @@ def make_a_test_grid(output_path, func, nuv):
     n_points = grid.shape[0]
     subindices = np.random.choice(n_points, size=int(0.7 * n_points))
     grid = grid[subindices, :]
-    dx = 0.2 * 1/nuv[0]
-    dy = 0.2 * 1/nuv[1]
-    dz = 0.01 * np.ptp(grid[:, 2])       # value range
-    grid += np.random.randn(*grid.shape) * np.array([dx,dy,dz])[None, :]
+    dx = 0.2 * 1 / nuv[0]
+    dy = 0.2 * 1 / nuv[1]
+    dz = 0.01 * np.ptp(grid[:, 2])  # value range
+    grid += np.random.randn(*grid.shape) * np.array([dx, dy, dz])[None, :]
     np.savetxt(output_path, grid)
 
 
 def function_sin_cos(x):
     return np.sin(x[0] * 4) * np.cos(x[1] * 4)
+
 
 # def plot_cmp(a_grid, b_grid):
 #     plt = bs_plot.Plotting()
@@ -40,7 +38,6 @@ def function_sin_cos(x):
 #     plt.plot_surface(a_grid[:, 0], a_grid[:, 1], a_grid[:,  2])
 #     plt.plot_surface(b_grid[:, 0], b_grid[:, 1], b_grid[:,  2])
 #     plt.show()
-
 
 
 def verify_approximation(func, surf):
@@ -56,11 +53,12 @@ def verify_approximation(func, surf):
     z_func_eval = np.array([func([u, v]) for u, v in xy_probe], dtype=float)
     xyz_func = np.concatenate((xy_probe, z_func_eval[:, None]), axis=1).reshape(-1, 3)
 
-    #plot_cmp(xyz_approx, xyz_func)
+    # plot_cmp(xyz_approx, xyz_func)
     plt = bs_plot.Plotting()
     plt.plot_surface_3d(surf.make_full_surface(), (nu, nv), poles=False)
-    plt.scatter_3d(xyz_func[:,0], xyz_func[:,1], xyz_func[:,2])
+    plt.scatter_3d(xyz_func[:, 0], xyz_func[:, 1], xyz_func[:, 2])
     plt.show()
+
 
 def test_grid_approx_example():
     nuv = (50, 50)
@@ -96,13 +94,9 @@ def test_grid_approx_example():
     verify_approximation(function_sin_cos, surface)
 
 
-
-
-
 # Replace call through the pytest, allow execution as a script.
 if __name__ == "__main__":
     test_grid_approx_example()
-
 
     # def gen_uv_grid(nu, nv):
     #     # surface on unit square

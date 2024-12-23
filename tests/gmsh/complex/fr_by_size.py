@@ -10,10 +10,13 @@ geopt.Tolerance = 1e-2
 
 
 def p32_over_p30(exp, size_range):
-    return -exp * (size_range[1] ** (2 - exp) - size_range[0] ** (2 - exp)) / (2 - exp) / (size_range[1] ** (-exp) - size_range[0] ** (-exp))
+    return -exp * (size_range[1] ** (2 - exp) - size_range[0] ** (2 - exp)) / (2 - exp) / (
+                size_range[1] ** (-exp) - size_range[0] ** (-exp))
+
 
 def p30_scale(exp, orig_range, new_range):
     return (new_range[1] ** (-exp) - new_range[0] ** (-exp)) / (orig_range[1] ** (-exp) - orig_range[0] ** (-exp))
+
 
 size_range = [0.1, 100]
 cube_side = 5
@@ -28,20 +31,18 @@ volume = cube_side ** 3
 intensity = volume * p30_intensity
 n_fractures = np.random.poisson(lam=intensity, size=1)[0]
 
-
 l_rmin, l_rmax = cube_side * np.log(size_range[0]), cube_side * np.log(size_range[1])
 b_sides = [l_rmax - l_rmin, cube_side, cube_side]
-box = geo.box(b_sides, [0.5*(l_rmax + l_rmin), 0.5 * cube_side, 0.5 * cube_side])
+box = geo.box(b_sides, [0.5 * (l_rmax + l_rmin), 0.5 * cube_side, 0.5 * cube_side])
 fr_base = geo.rectangle()
 
 fractures = []
 for i in range(n_fractures):
     if i % 1000 == 0:
-        print('done ... {}% ({}/{})'.format(100*i/n_fractures, i, n_fractures))
+        print('done ... {}% ({}/{})'.format(100 * i / n_fractures, i, n_fractures))
     fr_a = fischer.sample_axis_angle()[0]
     axis, angle = fr_a[:3], fr_a[3]
     size = power_law.sample(size_min=size_range[0], size_max=size_range[1])
-
 
     # random position
     pt_x = np.log(size) * cube_side

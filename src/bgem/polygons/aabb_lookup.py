@@ -1,5 +1,5 @@
 """
-Dynmaicaly adding end removing AABB (axis aligned bounding boxes).
+Dynamical adding and removing AABB (axis aligned bounding boxes).
 Supported operations:
 - closest to point
 - intersecting box
@@ -9,24 +9,28 @@ Implementation:
 Possible improvements using some trees.
 """
 import numpy as np
-#import numpy.linalg as la
+
+# import numpy.linalg as la
 
 _blow_box = np.array([-1.0, -1.0, 1.0, 1.0])
+
+
 def make_aabb(points, margin=-1):
     """
-    Make AABB of a set of points, optionaly expanded by given margin.
+    Make AABB of a set of points, optionally expanded by given margin.
     :param points: Iterable of np array points [x,y]
     :param margin: width of added margin
     :return: box as np array [min_x, min_y, max_x, max_y]
     """
     points = np.array(points, dtype=float)
-    box = np.concatenate( (np.min(points, axis=0), np.max(points, axis=0)) )
+    box = np.concatenate((np.min(points, axis=0), np.max(points, axis=0)))
     if margin > 0:
         box += margin * _blow_box
     return box
 
+
 class AABB_Lookup:
-    def __init__(self, infty = 1e50, init_size=128):
+    def __init__(self, infty=1e50, init_size=128):
         self.inf = infty
         self.n_boxes = 0
         self.boxes = np.full((init_size, 4), self.inf)
@@ -52,7 +56,7 @@ class AABB_Lookup:
         boxes_size = self.boxes.shape[0]
         while id >= boxes_size:
             # double the size
-            self.boxes = np.append( self.boxes, np.full((boxes_size, 4), self.inf), axis=0 )
+            self.boxes = np.append(self.boxes, np.full((boxes_size, 4), self.inf), axis=0)
             boxes_size = self.boxes.shape[0]
         self.n_boxes = max(self.n_boxes, id + 1)
         self.boxes[id, :] = box
@@ -80,19 +84,18 @@ class AABB_Lookup:
         if np.amin(boxes_linf) > 0.0:
             # closest box not containing the point
             i_closest = np.argmin(boxes_linf)
-            c_boxes = boxes[i_closest:i_closest+1, :]
+            c_boxes = boxes[i_closest:i_closest + 1, :]
         else:
             # all boxes containing the point
-            c_boxes = boxes[np.where(boxes_linf<=0.0)]
+            c_boxes = boxes[np.where(boxes_linf <= 0.0)]
         assert c_boxes.shape[0] != 0
-        # Max distance of closest boxes
-        #try:
+        # Max distance of the closest boxes
+        # try:
         l_inf_max = np.max(np.maximum(point - c_boxes[:, 0:2], c_boxes[:, 2:4] - point))
-        #except:
+        # except:
         #    pass
         l2_max = min(np.sqrt(2) * l_inf_max, self.inf)
         return np.where(boxes_linf < l2_max)[0]
-
 
     def intersect_candidates(self, box):
         """
@@ -101,7 +104,7 @@ class AABB_Lookup:
         """
         boxes = self.boxes[:self.n_boxes, :]
         not_intersect = np.logical_or(
-                            box[2: 4] < boxes[:, 0:2],
-                            boxes[:, 2:4] < box[0:2])
-        not_intersect = np.logical_or(not_intersect[:,0], not_intersect[:,1])
-        return np.where( np.logical_not(not_intersect) )[0]
+            box[2: 4] < boxes[:, 0:2],
+            boxes[:, 2:4] < box[0:2])
+        not_intersect = np.logical_or(not_intersect[:, 0], not_intersect[:, 1])
+        return np.where(np.logical_not(not_intersect))[0]

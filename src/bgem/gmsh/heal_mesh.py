@@ -1,4 +1,3 @@
-import logging
 import os
 import collections
 import numpy as np
@@ -15,11 +14,10 @@ class ShapeBase:
         self._edge_lens = None
         self._gamma = None
 
-
     @property
     def edge_vectors(self):
         if self._edge_vectors is None:
-            self._edge_vectors = np.array([self.nodes[b] - self.nodes[a] for a,b in  self.edges])
+            self._edge_vectors = np.array([self.nodes[b] - self.nodes[a] for a, b in self.edges])
         return self._edge_vectors
 
     @property
@@ -27,8 +25,6 @@ class ShapeBase:
         if self._edge_lens is None:
             self._edge_lens = [np.linalg.norm(edge_vec) for edge_vec in self.edge_vectors]
         return self._edge_lens
-
-
 
     def small_edge_ratio(self):
         min_edge = np.min(self.edge_lens)
@@ -47,9 +43,8 @@ class ShapeBase:
         else:
             alt = 2 * np.abs(self.measure) / max_edge
 
-        #print(self.measure, regular_simplex_vol, self.edge_lens)
+        # print(self.measure, regular_simplex_vol, self.edge_lens)
         return alt / max_edge
-
 
 
 class Tetrahedron(ShapeBase):
@@ -69,7 +64,6 @@ class Tetrahedron(ShapeBase):
             self._measure = np.linalg.det(self.nodes[1:, :] - self.nodes[0, :]) / 6
         return self._measure
 
-
     @property
     def face_normals(self):
         # nonunit face normals
@@ -83,14 +77,13 @@ class Tetrahedron(ShapeBase):
             self._face_areas = [Triangle(self.nodes[face_vtxs]).measure for face_vtxs in self.vtxs_faces]
         return self._face_areas
 
-
     def smooth_grad_error_indicator(self):
         faces = self.face_areas
         e_lens = self.edge_lens
-        e_faces = [[0, 1], [0, 2], [1, 2], [0, 3], [1, 3], [2, 3]] # faces joining the edge
-        sum_pairs = max(1e-300, np.sum([faces[i] * faces[j] * elen ** 2 for (i,j),elen in zip(e_faces, e_lens)]))
+        e_faces = [[0, 1], [0, 2], [1, 2], [0, 3], [1, 3], [2, 3]]  # faces joining the edge
+        sum_pairs = max(1e-300, np.sum([faces[i] * faces[j] * elen ** 2 for (i, j), elen in zip(e_faces, e_lens)]))
         regular = (2.0 * np.sqrt(2.0 / 3.0) / 9.0)
-        quality = np.abs(self.measure) * (np.sum(faces) / sum_pairs) ** (3.0/4.0) / regular
+        quality = np.abs(self.measure) * (np.sum(faces) / sum_pairs) ** (3.0 / 4.0) / regular
         return quality
 
     def gmsh_gamma(self):
@@ -98,17 +91,15 @@ class Tetrahedron(ShapeBase):
             faces = self.face_areas
             V = np.abs(self.measure)
             # inradius
-            r = 3*V / sum(faces)
+            r = 3 * V / sum(faces)
             # circum radius
-            a,b,c,A,B,C = self.edge_lens
-            x_area = (a*A + b*B + c*C)*(a*A + b*B - c*C)*(a*A - b*B + c*C)*(-a*A + b*B + c*C)
+            a, b, c, A, B, C = self.edge_lens
+            x_area = (a * A + b * B + c * C) * (a * A + b * B - c * C) * (a * A - b * B + c * C) * (
+                        -a * A + b * B + c * C)
             # assert x_area > 0, x_area
             R = np.sqrt(x_area) / 24 / max(1e-300, V)
-            self._gamma = 3 * r/max(1e-300, R)
+            self._gamma = 3 * r / max(1e-300, R)
         return self._gamma
-
-
-
 
     def common_normal(self):
         """
@@ -119,7 +110,6 @@ class Tetrahedron(ShapeBase):
         approx_common_normal = v[-1, :]
         return approx_common_normal
 
-
     def skew_line_dist(self):
         a_vec = self.nodes[1] - self.nodes[0]
         b_vec = self.nodes[3] - self.nodes[2]
@@ -129,10 +119,10 @@ class Tetrahedron(ShapeBase):
         return dist, normal
 
 
-
 class Triangle(ShapeBase):
     vtxs_faces = [[0, 1, 2]]
     edges = [[1, 2], [2, 0], [0, 1]]
+
     # Triangle edges, index of edge is the index of the opposite node.
     # edges of the single vertex: one comes in one comes out
 
@@ -148,40 +138,35 @@ class Triangle(ShapeBase):
             self._measure = np.linalg.norm(np.cross(self.nodes[2] - self.nodes[0], self.nodes[1] - self.nodes[0])) / 2
         return self._measure
 
-
     def smooth_grad_error_indicator(self):
         e_lens = self.edge_lens
         prod = max(1e-300, (np.prod(e_lens)) ** (2.0 / 3.0))
         quality = 4 / np.sqrt(3) * np.abs(self.measure) / prod
         return quality
 
-
     def gmsh_gamma(self):
         if self._gamma is None:
-            a,b,c = self.edge_lens
+            a, b, c = self.edge_lens
             # inradius
-            s = (a + b + c)/2
-            #r = np.sqrt(s*(s-a)*(s-b)*(s-c)) / s
-            #R = a*b*c / 4 / r / s
-            #gamma =  2 * r / R
-            alt_gamma = 8 * (s/a-1)*(s/b-1)*(s/c-1)
-            #assert np.isclose(gamma, alt_gamma)
-            self._gamma =  alt_gamma
+            s = (a + b + c) / 2
+            # r = np.sqrt(s*(s-a)*(s-b)*(s-c)) / s
+            # R = a*b*c / 4 / r / s
+            # gamma =  2 * r / R
+            alt_gamma = 8 * (s / a - 1) * (s / b - 1) * (s / c - 1)
+            # assert np.isclose(gamma, alt_gamma)
+            self._gamma = alt_gamma
         return self._gamma
 
 
-
-
 class Line(ShapeBase):
-    edges = [[0,1]]
+    edges = [[0, 1]]
 
     def __init__(self, nodes):
         super().__init__(nodes)
 
     @property
     def measure(self):
-        return  self.edge_lens[0]
-
+        return self.edge_lens[0]
 
 
 class Point:
@@ -193,12 +178,11 @@ class Point:
 
     @property
     def measure(self):
-        return  0.0
+        return 0.0
 
     @property
     def edge_lens(self):
         return []
-
 
 
 @attrs.define(auto_attribs=True)
@@ -216,7 +200,6 @@ class HealMesh:
     def read_mesh(mesh_file, node_tol=0.0001):
         from . import gmsh_io
         return HealMesh(gmsh_io.GmshIO(mesh_file), mesh_file, node_tol)
-
 
     def __init__(self, mesh_io, mesh_file="mesh.msh", node_tol=0.0001):
         self.mesh = mesh_io
@@ -236,7 +219,6 @@ class HealMesh:
         diam = np.max(aabb_max - aabb_min)
         self._abs_node_tol = node_tol * diam
         print("diam: ", self._abs_node_tol)
-
 
     def check_used_nodes(self):
         print("Searching for unused nodes...")
@@ -279,7 +261,7 @@ class HealMesh:
             old_id_dim = (old_reg_id, dim)
             if old_id_dim in new_reg_map:
                 el_to_old_reg[id] = old_id_dim
-                reg_id, reg_dim,  reg_name = new_reg_map[old_id_dim]
+                reg_id, reg_dim, reg_name = new_reg_map[old_id_dim]
                 if reg_dim != dim:
                     Exception(f"Assigning region of wrong dimension: ele dim: {dim} region dim: {reg_dim}")
                 self.mesh.physical[reg_name] = (reg_id, reg_dim)
@@ -303,7 +285,6 @@ class HealMesh:
                 self.node_els[n].add(eid)
             self._history[eid].append(('A', node_ids))
 
-
     # modification methods
     # touched elements are collected
 
@@ -320,7 +301,7 @@ class HealMesh:
         self.max_ele_id += 1
         if e.shape.measure < 0.1:
             print("    add el:", self.max_ele_id, e.shape.measure)
-            #if shape.measure < 0:
+            # if shape.measure < 0:
             #    node_ids[0], node_ids[1] = node_ids[1], node_ids[0]
             #    ele = (type, tags, node_ids)
 
@@ -348,7 +329,6 @@ class HealMesh:
             if ne.shape.measure < 0 or oe.shape.measure < 0:
                 print("    move out: ", ne.eid, oe.shape.measure, ne.shape.measure)
         self.modified_elements.update(self.node_els[nid])
-
 
     def merge_node(self, rm_node, target_node):
         """
@@ -382,7 +362,6 @@ class HealMesh:
         self.remove_node(rm_node)
         return target_node
 
-
     def remove_node(self, nid):
         assert len(self.node_els[nid]) == 0, self.node_els[nid]
         del self.mesh.nodes[nid]
@@ -404,8 +383,6 @@ class HealMesh:
         # check that there isn't the same element already
         duplicate_els = [eid for eid in self.common_elements(ele.node_ids) if self.mesh.elements[eid][0] == ele.type]
         return duplicate_els
-
-
 
     def common_elements(self, node_ids, max=1000):
         """
@@ -440,32 +417,27 @@ class HealMesh:
 
         self.mesh.write_ascii(file_name)
 
-
-
-
-
     def _make_element(self, eid, e_tuple=None):
         if e_tuple is None:
             e_tuple = self.mesh.elements[eid]
         type, tags, node_ids = e_tuple
         nodes = np.array([self.mesh.nodes[n] for n in node_ids], dtype=float)
-        shape_class = {1:Point, 2:Line, 3:Triangle, 4:Tetrahedron}
+        shape_class = {1: Point, 2: Line, 3: Triangle, 4: Tetrahedron}
         shape = shape_class[len(node_ids)](nodes)
         return Element(eid, type, tags, np.array(node_ids, dtype=int), shape)
 
-
-    #quality_methods = {'flow_stats': 'smooth_grad_error_indicator', 'gamma_stats': 'gmsh_gamma'}
+    # quality_methods = {'flow_stats': 'smooth_grad_error_indicator', 'gamma_stats': 'gmsh_gamma'}
     def quality_statistics(self, bad_el_tol=0.01):
         """
         Vector of number of elements in quality bins:
         (1, 0.5), (0.5, 0.25), ...
         :return:
         """
-        #methods = self.quality_methods
+        # methods = self.quality_methods
         bad_els = []
         bins = 2.0 ** (np.arange(-15, 1))
         bins = np.concatenate((bins, [np.inf]))
-        #histogram = {method: np.zeros_like(bins, dtype=int) for method in methods}
+        # histogram = {method: np.zeros_like(bins, dtype=int) for method in methods}
         histogram = np.zeros_like(bins, dtype=int)
         for eid in self.mesh.elements:
             e = self._make_element(eid)
@@ -483,7 +455,6 @@ class HealMesh:
                 histogram[first_smaller] += 1
         return histogram, bins, bad_els
 
-
     def print_stats(self, histogram, bins, name):
         print(name)
         line = ["{:10.2e}".format(v) for v in bins]
@@ -491,9 +462,8 @@ class HealMesh:
         line = ["{:10d}".format(v) for v in histogram]
         print(" | ".join(line))
 
-
     def stats_to_yaml(self, filename, el_tol=0.01):
-        #methods = self.quality_methods
+        # methods = self.quality_methods
         hist, bins, bad_els = self.quality_statistics(bad_el_tol=el_tol)
         output = {}
         for name in 'gamma':
@@ -501,7 +471,6 @@ class HealMesh:
         import yaml
         with open(filename, "w") as f:
             yaml.dump(output, f)
-
 
     def heal_mesh(self, gamma_tol=0.02, fraction_of_new_els=2):
         self.gamma_tol = gamma_tol
@@ -572,10 +541,9 @@ class HealMesh:
             i_min_edge = np.argmin(ele.shape.edge_lens)
             edge = ele.shape.edges[i_min_edge]
             edge_ids = ele.node_ids[edge]
-            print("eid: {} heal close nodes ({}), merge: {}".format(ele.eid, elen, edge_ids ))
+            print("eid: {} heal close nodes ({}), merge: {}".format(ele.eid, elen, edge_ids))
             self.merge_node(*edge_ids)
         return self.reset_modified()
-
 
     def _check_small_edge(self, ele):
         """
@@ -586,13 +554,11 @@ class HealMesh:
         """
         quality = ele.shape.small_edge_ratio()
 
-
         merge_vtxs = ele.shape.edges[np.argmin(ele.shape.edge_lens)]
         merge_nodes = ele.node_ids[merge_vtxs]
         print("eid: {} heal short edge ({}d): {} merge nodes: {}".format(ele.eid, ele.shape.dim, quality, merge_nodes))
         self.merge_node(*merge_nodes)
         return self.reset_modified()
-
 
     def _check_flat_triangle(self, ele):
         if ele.shape.dim < 2: return []
@@ -608,7 +574,6 @@ class HealMesh:
         # if np.min(tria_shape.edge_lens) / np.max(tria_shape.edge_lens) < 0.05:
         #     return []
 
-
         i_max_edge = np.argmax(tria_shape.edge_lens)
 
         # remove elements connected to the degenerate triangle
@@ -619,16 +584,17 @@ class HealMesh:
         max_edge = tria_shape.edges[i_max_edge]
         max_edge_u = tria_shape.edge_vectors[i_max_edge]
         len_max_edge = tria_shape.edge_lens[i_max_edge]
-        i_x_edge = max_edge[1] # common edge to the vtx 0 of the max_edge
+        i_x_edge = max_edge[1]  # common edge to the vtx 0 of the max_edge
         # edges of a vtx have different sign
         x_edge_u = -tria_shape.edge_vectors[i_x_edge]
         t = x_edge_u @ max_edge_u / len_max_edge
         tt = t / len_max_edge
         assert 0 <= tt <= 1, tt
 
-        if tt < 0.05 or 1-tt < 0.05:
+        if tt < 0.05 or 1 - tt < 0.05:
             return []
-        print("eid: {} heal small triangle ({}), nodes: {} elens: {}".format(ele.eid, ele.shape.gmsh_gamma(), ele.node_ids, tria_shape.edge_lens))
+        print("eid: {} heal small triangle ({}), nodes: {} elens: {}".format(ele.eid, ele.shape.gmsh_gamma(),
+                                                                             ele.node_ids, tria_shape.edge_lens))
 
         projected = tria_shape.nodes[max_edge[0]] + tt * max_edge_u
         nid_proj = tria_node_ids[i_max_edge]
@@ -651,12 +617,11 @@ class HealMesh:
 
         return self.reset_modified()
 
-
     # def _heal_degenerate_flat(self, eid, flat_nodes, loc_points):
     #     """
     #     :param eid:
     #     :param flat_nodes:
-    #     :param loc_points: (isec_node, oposite_to_isec_mode, other two points)
+    #     :param loc_points: (isec_node, opposite_to_isec_mode, other two points)
     #     :return:
     #     """
     #     type, tags, node_ids, shape = self._make_shape(self.mesh.elements[eid])
@@ -700,12 +665,6 @@ class HealMesh:
     #
     #     return self.reset_modified()
 
-
-
-
-
-
-
     def _check_flat_tetra(self, ele):
         """
         Check that element is flat. Use angles between face normals
@@ -714,7 +673,7 @@ class HealMesh:
         :return:
         """
         if ele.shape.dim != 3: return []
-        # check that no face is to small
+        # check that no face is too small
         face_gammas = [Triangle(ele.shape.nodes[face]).gmsh_gamma() for face in ele.shape.vtxs_faces]
 
         if min(face_gammas) < np.sqrt(self.gamma_tol):
@@ -757,18 +716,11 @@ class HealMesh:
             # in which face it degenerates
             outer_face = np.argmax(cos_face_norm > 0)
             return self._heal_triangle_flat_case(ele, flat_nodes, outer_face)
-        elif n_pos==3:
+        elif n_pos == 3:
             outer_face = np.argmax(cos_face_norm <= 0)
             return self._heal_triangle_flat_case(ele, flat_nodes, outer_face)
         else:
             assert False
-
-
-
-
-
-
-
 
     def _heal_quad_flat_case(self, ele, flat_nodes, pos_edge, neg_edge):
         """
@@ -785,7 +737,7 @@ class HealMesh:
         neg_0, neg_1 = flat_nodes[neg_edge, :]
         neg_u = neg_1 - neg_0
         M = np.stack((pos_u, -neg_u), axis=1)
-        sub_rows = [[0,1], [0, 2], [1,2]]
+        sub_rows = [[0, 1], [0, 2], [1, 2]]
         sub_mat = [M[rows, :] for rows in sub_rows]
         im = np.argmax([np.abs(np.linalg.det(subM)) for subM in sub_mat])
         M = sub_mat[im]
@@ -798,25 +750,24 @@ class HealMesh:
         skew_edges = [(pos_t, pos_edge), (neg_t, neg_edge)]
         for i, (t, edge) in enumerate(skew_edges):
             edge_len = np.linalg.norm(flat_nodes[edge[1]] - flat_nodes[edge[0]])
-            other_edge = skew_edges[1-i][1]
+            other_edge = skew_edges[1 - i][1]
 
-            #tria_nodes = np.stack((flat_nodes[edge[0]], flat_nodes[other_edge[0]], flat_nodes[other_edge[1]]), axis=0)
-            #tria_flatness = Triangle(tria_nodes).small_edge_ratio()
+            # tria_nodes = np.stack((flat_nodes[edge[0]], flat_nodes[other_edge[0]], flat_nodes[other_edge[1]]), axis=0)
+            # tria_flatness = Triangle(tria_nodes).small_edge_ratio()
             # assert np.abs(t-0) > 0.05, "  flat tetra, degen side, 0 == t: {}".format(t)
             if np.abs(t - 0) <= 0.05:
                 print("  flat tetra, degen side, 0 == t: {}".format(t))
                 return []
-            #tria_nodes = np.stack((flat_nodes[edge[1]], flat_nodes[other_edge[0]], flat_nodes[other_edge[1]]), axis=0)
-            #tria_flatness = Triangle(tria_nodes).small_edge_ratio()
+            # tria_nodes = np.stack((flat_nodes[edge[1]], flat_nodes[other_edge[0]], flat_nodes[other_edge[1]]), axis=0)
+            # tria_flatness = Triangle(tria_nodes).small_edge_ratio()
             # assert np.abs(t-1) > 0.05, "  flat tetra, degen side, 1 == t: {}".format(t)
             if np.abs(t - 1) <= 0.05:
                 print("  flat tetra, degen side, 1 == t: {}".format(t))
                 return []
 
         # failing these would mean the intersection of edges lies outside the bounded interval by the nodes
-        assert 0 < pos_t < 1 ,(pos_t, neg_t)
-        assert 0 < neg_t < 1 ,(pos_t, neg_t)
-
+        assert 0 < pos_t < 1, (pos_t, neg_t)
+        assert 0 < neg_t < 1, (pos_t, neg_t)
 
         # non-degenerate
         print("  flat quad case: ")
@@ -832,15 +783,15 @@ class HealMesh:
         new_node_id = self.add_node(isec_point)
 
         # split attached elements
-        node_perm = pos_edge + neg_edge # canonical nodes to real nodes
-        canonical_faces = [[0, 1, 2], [0, 1, 3], [2, 3, 0], [2, 3, 1]] # first two nodes
+        node_perm = pos_edge + neg_edge  # canonical nodes to real nodes
+        canonical_faces = [[0, 1, 2], [0, 1, 3], [2, 3, 0], [2, 3, 1]]  # first two nodes
         for c_face in canonical_faces:
             face = [node_perm[vtx] for vtx in c_face]
             # split elements connected to the face
             # intersection splits the first edge of the face
             edge_n0_id = ele.node_ids[face[0]]
             edge_n1_id = ele.node_ids[face[1]]
-            #print("edge nids: ", edge_n0_id, edge_n1_id)
+            # print("edge nids: ", edge_n0_id, edge_n1_id)
 
             # active elements connected to the face
             for el_id in self.common_elements([ele.node_ids[loc_node] for loc_node in face], max=2):
@@ -858,15 +809,9 @@ class HealMesh:
 
         return self.reset_modified()
 
-
-
-
-
-
-
     def _heal_triangle_flat_case(self, ele, flat_nodes, outer_face):
         """
-        Case with single outer face splitted by other 3 faces.
+        Case with a single outer face split by other 3 faces.
         :param eid:
         :param shape:
         :param flat_nodes:
@@ -887,7 +832,7 @@ class HealMesh:
             rel_dist = np.linalg.norm(inner_node - x_proj) / np.linalg.norm(e_vec)
             projections.append((rel_dist, i, t_proj, x_proj))
         rel_dist, i, t, x = min(projections)
-        #assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
+        # assert rel_dist > 0.05, "  flat tria degen side, rel dist: {}".format(rel_dist)
 
         # nondegenerate triangle case, split elements connected to the outer face
         print("  flat tria case")
@@ -909,4 +854,3 @@ class HealMesh:
                 new_node_ids[i_nid_el] = ele.node_ids[i_inner_node]
                 self.add_element((el_type, el_tags, new_node_ids))
         return self.reset_modified()
-

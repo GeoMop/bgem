@@ -5,9 +5,9 @@ from . import aabb_lookup
 from . import decomp
 
 # TODO: rename point - > node
-# TODO: carefull unification of tolerance usage.
+# TODO: careful unification of tolerance usage.
 # TODO: Performance tests:
-# - snap_point have potentialy very bad complexity O(Nlog(N)) with number of segments
+# - snap_point have potentially very bad complexity O(Nlog(N)) with number of segments
 # - add_line linear with number of segments
 # - other operations are at most linear with number of segments per wire or point
 
@@ -15,8 +15,9 @@ from . import decomp
 in_vtx = left_side = 1
 # vertex where edge comes in; side where next segment is connected through the in_vtx
 out_vtx = right_side = 0
-# vertex where edge comes out; side where next segment is connected through the out_vtx
 
+
+# vertex where edge comes out; side where next segment is connected through the out_vtx
 
 
 def disable_undo():
@@ -32,7 +33,6 @@ def enable_undo():
 disable_undo()
 
 
-
 class PolygonDecomposition:
     """
     Frontend to Decomposition.
@@ -42,7 +42,7 @@ class PolygonDecomposition:
     Segment:
 
       intersection - tolerance for snapping to the end points, fixed eps = 1e-10
-                   - snapping only to one of intersectiong segments
+                   - snapping only to one of intersecting segments
 
       is_on_x_line - no tolerance, but not sure about numerical stability
 
@@ -67,10 +67,9 @@ class PolygonDecomposition:
         self.decomp = decomp.Decomposition()
         self.tolerance = tolerance
 
-
     def __repr__(self):
         stream = "PolygonDecomposition\n"
-        stream+=str(self.decomp)
+        stream += str(self.decomp)
         return stream
 
     # def __eq__(self, other):
@@ -111,7 +110,6 @@ class PolygonDecomposition:
     #     new_pt = self._add_point(xy, polygon, id = point_id)
     #     return new_pt
 
-
     # def remove_free_point(self, point_id):
     #     """
     #     LAYERS
@@ -141,7 +139,6 @@ class PolygonDecomposition:
         new_seg = self._add_segment(a_pt, b_pt, deformability)
         return new_seg
 
-
     def delete_segment(self, segment):
         """
         LAYERS
@@ -151,14 +148,13 @@ class PolygonDecomposition:
         """
         return self._rm_segment(segment)
 
-
-    # def check_displacment(self, points, displacement, margin):
+    # def check_displacement(self, points, displacement, margin):
     #     """
     #     LAYERS
     #     param: points: List of Points to move.
     #     param: displacement: Numpy array, 2D vector of displacement to add to the points.
     #     param: margin: float between (0, 1), displacement margin as a fraction of maximal displacement
-    #     TODO: Check fails for internal wires and nonconvex poygons.
+    #     TODO: Check fails for internal wires and nonconvex polygons.
     #     :return: Shortened displacement to not cross any segment.
     #     """
     #     # Collect fixed sides of segments connecting fixed and moving point.
@@ -194,17 +190,15 @@ class PolygonDecomposition:
     #     self.decomp.last_polygon_change = (decomp.PolygonChange.shape, changed_polygons, None)
     #     return new_displ
 
-
-    def check_displacment(self, points, displacement):
+    def check_displacement(self, points, displacement):
         """
         LAYERS
         param: points: List of Points to move.
         param: displacement: Numpy array, 2D vector of displacement to add to the points,
                 identical for the whole displaced block.
-        TODO: Check fails for internal wires and nonconvex poygons.
+        TODO: Check fails for internal wires and nonconvex polygons.
         :return: True for no, collision; False if any collision is detected.
         """
-
 
         # Collect all sides of moving segments.
         moving_segs = set()
@@ -213,7 +207,7 @@ class PolygonDecomposition:
             for seg, side in pt.segments():
                 changed_polygons.add(seg.wire[out_vtx].polygon)
                 changed_polygons.add(seg.wire[in_vtx].polygon)
-                moving_segs.add( (seg, side) )
+                moving_segs.add((seg, side))
         self.decomp.last_polygon_change = (decomp.PolygonChange.shape, changed_polygons, None)
 
         # Todo: For the outer wire of the moving segments, add parent and its holes to the envelope.
@@ -222,11 +216,11 @@ class PolygonDecomposition:
         for wire in boundary_wires:
             for child in wire.childs:
                 boundary_wires.append(child)
-        envelope=[]
+        envelope = []
         for wire in boundary_wires:
             for seg, side in wire.segments():
                 if (seg, side) not in moving_segs and (seg, 1 - side) not in moving_segs:
-                        envelope.append(seg)
+                    envelope.append(seg)
 
         for e_seg in envelope:
             # Check collision of points with envelope.
@@ -241,7 +235,7 @@ class PolygonDecomposition:
             for (seg, side) in moving_segs:
                 a = seg.vtxs[side].xy + displacement
 
-                if (seg, 1-side) in moving_segs:
+                if (seg, 1 - side) in moving_segs:
                     b = seg.vtxs[1 - side].xy + displacement
                 else:
                     b = seg.vtxs[1 - side].xy
@@ -261,7 +255,6 @@ class PolygonDecomposition:
         """
         for pt in points:
             pt.move(displacement)
-
 
     def get_last_polygon_changes(self):
         """
@@ -289,7 +282,7 @@ class PolygonDecomposition:
 
     def get_childs(self, polygon_id):
         """
-        Return list of child ploygons (including itself).
+        Return list of child polygons (including itself).
         :param polygon_id:
         :return: List of polygon IDs.
         """
@@ -297,10 +290,10 @@ class PolygonDecomposition:
         for w in self.decomp.wires.values():
             w._get_child_passed = False
 
-        #print(self)
+        # print(self)
         child_poly_id_set = set()
         root_poly = self.decomp.polygons[polygon_id]
-        for poly in  root_poly.child_polygons():
+        for poly in root_poly.child_polygons():
             child_poly_id_set.add(poly.id)
         return child_poly_id_set
 
@@ -316,14 +309,8 @@ class PolygonDecomposition:
         """
         self.tolerance = tolerance
 
-
-
-
-
-
     ###################################################################
     # Macro operations that change state of the decomposition.
-
 
     def add_point(self, point):
         self.clear_split_shapes_history()
@@ -351,19 +338,15 @@ class PolygonDecomposition:
             seg = obj
             # Snap to endpoints.
             seg_len = np.linalg.norm(seg.vector)
-            if t*seg_len < self.tolerance:
+            if t * seg_len < self.tolerance:
                 return seg.vtxs[out_vtx]
-            elif (1-t)*seg_len < self.tolerance:
+            elif (1 - t) * seg_len < self.tolerance:
                 return seg.vtxs[in_vtx]
             mid_pt, new_seg = self._point_on_segment(seg, t)
             return mid_pt
         else:
             poly = obj
             return self._add_point(point, poly)
-
-
-
-
 
     def pt_dist(self, pt, point):
         return la.norm(pt.xy - point)
@@ -382,7 +365,7 @@ class PolygonDecomposition:
 
         # First snap to points
         candidates = self.points_lookup.closest_candidates(point)
-        #candidates = self.points.keys()
+        # candidates = self.points.keys()
         for pt_id in candidates:
             pt = self.points[pt_id]
             if self.pt_dist(pt, point) < self.tolerance:
@@ -391,14 +374,14 @@ class PolygonDecomposition:
         # Snap to segments, keep the closest to get polygon.
 
         candidates = self.segments_lookup.closest_candidates(point)
-        #candidates = self.segments.keys()
+        # candidates = self.segments.keys()
         close_segments = [(np.inf, None, 0)]
         for seg_id in candidates:
             seg = self.segments[seg_id]
             t = self.seg_project_point(seg.vector, seg.vtxs[out_vtx].xy, point)
             dist = la.norm(point - seg.parametric(t))
             close_segments.append((dist, seg, t))
-        close_segments.sort(key=lambda x:x[0])
+        close_segments.sort(key=lambda x: x[0])
         closest_seg = close_segments[0]
         if closest_seg[0] < self.tolerance:
             close_segments = [it for it in close_segments if it[0] < self.tolerance]
@@ -417,10 +400,8 @@ class PolygonDecomposition:
                     nb = -nb
                 t = (self.tolerance - (xa - xb) @ nb) / (ua @ nb)
                 xt = xa + t * ua
-                assert np.linalg.norm(xt - seg_b.parametric(self.seg_project_point(ub, xb, xt))) > self.tolerance*0.99
+                assert np.linalg.norm(xt - seg_b.parametric(self.seg_project_point(ub, xb, xt))) > self.tolerance * 0.99
                 return (1, seg_a, t)
-
-
 
         assert closest_seg[0] < np.inf or len(self.segments) == 0
 
@@ -443,7 +424,7 @@ class PolygonDecomposition:
             poly = seg.wire[side].polygon
             assert poly is not None
 
-        if poly is None: # t==0 or t==1
+        if poly is None:  # t==0 or t==1
             # only in case of non-convex polygon, point is in the cone
             prev, next, wire = pt.insert_vector(point - pt.xy)
             poly = wire.polygon
@@ -453,7 +434,6 @@ class PolygonDecomposition:
             pp.plot_polygon_decomposition(self, border)
             assert False
         return (2, poly, None)
-
 
     def add_line(self, a, b, deformability=1):
         """
@@ -470,10 +450,9 @@ class PolygonDecomposition:
         a_point = self._add_point_impl(a)
         b_point = self._add_point_impl(b)
 
-
         if a_point == b_point:
             return a_point
-        result = self.add_line_for_points(a_point, b_point, omit={a_point, b_point}, deformability = deformability)
+        result = self.add_line_for_points(a_point, b_point, omit={a_point, b_point}, deformability=deformability)
         return result
 
     def add_line_for_points(self, a_pt, b_pt, omit=set(), deformability=1):
@@ -489,7 +468,7 @@ class PolygonDecomposition:
         :return:
 
         1. snapping to the existing points is performed, recursive call for subdivided segment
-        2. if no snapping: intersection points are computed and new segmnet subdivided
+        2. if no snapping: intersection points are computed and new segment subdivided
         TODO: intersectiong two segments with very small angle we may add two
         points that are closer then tolerance. This may produce an error later on.
         However healing this is nontrivial, since we have to merge two segments.
@@ -514,7 +493,7 @@ class PolygonDecomposition:
                 # subdivide segment, snap to existing mid point
                 omit_pt = omit | {pt}
                 return self._add_line_for_points(a_pt, pt, omit=omit_pt) + \
-                       self._add_line_for_points(pt, b_pt, omit=omit_pt)
+                    self._add_line_for_points(pt, b_pt, omit=omit_pt)
 
         # no snapping, subdivide by intersections
         line_div = self._add_line_seg_intersections(a_pt, b_pt)
@@ -528,7 +507,7 @@ class PolygonDecomposition:
         :param b:
         :return:
 
-        Note: Snap to one of the points because it is faster then weighted merge point.
+        Note: Snap to one of the points because it is faster than weighted merge point.
         """
         a_deform = a.deformability
         b_deform = b.deformability
@@ -540,7 +519,7 @@ class PolygonDecomposition:
             a, b = b, a
 
         b_diff = b.xy - a.xy
-        b_can_move = self.check_displacment([b],  b_diff)
+        b_can_move = self.check_displacement([b], b_diff)
 
         # TODO: introduce an exception, that we can not meet the tolerance criteria
         if not b_can_move:
@@ -554,13 +533,8 @@ class PolygonDecomposition:
             if new_seg is not None:
                 new_seg.attr = seg.attr
 
-
         self._rm_point(b)
         return a
-
-
-
-
 
     def _point_on_segment(self, seg, t):
         """
@@ -582,7 +556,6 @@ class PolygonDecomposition:
             new_seg = self._split_segment(seg, mid_pt)
 
         return (mid_pt, new_seg)
-
 
     def _add_line_seg_intersections(self, a_pt, b_pt):
         """
@@ -630,15 +603,13 @@ class PolygonDecomposition:
             new_seg = self._add_segment(start_pt, b_pt, deformability)
             yield (new_seg, self.decomp.last_polygon_change, new_seg.vtxs[out_vtx] == start_pt)
 
-
-
     def delete_point(self, point):
         """
         Delete given point with all connected segments.
         :param point:
         :return:
         """
-        segs_to_del = [ seg for seg, side in point.segments()]
+        segs_to_del = [seg for seg, side in point.segments()]
         for seg in segs_to_del:
             self._rm_segment(seg)
         self._rm_point(point)
@@ -669,7 +640,6 @@ class PolygonDecomposition:
             self._rm_segment(seg)
         else:
             yield "Add segment", None
-
 
     @undo.undoable
     def _rm_point(self, pt):
@@ -745,9 +715,8 @@ class PolygonDecomposition:
         AX = pt - seg_out_xy
         dxy2 = Dxy.dot(Dxy)
         assert dxy2 != 0.0
-        t = AX.dot(Dxy)/dxy2
+        t = AX.dot(Dxy) / dxy2
         return min(max(t, 0.0), 1.0)
-
 
     @staticmethod
     def seg_intersection(seg, a, b):
@@ -759,7 +728,7 @@ class PolygonDecomposition:
 
         """
 
-        mat = np.array([ seg.vector, a - b])
+        mat = np.array([seg.vector, a - b])
         rhs = a - seg.vtxs[0].xy
         try:
             t0, t1 = la.solve(mat.T, rhs)
@@ -770,18 +739,17 @@ class PolygonDecomposition:
         # end points can not be too close to the segment as they should be
         # snapped
         eps = 1e-10
-        #if np.abs(t1) < eps or np.abs(1-t1) < eps:
+        # if np.abs(t1) < eps or np.abs(1-t1) < eps:
         #
-        #return (t0, t1)
+        # return (t0, t1)
         # if (np.abs(t1) < eps or np.abs(1-t1) < eps) and (-eps < t0 < 1+eps):
-        #     # one of new points close to the segment, should not happend
+        #     # one of new points close to the segment, should not happen
         #     assert False
         if 0 + eps < t0 < 1 - eps and 0 + eps < t1 < 1 - eps:
             return (t0, t1)
         else:
             # TODO: catch also case of existing close points
             return (None, None)
-
 
     ################################
     # Serialization methods - should move into polygon_io
@@ -819,7 +787,8 @@ class PolygonDecomposition:
         vtx0_side = seg1.point_side(last_seg.vtxs[last_side])
         if vtx0_side is None:
             last_side = in_vtx
-            assert seg1.point_side(last_seg.vtxs[last_side]) is not None, "Can not connect segments: {} {}".format(last_seg, seg1)
+            assert seg1.point_side(last_seg.vtxs[last_side]) is not None, "Can not connect segments: {} {}".format(
+                last_seg, seg1)
         start_seg_side = (last_seg, last_side)
 
         # set segment sides along the wire
@@ -860,8 +829,6 @@ class PolygonDecomposition:
             pt.set_polygon(p)
         return p
 
-
-
     def set_wire_parents(self):
         """
         Used in  deep_copy and deserialize.
@@ -878,4 +845,3 @@ class PolygonDecomposition:
                         inner_wire.set_parent(hole)
                         for wire in inner_wire.neighbors():
                             child_queue.append(wire)
-

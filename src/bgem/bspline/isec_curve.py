@@ -1,5 +1,5 @@
-
 import numpy as np
+
 
 class IsecCurve:
     """
@@ -18,8 +18,7 @@ class IsecCurve:
         self.surf = []
         self.loop = False
 
-
-    #@classmethod
+    # @classmethod
     def reverse(self):
         """
         performs reverse on all the lists corresponding to the curve in order to move boundary point (and all
@@ -33,8 +32,7 @@ class IsecCurve:
         self.other_neighbours.reverse()
         self.surf.reverse()
 
-
-    #@classmethod
+    # @classmethod
     def add_point(self, point, i_surf, own_info, other_info):
         """
         connects the point to the last curve
@@ -76,5 +74,3 @@ class IsecCurve:
 
         if np.logical_and(n1 > 0, n2 > 0):
             self.loop = True
-
-

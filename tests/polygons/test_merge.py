@@ -1,7 +1,7 @@
 from bgem.polygons.polygons import PolygonDecomposition
 import bgem.polygons.merge as merge
 import numpy as np
-import pytest
+
 # def test_deep_copy(self):
 #     print("===== test deep_copy")
 #     da = PolygonDecomposition()
@@ -28,36 +28,33 @@ import pytest
 
 def test_simple_intersections():
     da = PolygonDecomposition()
-    da.add_line((0, 0), (1,0))
+    da.add_line((0, 0), (1, 0))
     da.add_line((0, 0), (0, 1))
     da.add_line((1, 1), (1, 0))
     da.add_line((1, 1), (0, 1))
     da.add_line((0, 0), (1, 1))
-    #print("da:\n", da)
+    # print("da:\n", da)
 
     db = PolygonDecomposition()
-    db.add_line((0, 0), (1,0))
+    db.add_line((0, 0), (1, 0))
     db.add_line((0, 0), (0, 1))
     db.add_line((1, 1), (1, 0))
     db.add_line((1, 1), (0, 1))
     db.add_line((1, 0), (0, 1))
-    #print("db:\n", db)
+    # print("db:\n", db)
 
     (dc, maps_a, maps_b) = merge.intersect_single(da, db)
-    #print("dc\n", dc)
-    #plot_polygon_decomposition(dc)
+    # print("dc\n", dc)
+    # plot_polygon_decomposition(dc)
     assert maps_a[0] == {}
-    assert maps_b[0] == { 0: 0, 1: 1, 2: 2, 3: 3}
-    assert maps_a[1] == { 5:4}
-    assert maps_b[1] == { 0: 0, 1: 1, 2: 2, 3: 3, 6:4, 7:4}
-    assert maps_a[2] == { 3: 1, 4: 2}
-    assert maps_b[2] == { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2}
+    assert maps_b[0] == {0: 0, 1: 1, 2: 2, 3: 3}
+    assert maps_a[1] == {5: 4}
+    assert maps_b[1] == {0: 0, 1: 1, 2: 2, 3: 3, 6: 4, 7: 4}
+    assert maps_a[2] == {3: 1, 4: 2}
+    assert maps_b[2] == {0: 0, 1: 1, 2: 1, 3: 2, 4: 2}
 
 
-
-
-
-#@pytest.mark.skip
+# @pytest.mark.skip
 def test_frac_intersections():
     # import sys
     # import trace
@@ -68,7 +65,6 @@ def test_frac_intersections():
     #     ignoredirs=[sys.prefix, sys.exec_prefix],
     #     trace=0,
     #     count=1)
-
 
     da = PolygonDecomposition()
     box = np.array([[0.0, 0.0],
@@ -107,4 +103,4 @@ def test_frac_intersections():
     #######
     # Test merge with empty decomp.
     # Test fix for split points under tolerance.
-    copy_decomp, maps = merge.intersect_decompositions([ decomp ])
+    copy_decomp, maps = merge.intersect_decompositions([decomp])

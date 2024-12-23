@@ -1,20 +1,20 @@
 """
-Exact FEM based homogenization using regular d-dimansional grid.
+Exact FEM based homogenization using regular d-dimensional grid.
 """
 from functools import cached_property
 import numpy as np
-from .fields import tn_to_voigt, voigt_to_tn, voigt_coords
+from .fields import voigt_to_tn, voigt_coords
 from .homogenization import equivalent_posdef_tensor
-#from bgem.stochastic import dfn
 import scipy.sparse as sp
 import pyamg
 
+
 def Q1_1d_basis(points):
     """
-    Coeeficients of 1D Q1 basis.
+    Coefficients of 1D Q1 basis.
 
     return a_ij matrix
-    where i row is i-th basis function with coefficients:
+    where the i-th row is i-th basis function with coefficients:
     p_i(x) = a_i0 + a_i1 * x + a_i2 * x**2 + ...
     """
     order = len(points)
@@ -26,6 +26,7 @@ def Q1_1d_basis(points):
     monomial_at_point = res
     return np.linalg.inv(monomial_at_point)
 
+
 def poly_diff_1d(poly_functions):
     """
     poly_functions (n, m) shape array with m coefficients for n functions
@@ -35,15 +36,14 @@ def poly_diff_1d(poly_functions):
     return poly_functions[:, 1:] * np.arange(1, order)
 
 
-
 def eval_1d(poly_functions, x):
     """
     Evaluate polynomials `poly_functions`, shape (n, order) for
     vector of values `x`.
     return shape: (n, len(x))
     """
-    #x = np.atleast_1d(x)
-   # print((order, *x.shape))
+    # x = np.atleast_1d(x)
+    # print((order, *x.shape))
     x = np.array(x)
     abs_coef = poly_functions[:, np.full_like(x, -1, dtype=np.int64)]
     # broadcast abs term to the result shape
@@ -81,7 +81,7 @@ def outer_product_along_first_axis(arrays):
     """
     _, n = arrays[0].shape
     result = arrays[0]
-    for arr in arrays[1:] :
+    for arr in arrays[1:]:
         assert arr.shape[1] == n
         result = result[..., np.newaxis, :] * arr
     return result
@@ -119,8 +119,8 @@ class Fe:
         """
         dim, n_points = points.shape
         assert dim == self.dim
-        #print(self.basis)
-        #print(points.ravel())
+        # print(self.basis)
+        # print(points.ravel())
         dim_basis_values = eval_1d(self.basis, points.ravel()).reshape(-1, self.dim, n_points)
         # shape (order, dim , n_points))
         tensor_values = outer_product_along_first_axis(dim_basis_values.transpose([1, 0, 2]))
@@ -166,13 +166,13 @@ class Fe:
         return f"Q1(d={self.dim}, order={self.n_dofs_1d - 1})"
 
 
-
 class Grid:
     """
     Regular anisotropic grid for a box in D dimensional ambient space.
     The cells are linearly numbered as np.empty(nx,ny,nz).flatten
     Cells numbered as C-style numpy array, last dimension running the fastest.
     """
+
     @classmethod
     def from_step(cls, dimensions, step, origin=0):
         shape = np.ceil(dimensions / step).astype(int)
@@ -186,7 +186,7 @@ class Grid:
         origin: position of the grid node zero
         """
         self.dimensions = dimensions
-        # Array with physital dimensions of the homogenization domain.
+        # Array with physical dimensions of the homogenization domain.
         self.dim = len(dimensions)
         # Dimension of the ambient space, e.g. 1d, 2d, 3d.
         self.shape = n_steps * np.ones(self.dim, dtype=np.int64)
@@ -198,7 +198,7 @@ class Grid:
     def __len__(self):
         """
         Number of cells
-        We undrestood the grid as a collection of cells.
+        We understood the grid as a collection of cells.
         :return:
         """
         return np.prod(self.shape)
@@ -214,10 +214,10 @@ class Grid:
 
     def grid_center(self):
         """
-        Return cooridinates of the barycenter of the whole grid.
+        Return coordinates of the barycenter of the whole grid.
         Result: np.array, shape = (3,)
         """
-        return (2*self.origin + self.dimensions) / 2
+        return (2 * self.origin + self.dimensions) / 2
 
     def barycenters(self):
         """
@@ -229,7 +229,6 @@ class Grid:
         mesh_grid = np.meshgrid(*bary_axes, indexing='ij')
         mesh_grid_array = np.stack(mesh_grid, axis=-1)
         return mesh_grid_array.reshape(-1, self.dim) + self.origin
-
 
     def __repr__(self):
         msg = f"Grid({self.shape}, domain: {self.dimensions}@{self.origin})"
@@ -245,7 +244,7 @@ class Grid:
         """
         centers_ijk_grid = (points - self.origin) // self.step[None, :]
         centers_ijk_grid = centers_ijk_grid.astype(np.int32)
-        out_of_grid = np.logical_or( centers_ijk_grid < 0, centers_ijk_grid >=self.shape[None,:])
+        out_of_grid = np.logical_or(centers_ijk_grid < 0, centers_ijk_grid >= self.shape[None, :])
         centers_ijk_grid[out_of_grid, :] = -1
         return centers_ijk_grid
 
@@ -253,7 +252,7 @@ class Grid:
         i_aabb = (aabb - self.origin) // self.step[None, :]
         i_aabb = i_aabb.astype(np.int32)
         i_aabb = np.maximum(i_aabb, 0)
-        i_aabb = np.minimum(i_aabb, self.shape-1)
+        i_aabb = np.minimum(i_aabb, self.shape - 1)
         return i_aabb
 
     def project_points(self, points):
@@ -261,12 +260,12 @@ class Grid:
         :param points: array of shape (N, dim)
         :return: For each point the index of the containing grid cell.
         """
-        #grid_min_corner = -grid.dimensions / 2
+        # grid_min_corner = -grid.dimensions / 2
         centers_ijk_grid = (points - self.origin) // self.step[None, :]
         centers_ijk_grid = centers_ijk_grid.astype(np.int32)
         assert np.alltrue(centers_ijk_grid < self.shape[None, :])
         grid_cell_idx = centers_ijk_grid[:, 0] + self.shape[0] * (
-                    centers_ijk_grid[:, 1] + self.shape[1] * centers_ijk_grid[:, 2])
+                centers_ijk_grid[:, 1] + self.shape[1] * centers_ijk_grid[:, 2])
         return grid_cell_idx
 
     def cell_box(self, min_cell, max_cell):
@@ -290,7 +289,8 @@ class Grid:
         :return:
         """
         return [
-            np.arange(self.origin[ax] + self.step[ax]/2, self.origin[ax] + self.dimensions[ax], self.step[ax], dtype=np.float32)
+            np.arange(self.origin[ax] + self.step[ax] / 2, self.origin[ax] + self.dimensions[ax], self.step[ax],
+                      dtype=np.float32)
             for ax in range(self.dim)
         ]
 
@@ -308,12 +308,12 @@ class Grid:
     def cell_field_F_like(self, cell_array_C_like):
         """
         :param cell_array: shape (n_elements, *value_dim) in C-like numbering
-        :return: Same values rearranged for a F-like indexing, X index running the fastest
+        :return: Same values rearranged for F-like indexing, X index running the fastest
         ... used in PyVista.
         """
         value_shape = cell_array_C_like.shape[1:]
         grid_field = cell_array_C_like.reshape(*self.shape, *value_shape)
-        transposed = grid_field.transpose(*reversed(range(self.dim)),-1)
+        transposed = grid_field.transpose(*reversed(range(self.dim)), -1)
         return transposed.reshape(-1, *value_shape)
 
 
@@ -327,11 +327,12 @@ def fem_grid(dimensions, shape, fe, origin=None):
     :return:
 
     """
-    dimensions = dimensions = dimensions * np.ones(fe.dim)
+    dimensions = dimensions * np.ones(fe.dim)
     if origin is None:
         origin = 0
     grid = Grid(dimensions, shape, origin)
     return FEM(grid, fe)
+
 
 class FEM:
     def __init__(self, grid, fe):
@@ -342,11 +343,11 @@ class FEM:
         assert self.grid.dim == self.fe.dim
 
         self.n_bc_dofs = 0
-        # Number of bounday DOFs, first part of the calculation numbering of DOFs.
+        # Number of boundary DOFs, first part of the calculation numbering of DOFs.
         self.natur_map = None
         # gives natural dof index for given calculation dof index
         # natural numbering comes from flattened (ix, iy, iz) dof coordinates
-        # calculation numbering puts Dirichlet DOFs at the begining
+        # calculation numbering puts Dirichlet DOFs at the beginning
         self.el_dofs = None
         # shape (n_elements, n_local_dofs), DOF indices in calculation numbering
 
@@ -380,10 +381,10 @@ class FEM:
         ref_dofs = self.fe.ref_el_dofs()  # shape (dim, n_local_dofs)
         assert ref_dofs.shape == (dim, self.fe.n_dofs_1d ** dim)
 
-        #print(ax.shape, ref_dofs.shape)
+        # print(ax.shape, ref_dofs.shape)
         # Dof indices on the first cell.
         cell_0_dofs = (self.dof_coord_coef[None, :] @ ref_dofs).ravel()
-        #print(ref_dofs.shape)
+        # print(ref_dofs.shape)
 
         # Creating a meshgrid for each dimension
         el_indices = np.meshgrid(*[np.arange(n) for n in self.grid.shape], indexing='ij')
@@ -393,11 +394,10 @@ class FEM:
         o = self.fe.n_dofs_1d - 1
         for d in range(dim):
             el_dofs += (self.dof_coord_coef[d] * o ** (d + 1)) * el_indices[d]
-        #print(el_dofs)
+        # print(el_dofs)
         el_dofs = el_dofs[..., None] + cell_0_dofs[None, :]  # shape: nx, nY, nz, loc_dofs
         self.el_dofs = calc_map[el_dofs.reshape(-1, el_dofs.shape[-1])]
         assert self.el_dofs.shape == (self.grid.n_elements, self.fe.n_dofs)
-
 
     @property
     def n_loc_dofs(self):
@@ -425,7 +425,7 @@ class FEM:
 
     @property
     def dof_coord_coef(self):
-        # Array for computiong global dof index from dof int coords.
+        # Array for computing global dof index from dof int coords.
         #
         # idx = sum(coord * coord_coef)
         # 1D: [1]
@@ -445,7 +445,8 @@ class FEM:
         :return: shape (n_nodes, dim)
         """
         node_coords = self.dof_idx_to_coord(np.arange(self.n_dofs, dtype=np.int64))
-        return node_coords * self.grid.step[None, :] + self.grid.origin[None, :]  #mesh_grid_array.reshape(-1, self.dim) + self.origin
+        return node_coords * self.grid.step[None, :] + self.grid.origin[None,
+                                                       :]  # mesh_grid_array.reshape(-1, self.dim) + self.origin
 
     @cached_property
     def bc_coords(self):
@@ -453,8 +454,8 @@ class FEM:
         ?? todo transpose, refactor
         :return:
         """
-        bc_natur_indeces = self.natur_map[np.arange(self.n_bc_dofs, dtype=np.int64)]
-        return self.dof_idx_to_coord(bc_natur_indeces)
+        bc_natur_indices = self.natur_map[np.arange(self.n_bc_dofs, dtype=np.int64)]
+        return self.dof_idx_to_coord(bc_natur_indices)
 
     @cached_property
     def bc_points(self):
@@ -464,18 +465,17 @@ class FEM:
         """
         return self.bc_coords * self.grid.step[None, :] + self.grid.origin[None, :]
 
-
     def dof_idx_to_coord(self, dof_natur_indices):
         """
         Produce index coordinates (ix,iy,iz) for given natural dof indices.
         :param dof_natur_indices: np.int64 array, shape (n_dofs,)
-        :return: integer coordinates: (len(dof_natur_indeces), self.dim)
+        :return: integer coordinates: (len(dof_natural_indices), self.dim)
         """
         indices = dof_natur_indices
         coords = np.empty((*dof_natur_indices.shape, self.grid.dim), dtype=np.int64)
-        for i in range(self.grid.dim-1, 0,  -1):
+        for i in range(self.grid.dim - 1, 0, -1):
             indices, coords[:, i] = np.divmod(indices, self.dofs_shape[i])
-            #indices, coords[:, i] = np.divmod(indices, self.dof_to_coord[i])
+            # indices, coords[:, i] = np.divmod(indices, self.dof_to_coord[i])
         coords[:, 0] = indices
         return coords
 
@@ -483,13 +483,12 @@ class FEM:
         msg = f"FEM({self.fe} {self.grid})"
         return msg
 
-
     @cached_property
     def laplace(self):
         """
         Return matrix M. Shape (n_voigt, n_loc_dofs * n_loc_dofs).
 
-        This should be used to assmebly the local matrices like:
+        This should be used to assembly the local matrices like:
         A_loc = M[None, :, :] @ K[:, None, :]
         where A_loc is array of local matrices (n_elements, n_loc_dofs**2)
         and K is (n_elements, K_tn_size), where K_tn_size is just upper triangle values
@@ -497,7 +496,7 @@ class FEM:
         """
         # we integrate square of gradients, which is poly of degree 2*(deg -1) = 2deg - 2
         # Gaussian quadrature integrates exactly degree 2*deg -1
-        deg = 2* (self.fe.n_dofs_1d - 1)   # 2 * degeree of base function polynomials
+        deg = 2 * (self.fe.n_dofs_1d - 1)  # 2 * degree of base function polynomials
 
         # points and wights on [0, 1] interval
         points, weights = np.polynomial.legendre.leggauss(deg)
@@ -510,12 +509,12 @@ class FEM:
         weights_tn = outer_product_along_first_axis(outer_params).ravel()
         grad = self.fe.grad_eval(points_tn)  # shape: (dim, n_loc_dofs, n_quads)
         # dim, n_loc_dofs, n_quad = grad.shape
-        weight_grad = weights_tn[None, None :] * grad[:, :, :] # (dim, n_loc_dofs, n_quads)
+        weight_grad = weights_tn[None, None:] * grad[:, :, :]  # (dim, n_loc_dofs, n_quads)
         full_tn_laplace = grad[:, None, :, :] @ weight_grad[None, :, :, :].transpose(0, 1, 3, 2)
 
         M = [
             full_tn_laplace[i, j, :, :]
-            if i==j else
+            if i == j else
             full_tn_laplace[i, j, :, :] + full_tn_laplace[j, i, :, :]
             for i, j in voigt_coords[self.grid.dim]
         ]
@@ -544,9 +543,9 @@ class FEM:
         assert K_voight_tensors.shape == (self.grid.n_elements, len(voigt_coords[self.grid.dim]))
         laplace = self.laplace
         # n_voight, locmat_dofs  == laplace.shape
-        # Use transpositions of intputs and output in order to enforce cache efficient storage.
-        #loc_matrices = np.zeros((self.n_loc_dofs self.n_loc_dofs, self.n_elements))
-        #np.matmul(.T[:, None, :], laplace[None, :, :], out=loc_matrices.reshape(-1, self.n_elements).T)
+        # Use transpositions of inputs and output in order to enforce cache efficient storage.
+        # loc_matrices = np.zeros((self.n_loc_dofs self.n_loc_dofs, self.n_elements))
+        # np.matmul(.T[:, None, :], laplace[None, :, :], out=loc_matrices.reshape(-1, self.n_elements).T)
         loc_matrices = K_voight_tensors[:, None, :] @ laplace[None, :, :]
         return loc_matrices.reshape((self.grid.n_elements, self.fe.n_dofs, self.fe.n_dofs))
 
@@ -575,7 +574,8 @@ class FEM:
 
         # Split boundary and bulk rows
         # See also np.split  for possible faster implementation
-        n_dofs = self.n_dofs  - self.n_bc_dofs
+        n_dofs = self.n_dofs - self.n_bc_dofs
+
         def sub_mat(rows, cols, vals, condition, n_cols, idx_shift):
             sub_cols = cols[condition] - idx_shift
             return sp.csr_matrix((vals[condition], (rows[condition], sub_cols)), shape=(n_dofs, n_cols))
@@ -600,7 +600,7 @@ class FEM:
         assert d == self.grid.dim
         A = self.assembly_dense(K)
         bc_points_rel = self.bc_coords * self.grid.step[None, :]
-        pressure_bc = p_grad_bc @ bc_points_rel.T # (n_vectors, n_bc_dofs)
+        pressure_bc = p_grad_bc @ bc_points_rel.T  # (n_vectors, n_bc_dofs)
         B = pressure_bc @ A[:self.n_bc_dofs, self.n_bc_dofs:]  # (n_vectors, n_interior_dofs)
         pressure = np.empty((n_rhs, self.n_dofs))
         pressure[:, :self.n_bc_dofs] = pressure_bc
@@ -608,7 +608,6 @@ class FEM:
         pressure_natur = np.empty_like(pressure)
         pressure_natur[:, self.natur_map[:]] = pressure[:, :]
         return pressure_natur.reshape((n_rhs, -1))
-
 
     def solve_sparse(self, K, p_grad_bc):
         """
@@ -625,16 +624,16 @@ class FEM:
         assert d == self.grid.dim
         A_bulk, A_bc = self.assembly_csr(K)
         bc_points_rel = self.bc_coords * self.grid.step[None, :]
-        pressure_bc = p_grad_bc @ bc_points_rel.T # (n_vectors, n_bc_dofs)
-        B =  (A_bc @ pressure_bc.T).T  # (n_vectors, n_interior_dofs)
+        pressure_bc = p_grad_bc @ bc_points_rel.T  # (n_vectors, n_bc_dofs)
+        B = (A_bc @ pressure_bc.T).T  # (n_vectors, n_interior_dofs)
 
-        #pyamg.ruge_stuben_solver(A_bulk)
+        # pyamg.ruge_stuben_solver(A_bulk)
         solver = pyamg.smoothed_aggregation_solver(A_bulk, symmetry='symmetric')
         pressure = np.zeros((n_rhs, self.n_dofs))
         pressure[:, :self.n_bc_dofs] = pressure_bc
         for pressure_comp, b in zip(pressure, B):
             pressure_comp[self.n_bc_dofs:] = solver.solve(-b)
-            #pressure[:, ] = np.linalg.solve(A[self.n_bc_dofs:, self.n_bc_dofs:], -B.T).T
+            # pressure[:, ] = np.linalg.solve(A[self.n_bc_dofs:, self.n_bc_dofs:], -B.T).T
         pressure_natur = np.empty_like(pressure)
         pressure_natur[:, self.natur_map[:]] = pressure[:, :]
         return pressure_natur.reshape((n_rhs, -1))
@@ -646,10 +645,10 @@ class FEM:
         :return: (n_vec, n_el, dim)
         """
         el_dof_vals = dof_vals[:, self.natur_map[self.el_dofs[:, :]]]  # (n_vec, n_el, n_loc_dofs)
-        quads = np.full((self.grid.dim, 1), 0.5)   # Zero order Gaussian quad. Integrates up to deg = 1.
-        grad_basis = self.fe.grad_eval(quads) # (dim, n_loc_dofs, 1)
-        grad_els = grad_basis[None,None,:, :,0] @ el_dof_vals[:,:, :, None]
-        return grad_els[:, :,:,0]
+        quads = np.full((self.grid.dim, 1), 0.5)  # Zero order Gaussian quad. Integrates up to deg = 1.
+        grad_basis = self.fe.grad_eval(quads)  # (dim, n_loc_dofs, 1)
+        grad_els = grad_basis[None, None, :, :, 0] @ el_dof_vals[:, :, :, None]
+        return grad_els[:, :, :, 0]
 
 
 def upscale(K, domain=None):
@@ -668,16 +667,15 @@ def upscale(K, domain=None):
     p_grads = np.eye(dim)
     K_els = K.reshape((fem.grid.n_elements, -1))
     pressure = fem.solve_direct(K_els, p_grads)
-    #xy_grid = [np.linspace(0, g.size[i], g.ax_dofs[i]) for i in range(2)]
-    #fem_plot.plot_pressure_fields(*xy_grid, pressure)
-    #pressure_flat = pressure.reshape((len(p_grads), -1))
-    grad = fem.field_grad(pressure)   # (n_vectors, n_els, dim)
-    loads = np.average(grad, axis=1) # (n_vectors, dim)
+    # xy_grid = [np.linspace(0, g.size[i], g.ax_dofs[i]) for i in range(2)]
+    # fem_plot.plot_pressure_fields(*xy_grid, pressure)
+    # pressure_flat = pressure.reshape((len(p_grads), -1))
+    grad = fem.field_grad(pressure)  # (n_vectors, n_els, dim)
+    loads = np.average(grad, axis=1)  # (n_vectors, dim)
     full_K_els = voigt_to_tn(K_els)
-    responses_els =  grad[:, :, None, :] @ full_K_els[None, :, :, :]   #(n_vec, n_els, 1, dim)
+    responses_els = grad[:, :, None, :] @ full_K_els[None, :, :, :]  # (n_vec, n_els, 1, dim)
     responses = np.average(responses_els[:, :, 0, :], axis=1)
     return equivalent_posdef_tensor(loads, responses)
-
 
 # def rasterize_dfn(fractures: dfn.FractureSet, step):
 #     """

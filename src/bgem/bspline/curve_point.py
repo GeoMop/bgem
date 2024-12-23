@@ -4,16 +4,15 @@ import numpy as np
 class CurvePoint:
     """
     Class to represent a point on the surface including the patch coordinates.
-
     """
-    def __init__(self, curv, it, t):
+
+    def __init__(self, curve, it, t):
         """
         :param surf: surface
         :param iuv: numpy array 2x1, corresponds to the position of the patch on the surface (defined by knot vectors )
         :param uv: numpy array 2x1 of local coordinates
-
         """
-        self.curv = curv
+        self.curve = curve
         self.it = []
         self.it.append(it)
         self.t = t
@@ -32,7 +31,6 @@ class CurvePoint:
         if np.logical_and(self.curve_boundary_flag == 0, self.interface_flag != 0):
             it = self.it[0] + self.interface_flag
             self.it.append(it)
-
 
     def curve_boundary_intersection(self):
         """
@@ -58,9 +56,3 @@ class CurvePoint:
 
         if np.logical_or(self.t == 0, self.t == 1):
             self.boundary_flag = 1
-
-
-
-
-
-

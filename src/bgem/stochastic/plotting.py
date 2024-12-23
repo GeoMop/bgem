@@ -1,7 +1,6 @@
 """
-Various DFN plotting and vizualization functions.
+Various DFN plotting and visualisation functions.
 """
-
 
 
 def plotly_fractures(fr_set, fr_points):
@@ -27,11 +26,11 @@ def plotly_fractures(fr_set, fr_points):
         points = fr.transform(points)
 
         fig = go.Figure(data=[
-                go.Scatter3d(x=boundary[:, 0], y=boundary[:, 1], z=boundary[:, 2],
-                             marker=dict(size=1, color='blue')),
-                go.Scatter3d(x=points[:, 0], y=points[:, 1], z=points[:, 2],
-                             marker=dict(size=1.5, color='red'))
-                ])
+            go.Scatter3d(x=boundary[:, 0], y=boundary[:, 1], z=boundary[:, 2],
+                         marker=dict(size=1, color='blue')),
+            go.Scatter3d(x=points[:, 0], y=points[:, 1], z=points[:, 2],
+                         marker=dict(size=1.5, color='red'))
+        ])
         fig.update_layout(
             scene=dict(
                 # xaxis=dict(range=[-2, 2]),
@@ -45,13 +44,11 @@ def plotly_fractures(fr_set, fr_points):
         pl.plot(fig, filename='fractures.html')
 
 
-
-
 def plot_fr_orientation(fractures):
     family_dict = collections.defaultdict(list)
     for fr in fractures:
         x, y, z = \
-        fracture.FisherOrientation.rotate(np.array([0, 0, 1]), axis=fr.rotation_axis, angle=fr.rotation_angle)[0]
+            fracture.FisherOrientation.rotate(np.array([0, 0, 1]), axis=fr.rotation_axis, angle=fr.rotation_angle)[0]
         family_dict[fr.region].append([
             to_polar(z, y, x),
             to_polar(z, x, -y),

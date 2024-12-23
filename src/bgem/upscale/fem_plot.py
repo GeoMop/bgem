@@ -1,8 +1,6 @@
 import pyvista as pv
-import numpy as np
 import pathlib
 from bgem.upscale import Grid
-import matplotlib.pyplot as plt
 import numpy as np
 
 """
@@ -13,11 +11,10 @@ Custom plotting function, mainly for debugging and test purpose.
 """
 
 
-
-def grid_fields_vtk(grid:Grid,
-                cell_fields = None,
-                point_fields = None,
-                vtk_path: pathlib.Path=None):
+def grid_fields_vtk(grid: Grid,
+                    cell_fields=None,
+                    point_fields=None,
+                    vtk_path: pathlib.Path = None):
     """
     Output given cell and point fields to VTK.
     Return: the pv grid object with the cell and point data arrays
@@ -32,22 +29,26 @@ def grid_fields_vtk(grid:Grid,
     if point_fields is not None:
         for k, v in point_fields.items():
             if pv_grid.GetNumberOfPoints() != v.shape[0]:
-                raise ValueError(f"Point field size {v.shape[0]} mismatch number of points {pv_grid.GetNumberOfPoints()}")
+                raise ValueError(
+                    f"Point field size {v.shape[0]} mismatch number of points {pv_grid.GetNumberOfPoints()}")
             pv_grid.point_data[k] = v
     if vtk_path is not None:
         pv_grid.save(str(vtk_path))
     return pv_grid
 
+
 def create_plotter(**options):
-    #pv.start_xvfb()
+    # pv.start_xvfb()
     font_size = 20
-    #pv.global_theme.font.size = font_size
+    # pv.global_theme.font.size = font_size
     plotter = pv.Plotter(**options)
     # Add axes and bounding box for context
     plotter.add_axes()
     plotter.show_grid()
     plotter.add_bounding_box()
     return plotter
+
+
 #
 # def pv_plot_mesh(pv_grid, color='grey', opacity=1.0, plotter = None):
 #     """
@@ -84,6 +85,7 @@ def plot_grid(n):
     points = points.reshape((3, -1))
     return points, mesh
 
+
 def pv_plotter(meshes):
     # Create a plotting object
     p = pv.Plotter()
@@ -107,10 +109,8 @@ def scatter_3d(mesh, values, n=5):
     geom = pv.Sphere(phi_resolution=8, theta_resolution=8)
     glyphs = mesh.glyph(geom=geom, scale='scalars', factor=0.3)
 
-
     # Add the glyphs to the plotter
-    p.add_mesh(glyphs, cmap='coolwarm', show_scalar_bar=True)
-
+    pv.Plotter().add_mesh(glyphs, cmap='coolwarm', show_scalar_bar=True)
 
 
 def plot_fn_3d(fn, n=5):
@@ -122,5 +122,4 @@ def plot_fn_3d(fn, n=5):
 def f(x, y, z):
     return x * (1 - y) * z * (1 - z) * 4
 
-
-#plot_fn_3d(f)
+# plot_fn_3d(f)

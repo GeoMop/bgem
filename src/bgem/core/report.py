@@ -4,6 +4,7 @@ import time
 
 __report_indent_level = 0
 
+
 def report(fn):
     @wraps(fn)
     def do_report(*args, **kwargs):
@@ -16,5 +17,5 @@ def report(fn):
         indent = (__report_indent_level * 2) * " "
         logging.info(f"{indent}DONE {fn.__module__}.{fn.__name__} @ {duration}")
         return result
-    return do_report
 
+    return do_report

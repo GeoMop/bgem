@@ -1,14 +1,12 @@
-from bgem.polygons import polygons as poly
 import numpy as np
-import scipy.linalg as la
+
 
 class IsecConflict:
     """
-    Point as the result of intersection with corresponding coordinates on both surfaces
-
+    Point as the result of intersection with the corresponding coordinates on both surfaces
     """
 
-    def __init__(self, fracture_A, fracture_B,points_false_A, points_false_B,points_init_ind_A, points_init_ind_B):
+    def __init__(self, fracture_A, fracture_B, points_false_A, points_false_B, points_init_ind_A, points_init_ind_B):
         """
         :param vertices: vertices of the fracture as numpy array 3x4
         :param x_loc: normalized vector of local x-axis as numpy array 3x1
@@ -23,22 +21,21 @@ class IsecConflict:
         self.points_false_B = points_false_B
         self.points_init_ind_B = points_init_ind_B
 
-
-        self.angle = None # unused
+        self.angle = None  # unused
 
         self.AB_dist = None
-        self.AB_angle = None # unused
+        self.AB_angle = None  # unused
 
         self.BA_dist = None
-        self.BA_angle = None # unused
-
+        self.BA_angle = None  # unused
 
     def get_distance(self):
-        self.AB_dist = self.solve_conflict(self.fracture_A, self.fracture_B, self.points_false_A, self.points_init_ind_A)
-        self.BA_dist = self.solve_conflict(self.fracture_B, self.fracture_A, self.points_false_B, self.points_init_ind_B)
+        self.AB_dist = self.solve_conflict(self.fracture_A, self.fracture_B, self.points_false_A,
+                                           self.points_init_ind_A)
+        self.BA_dist = self.solve_conflict(self.fracture_B, self.fracture_A, self.points_false_B,
+                                           self.points_init_ind_B)
 
-
-    def solve_conflict(self,fracture_A, fracture_B,points_false_A,points_init_ind_A):
+    def solve_conflict(self, fracture_A, fracture_B, points_false_A, points_init_ind_A):
 
         AB_dist = []
         for i in range(0, len(points_false_A)):
@@ -61,10 +58,3 @@ class IsecConflict:
                 AB_dist.append(min(dist))
 
         return AB_dist
-
-
-
-
-
-
-

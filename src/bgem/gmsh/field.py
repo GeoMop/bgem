@@ -1,4 +1,3 @@
-
 import numbers
 import sys
 import math
@@ -10,16 +9,12 @@ from bgem.gmsh.gmsh import ObjectSet
 gmsh_field = gmsh_model.mesh.field
 
 
-
-
-
-
 class Par:
     """
     Helper class to define a new field factory functions.
     The type specification static methods: Field, Fields, Number, Numbers, String
     are used to wrap parameters provided by user. These methods create the Par instance
-    which contain a particular GMSH field settr function: _
+    which contain a particular GMSH field setter function: _
     Usage:
 
     """
@@ -42,7 +37,6 @@ class Par:
         fields = [Field.wrap(f) for f in fields]
         return Par(Par._set_fields, fields)
 
-
     @staticmethod
     def Number(x):
         """
@@ -63,7 +57,7 @@ class Par:
     def String(x):
         """
         Make an argument for a parameter of the type String.
-        (i.e. any value convertible to double).Your mesh must contains at least points.
+        (i.e. any value convertible to double). Your mesh must contain at least points.
         """
         return Par(Par._set_string, x)
 
@@ -91,7 +85,6 @@ class Par:
     def _set_string(model, field_id, parameter, x):
         """ Auxiliary setter method used in the Par.String. """
         gmsh_field.setString(field_id, parameter, x)
-
 
     def __init__(self, setter, value):
         self._setter = setter
@@ -129,7 +122,6 @@ class Field:
     unset = -2
     unfinished = -1
 
-
     @staticmethod
     def wrap(x):
         if isinstance(x, Field):
@@ -141,10 +133,9 @@ class Field:
         else:
             assert False, f"Can not wrap {x} as a field."
 
-
-    def __init__(self, gmsh_field:str, **kwargs):
+    def __init__(self, gmsh_field: str, **kwargs):
         """
-        Intorduce a new gmsh field instance.
+        Introduce a new gmsh field instance.
         :param gmsh_field: gmsh field kind
 
         Following rules simplify definition of the interface functions:
@@ -162,7 +153,6 @@ class Field:
         Field.unfinished : GMSH field created but arguments not set yet (for detection of cycles)
         >0   : GMSH field id 
         """
-
 
     def is_constructed(self, model):
         return self._gmsh_model_id == id(model) and self._id >= 0
@@ -187,7 +177,6 @@ class Field:
             return self._id
         self._gmsh_model_id = id(model)
 
-
         assert self._id != Field.unfinished, "Cyclic field dependency."
         self._id = Field.unfinished
         field_id = gmsh_field.add(self._gmsh_field)
@@ -200,10 +189,10 @@ class Field:
     def _expand(self, model):
         return f"F{self.construct(model)}"
 
-#     """
-#     Define operators.
-#     """
-#
+    #     """
+    #     Define operators.
+    #     """
+    #
     def __add__(self, other):
         return FieldExpr("({0}+{1})", [self, other])
 
@@ -264,31 +253,30 @@ Field functions.
 """
 
 functions = [
-"abs",
-"acos",
-"asin",
-"atan",
-"cos",
-"cosh",
-"deg",
-"exp",
-"log",
-"log10",
-"pow10",
-"rad",
-"round",
-"sign",
-"sin",
-"sinh",
-"sqrt",
-"step",
-"tan",
-"tanh",
-"atanh",
-"trunc",
-"floor",
-"ceil"]
-
+    "abs",
+    "acos",
+    "asin",
+    "atan",
+    "cos",
+    "cosh",
+    "deg",
+    "exp",
+    "log",
+    "log10",
+    "pow10",
+    "rad",
+    "round",
+    "sign",
+    "sin",
+    "sinh",
+    "sqrt",
+    "step",
+    "tan",
+    "tanh",
+    "atanh",
+    "trunc",
+    "floor",
+    "ceil"]
 
 current_module = sys.modules[__name__]
 for fn in functions:
@@ -322,14 +310,13 @@ class FieldExpr(Field):
         variadic = "(" + ",".join(input_exprs) + ")"
         eval_expr = self._expr.format(*input_exprs, variadic=variadic)
 
-        #print("expr: ", eval_expr)
+        # print("expr: ", eval_expr)
         return eval_expr
 
     def reset_id(self):
         """Unset whole field DAG to (-2), assuming all _ids > 0."""
         for f_in in self._inputs:
             f_in.reset_id()
-
 
     def construct(self, model):
         if self.is_constructed(model):
@@ -339,13 +326,12 @@ class FieldExpr(Field):
         expr = self._make_math_eval_expr(model)
         print("construct MathEval expr: ", expr)
         field = Field("MathEval",
-                      F = Par.String(expr))
+                      F=Par.String(expr))
         return field.construct(model)
 
         # substitute all FieldExpr and form the expression
 
-        # creata MathEval
-
+        # create MathEval
 
 
 """
@@ -353,12 +339,13 @@ Predefined coordinate fields.
 Usage:
     field = field.sin(field.x) * field.cos(field.y)
 """
-x = FieldExpr("x",[])
-y = FieldExpr("y",[])
-z = FieldExpr("z",[])
+x = FieldExpr("x", [])
+y = FieldExpr("y", [])
+z = FieldExpr("z", [])
 
 
-def attractor_aniso_curve(curves:'ObjectSet', dist_range=(0.1, 0.5), h_normal= (0.05, 0.5), h_tangent=(0.5, 0.5), sampling=20):
+def attractor_aniso_curve(curves: 'ObjectSet', dist_range=(0.1, 0.5), h_normal=(0.05, 0.5), h_tangent=(0.5, 0.5),
+                          sampling=20):
     """
     curves : ObjectSet, its 1d tags are passed to the field.
     dist_range : (float, float), below and above this range the minimum mesh size and maximum mesh size is applied respectively
@@ -381,7 +368,6 @@ def attractor_aniso_curve(curves:'ObjectSet', dist_range=(0.1, 0.5), h_normal= (
                  SizeMinTangent=Par.Number(h_tangent[0]))
 
 
-
 # @field_function
 # AutomaticMeshSizeField
 
@@ -394,7 +380,8 @@ def attractor_aniso_curve(curves:'ObjectSet', dist_range=(0.1, 0.5), h_normal= (
 
 Point = Union[Tuple[float, float, float], List[float], np.array]
 
-def box(pt_min: Point, pt_max: Point, v_in:float, v_out:float=1e300) -> Field:
+
+def box(pt_min: Point, pt_max: Point, v_in: float, v_out: float = 1e300) -> Field:
     """
     The value of this field is VIn inside the box, VOut outside the box. The box is given by
 
@@ -403,15 +390,14 @@ def box(pt_min: Point, pt_max: Point, v_in:float, v_out:float=1e300) -> Field:
     Can be used instead of a constant field.
     """
     return Field('Box',
-                 VIn = Par.Number(v_in),
-                 VOut = Par.Number(v_out),
-                 XMax = Par.Number(pt_max[0]),
-                 XMin = Par.Number(pt_min[0]),
-                 YMax = Par.Number(pt_max[1]),
-                 YMin = Par.Number(pt_min[1]),
-                 ZMax = Par.Number(pt_max[2]),
-                 ZMin = Par.Number(pt_min[2]))
-
+                 VIn=Par.Number(v_in),
+                 VOut=Par.Number(v_out),
+                 XMax=Par.Number(pt_max[0]),
+                 XMin=Par.Number(pt_min[0]),
+                 YMax=Par.Number(pt_max[1]),
+                 YMin=Par.Number(pt_min[1]),
+                 ZMax=Par.Number(pt_max[2]),
+                 ZMin=Par.Number(pt_min[2]))
 
 
 def constant(value):
@@ -421,17 +407,15 @@ def constant(value):
     return box((-1, -1, -1), (1, 1, 1), v_in=value, v_out=value)
 
 
+# @field_function
+# Curvature
 
-
-#@field_function
-#Curvature
-
-#@field_function
-#Cylinder
+# @field_function
+# Cylinder
 
 def distance(entity_group: Union["ObjectSet", List["ObjectSet"]], sampling=20):
     """
-     Distance from a set of geometric entities 'entity_group'. Curves and surfaces are internaly replaced by the sets of nodes
+     Distance from a set of geometric entities 'entity_group'. Curves and surfaces are internally replaced by the sets of nodes
      of size 'sampling' per entity. The field is evaluated with respect to these points.
      Approximately linear complexity with respect to the total number of sampling points.
      This is quite limiting as for detailed mesh we need lot of points, which significantly increase the meshing time.
@@ -445,6 +429,7 @@ def distance(entity_group: Union["ObjectSet", List["ObjectSet"]], sampling=20):
         dim_entities[dim].append(tag)
     return _distance_field(dim_entities, sampling)
 
+
 def _distance_field(dim_entities, sampling):
     return Field('Distance',
                  PointsList=Par.Numbers(dim_entities[0]),
@@ -454,29 +439,30 @@ def _distance_field(dim_entities, sampling):
                  )
 
 
-def distance_nodes(nodes:List[int]) -> Field:
+def distance_nodes(nodes: List[int]) -> Field:
     """
      Distance from a set of nodes given by their tags.
     """
-    #nodes = [(0, tag) for tag in nodes]
+    # nodes = [(0, tag) for tag in nodes]
     return _distance_field([nodes, [], []], 0)
+
 
 def distance_edges(curves, sampling=20) -> Field:
     """
-    Distance from a set of curves given by their tags. Curves are internaly replaced by a set of nodes
+    Distance from a set of curves given by their tags. Curves are internally replaced by a set of nodes
     of size 'sampling' and DistanceNodes is applied.
     """
-    #curves = [(1, tag) for tag in curves]
+    # curves = [(1, tag) for tag in curves]
     return _distance_field([[], curves, []], sampling)
+
 
 def distance_surfaces(surfaces, sampling=20) -> Field:
     """
-     Distance from a set of surfaces given by their tags. Surfaces are internaly replaced by a set of  nodes
+     Distance from a set of surfaces given by their tags. Surfaces are internally replaced by a set of  nodes
      of size 'sampling' and DistanceNodes is applied.
     """
-    #surfaces = [(2, tag) for tag in surfaces]
+    # surfaces = [(2, tag) for tag in surfaces]
     return _distance_field([[], [], surfaces], sampling)
-
 
 
 # @field_function
@@ -492,7 +478,7 @@ def distance_surfaces(surfaces, sampling=20) -> Field:
 # LonLat
 
 
-#MathEvalAniso
+# MathEvalAniso
 
 
 def maximum(*fields: Field) -> Field:
@@ -511,6 +497,7 @@ def minimum(*fields: Field) -> Field:
     Automatically wrap constants as a constant field.
     """
     return Field('Min', FieldsList=Par.Fields(fields))
+
 
 # MaxEigenHessian
 
@@ -549,7 +536,7 @@ def minimum(*fields: Field) -> Field:
 # Structured
 
 
-def geometric(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
+def geometric(field: Field, a: Tuple[float, float], b: Tuple[float, float]) -> Field:
     """
     Geometric interpolation between points a = (x0, y0) and b = (x1, y1).
     """
@@ -562,7 +549,7 @@ def geometric(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Fiel
     return current_module.exp(a * (x - x_avg))
 
 
-def linear(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
+def linear(field: Field, a: Tuple[float, float], b: Tuple[float, float]) -> Field:
     """
     Linear transformation of the scalar field given by two points.
     Prescribed mapping a[0] to a[1], and b[0] to b[1].
@@ -574,7 +561,8 @@ def linear(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
     x_avg = (y1 * x0 - y0 * x1) / (y1 - y0)
     return a * (x - x_avg)
 
-def polynomial(field:Field, a:Tuple[float, float], b:Tuple[float, float], q: float = 1) -> Field:
+
+def polynomial(field: Field, a: Tuple[float, float], b: Tuple[float, float], q: float = 1) -> Field:
     """
     Power interpolation, given by two points as for linear, but
     apply power with exponent 'q'.
@@ -582,13 +570,14 @@ def polynomial(field:Field, a:Tuple[float, float], b:Tuple[float, float], q: flo
     x = field
     x0, y0 = a
     x1, y1 = b
-    l0, l1 = y0 ** (1/q), y1 ** (1/q)
+    l0, l1 = y0 ** (1 / q), y1 ** (1 / q)
     a = (l1 - l0) / (x1 - x0)
     x_avg = (l1 * x0 - l0 * x1) / (l1 - l0)
     return (a * (x - x_avg)) ** q
 
-def threshold(field:Field, lower_bound:Tuple[float, float],
-              upper_bound:Tuple[float, float]=None, sigmoid:bool=False) -> Field:
+
+def threshold(field: Field, lower_bound: Tuple[float, float],
+              upper_bound: Tuple[float, float] = None, sigmoid: bool = False) -> Field:
     """
     Apply a threshold function to the 'field'.
 
@@ -622,8 +611,6 @@ def threshold(field:Field, lower_bound:Tuple[float, float],
                  LcMax=Par.Number(threshold_max),
                  StopAtDistMax=Par.Number(stop_at_dist_max),
                  Sigmoid=Par.Number(sigmoid))
-
-
 
 
 "MathEvalAniso"

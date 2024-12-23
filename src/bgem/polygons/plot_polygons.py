@@ -1,6 +1,4 @@
 
-
-
 def _plot_polygon(polygon):
     import plotly.graph_objs as go
 
@@ -15,12 +13,12 @@ def _plot_polygon(polygon):
     plot_poly = go.Scatter(
         x=X,
         y=Y,
-        #mode='markers',
+        # mode='markers',
         mode='none',
         fill='toself',
         opacity=0.7
     )
-    ## patches.append(mp.Polygon(pts))
+    # patches.append(mp.Polygon(pts))
     patches.append(plot_poly)
     return patches
 
@@ -29,7 +27,7 @@ def plot_polygon_decomposition(decomp, points=None):
     import plotly.offline as pl
     import plotly.graph_objs as go
 
-    ## fig, ax = plt.subplots()
+    # fig, ax = plt.subplots()
 
     # polygons
     for poly in decomp.polygons.values():
@@ -38,12 +36,12 @@ def plot_polygon_decomposition(decomp, points=None):
     patches = []
     for poly in decomp.polygons.values():
         patches.extend(_plot_polygon(poly))
-    ## p = mc.PatchCollection(patches, color='blue', alpha=0.2)
+    # p = mc.PatchCollection(patches, color='blue', alpha=0.2)
 
-    ## ax.add_collection(p)
+    # ax.add_collection(p)
 
     for s in decomp.segments.values():
-        ## ax.plot((s.vtxs[0].xy[0], s.vtxs[1].xy[0]), (s.vtxs[0].xy[1], s.vtxs[1].xy[1]), color='green')
+        # ax.plot((s.vtxs[0].xy[0], s.vtxs[1].xy[0]), (s.vtxs[0].xy[1], s.vtxs[1].xy[1]), color='green')
         patches.append(go.Scatter(
             x=[s.vtxs[0].xy[0], s.vtxs[1].xy[0]],
             y=[s.vtxs[0].xy[1], s.vtxs[1].xy[1]],
@@ -59,13 +57,13 @@ def plot_polygon_decomposition(decomp, points=None):
     for pt in points:
         x_pts.append(pt.xy[0])
         y_pts.append(pt.xy[1])
-    ## ax.plot(x_pts, y_pts, 'bo', color='red')
+    # ax.plot(x_pts, y_pts, 'bo', color='red')
     patches.append(go.Scatter(
         x=x_pts,
         y=y_pts,
         mode='markers',
         marker=dict(color='red')))
-    ## plt.show()
+    # plt.show()
     fig = go.Figure(data=patches)
     fig.update_layout(width=1600, height=1600)
     pl.plot(fig, filename='polygons.html')
@@ -84,7 +82,7 @@ def plot_decomp_segments(decomp, points_a=[], points_b=[]):
     Point = next(iter(decomp.points.values())).__class__
     for pt_list in [decomp.points.values(), points_a, points_b]:
         points = np.array([pt.xy if type(pt) is Point else pt for pt in pt_list])
-        if len(points) > 0 :
+        if len(points) > 0:
             ax.scatter(points[:, 0], points[:, 1], s=1)
 
     ax.autoscale()

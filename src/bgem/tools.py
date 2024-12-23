@@ -1,9 +1,8 @@
 import logging
 from time import perf_counter
-from contextlib import contextmanager
 
 
-#@contextmanager
+# @contextmanager
 class catch_time:
     """
     Usage:
@@ -11,6 +10,7 @@ class catch_time:
         ...
     print(f"... time: {t}")
     """
+
     def __init__(self, msg):
         logging.info(f"{msg} ...")
 
@@ -29,12 +29,13 @@ class catch_time:
         return str(self)
 
 
-
 def func_timer(func):
     """
     Measure time of the function call and report to logging.info
     """
+
     def _f(*args, **kwargs):
         with catch_time(f"{func.__name__}"):
             func(*args, **kwargs)
+
     return _f

@@ -3,13 +3,14 @@ import numpy as np
 from bgem.stochastic import fr_set
 from bgem.gmsh import gmsh, options as gmsh_options, field as gmsh_field
 
+
 def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
     """
     Create the GMSH mesh from a list of fractures using the bgem.gmsh interface.
     """
     fracture_mesh_step = geometry_dict['fracture_mesh_step']
     dimensions = geometry_dict["box_dimensions"]
-    well_z0, well_z1 = geometry_dict["well_openning"]
+    well_z0, well_z1 = geometry_dict["well_opening"]
     well_r = geometry_dict["well_effective_radius"]
     well_dist = geometry_dict["well_distance"]
 
@@ -272,7 +273,7 @@ def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
 #    factory, mesh = make_mesh(geometry_dict, fractures, "geothermal_dnf")
 
 
-#@pytest.mark.skip
+# @pytest.mark.skip
 def test_brep_dfn():
     np.random.seed(123)
     fractures = generate_uniform(fracture_stats, n_frac_limit=50)
@@ -281,7 +282,7 @@ def test_brep_dfn():
     make_brep(geometry_dict, fractures, sandbox_fname("test_dfn", "brep"))
 
     ipps = compute_intersections(fractures)
-    #resolve_fractures_intersection(ipss)
+    # resolve_fractures_intersection(ipss)
 
     print('brep_test_done')
 
@@ -290,5 +291,4 @@ def test_brep_dfn():
     # dfn_simplified = dfn.simplify()
     # brep = dfn_simplified.make_brep()
 
-
-#def resolve_fractures_intersection(ipss):
+# def resolve_fractures_intersection(ipss):

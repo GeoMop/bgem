@@ -8,11 +8,13 @@ class Axis(enum.IntEnum):
     u = 0
     v = 1
 
-class IsecCurvSurfPoint:
+
+class IsecCurveSurfPoint:
     """
     Point as the result of intersection with corresponding coordinates on both surfaces
 
     """
+
     def __init__(self, curve_point, surf_point, xyz):
         """
         TODO: variable paramaterers - curve point / surface point
@@ -21,9 +23,8 @@ class IsecCurvSurfPoint:
         :param xyz: array of global coordinates as numpy array 3x1
         """
 
-
         self.curve_point = curve_point
         self.surface_point = surf_point
-        self.tol = 1  # have to be implemented
+        self.tol = 1  # has to be implemented
         self.xyz = xyz
         self.connected = 0

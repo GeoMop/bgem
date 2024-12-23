@@ -1,12 +1,13 @@
 """
 TODO:
-- implement 3D convex hull and 3D identificaion of UVZ coordinate system
+- implement 3D convex hull and 3D identification of UVZ coordinate system
   first plane fit, then current approach, full 3D transform of points into UVW,
   advantage of having W as Z scaled to unit cube as well
 """
 import numpy as np
 import pandas as pd
 import logging
+
 
 def convex_hull_2d(sample):
     """
@@ -15,7 +16,6 @@ def convex_hull_2d(sample):
     Returns: List of points forming the convex hull.
     """
     link = lambda a, b: np.concatenate((a, b[1:]))
-
 
     def dome(sample, base):
         """
@@ -47,7 +47,7 @@ def convex_hull_2d(sample):
     if len(sample) > 2:
         x_coords = sample[:, 0]
         # Get left most and right most points.
-        base = [sample[np.argmin(x_coords)], sample[np.argmax(x_coords)]] # extreme points in X coord
+        base = [sample[np.argmin(x_coords)], sample[np.argmax(x_coords)]]  # extreme points in X coord
 
         return link(dome(sample, base), dome(sample, base[::-1]))
     else:
@@ -69,14 +69,14 @@ def min_bounding_rect(hull):
     edge_angles = np.arctan2(edges[:, 1], edges[:, 0])
 
     # Check for angles in 1st quadrant
-    edge_angles = np.abs( edge_angles%(np.pi/2))
+    edge_angles = np.abs(edge_angles % (np.pi / 2))
 
     # Remove duplicate angles
     edge_angles = np.unique(edge_angles)
 
-    # Test each angle to find bounding box with smallest area
-    min_bbox = (0, float("inf"), 0, 0, 0, 0, 0, 0) # rot_angle, area, width, height, min_x, max_x, min_y, max_y
-    for i in range( len(edge_angles) ):
+    # Test each angle to find bounding box with the smallest area
+    min_bbox = (0, float("inf"), 0, 0, 0, 0, 0, 0)  # rot_angle, area, width, height, min_x, max_x, min_y, max_y
+    for i in range(len(edge_angles)):
 
         # Create rotation matrix to shift points to baseline
         # R = [ cos(theta)      , cos(theta-PI/2)
@@ -86,7 +86,7 @@ def min_bounding_rect(hull):
                       [np.cos(angle + (np.pi / 2)), np.cos(angle)]])
 
         # Apply this rotation to convex hull points
-        rot_points = np.dot(R, np.transpose(hull)) # 2x2 * 2xn
+        rot_points = np.dot(R, np.transpose(hull))  # 2x2 * 2xn
 
         # Find min/max x,y points
         min_x = np.nanmin(rot_points[0], axis=0)
@@ -99,13 +99,12 @@ def min_bounding_rect(hull):
 
         # Store the smallest rect found first (a simple convex hull might have 2 answers with same area)
         if (area < min_bbox[1]):
-            min_bbox = ( edge_angles[i], area, min_x, max_x, min_y, max_y )
+            min_bbox = (edge_angles[i], area, min_x, max_x, min_y, max_y)
 
     # Re-create rotation matrix for smallest rect
     angle = min_bbox[0]
-    R = np.array([[np.cos(angle), np.cos(angle- (np.pi / 2))],
+    R = np.array([[np.cos(angle), np.cos(angle - (np.pi / 2))],
                   [np.cos(angle + (np.pi / 2)), np.cos(angle)]])
-
 
     # min/max x,y points are against baseline
     min_x = min_bbox[2]
@@ -114,13 +113,14 @@ def min_bounding_rect(hull):
     max_y = min_bbox[5]
 
     # Calculate corner points and project onto rotated frame
-    corner_points = np.zeros( (4,2) ) # empty 2 column array
-    corner_points[0] = np.dot( [ min_x, max_y ], R )
-    corner_points[1] = np.dot( [ min_x, min_y ], R )
-    corner_points[2] = np.dot( [ max_x, min_y ], R )
-    corner_points[3] = np.dot( [ max_x, max_y ], R )
+    corner_points = np.zeros((4, 2))  # empty 2 column array
+    corner_points[0] = np.dot([min_x, max_y], R)
+    corner_points[1] = np.dot([min_x, min_y], R)
+    corner_points[2] = np.dot([max_x, min_y], R)
+    corner_points[3] = np.dot([max_x, max_y], R)
 
     return corner_points
+
 
 def scale_relative(points, factor):
     """
@@ -129,6 +129,7 @@ def scale_relative(points, factor):
     """
     barycenter = np.mean(points, axis=0)
     return barycenter + factor * (points[:, :] - barycenter[None, :])
+
 
 class SurfacePointSet:
     @classmethod
@@ -143,25 +144,24 @@ class SurfacePointSet:
         """
         # with open(filename, 'r') as f:
         #     point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
-            #point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
+        # point_seq = np.array([l for l in csv.reader(f, delimiter=' ')], dtype=float)
 
         # too slow: alternatives: loadtxt (16s), csv.reader (1.6s), pandas. read_csv (0.6s)
-        #point_seq = np.loadtxt(filename)
+        # point_seq = np.loadtxt(filename)
 
         raw_df = pd.read_csv(filename, header=None, sep=delimiter, skiprows=skip_rows, index_col=False,
                              engine="python")
-        #raw_df = pd.read_csv(filename, header=None, sep=delimiter, skiprows=skip_rows, index_col=False,
+        # raw_df = pd.read_csv(filename, header=None, sep=delimiter, skiprows=skip_rows, index_col=False,
         #                     engine="python")
         point_seq = np.array(raw_df)
 
         return cls(point_seq)
 
-
     @classmethod
     def from_grid_surface(cls, grid_surface):
         """
-        Approximation from a GrodSurface object. Use grid of Z coords in
-        XY pozitions of poles.
+        Approximation from a GridSurface object. Use grid of Z coords in
+        XY positions of poles.
         :param grid_surface: GridSurface.
         :return:
         """
@@ -171,7 +171,7 @@ class SurfacePointSet:
         v_coord = v_basis.make_linear_poles()
 
         U, V = np.meshgrid(u_coord, v_coord)
-        uv_points = np.stack( [U.ravel(), V.ravel()], axis = 1 )
+        uv_points = np.stack([U.ravel(), V.ravel()], axis=1)
 
         xyz = grid_surface.eval_array(uv_points)
         approx = cls(xyz)
@@ -203,8 +203,8 @@ class SurfacePointSet:
         self._uv_points = None
         """ UV coordinates of the XY points."""
 
-        self._u_sorted = None   # indices of points sorted by U coord
-        self._v_sorted = None   # indeces of points sorted by V coord
+        self._u_sorted = None  # indices of points sorted by U coord
+        self._v_sorted = None  # indices of points sorted by V coord
 
         if points.shape[1] > 3:
             self.set_weights(points[:, 3])
@@ -288,7 +288,7 @@ class SurfacePointSet:
     def set_quad(self, quad, overhang=0.0):
         """
         Set quadrilateral to specify parametric domain (UV square).
-        In fact only linear transform is used so the last point can be ommited.
+        In fact only linear transform is used so the last point can be omitted.
         :param quad: V direction, origin, U direction, UV corner (not used)
         :param overhang: quad enlarged by given factor along all its sides.
         """
@@ -326,10 +326,9 @@ class SurfacePointSet:
         # remove points far from unit square
         eps = 1.0e-15
         cut_min = np.array([-eps, -eps])
-        cut_max = np.array([1+eps, 1+eps])
-        in_quad_mask = np.all(np.logical_and(cut_min < points_uv,  points_uv <= cut_max), axis=1)
+        cut_max = np.array([1 + eps, 1 + eps])
+        in_quad_mask = np.all(np.logical_and(cut_min < points_uv, points_uv <= cut_max), axis=1)
         self.valid_points[np.logical_not(in_quad_mask)] = False
-
 
         n_out = len(self._xy_points) - np.sum(in_quad_mask)
         logging.warning(f"#{n_out} points out of the surface quad: {self.quad}")

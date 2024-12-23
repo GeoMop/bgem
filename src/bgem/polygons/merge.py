@@ -1,6 +1,7 @@
 from . import polygons
 from .decomp import PolygonChange, in_vtx, out_vtx, right_side, left_side
 
+
 def deep_copy(self):
     """
     Perform deep copy of polygon decomposition without preserving object IDs.
@@ -39,20 +40,20 @@ def deep_copy(self):
     return decomp, id_maps
 
 
-def intersect_single(decomp, other, merge_tol = 1e-10):
+def intersect_single(decomp, other, merge_tol=1e-10):
     """
     TODO: move to separate intersection module.
 
     Make new decomposition that is intersection of 'self' and 'other', that is polygons of
     both 'self' and 'other' are further split into polygons of resulting decomposition.
-    A copy of 'self' is used as starting point, adding incrementaly segments of 'other'.
+    A copy of 'self' is used as starting point, adding incremental segments of 'other'.
 
     TODO: Add information about linked nodes.
 
     :param other: PolygonDecomposition.
     :return: (decomp, maps_self, maps_other)
     Returns 'decomp' the intersection decomposition and maps that
-    maps objects of the new decompositioon to objects of original decomposition or to None.
+    maps objects of the new decomposition to objects of original decomposition or to None.
     Maps are set only for new objects, i.e. in map_self we omit identities while in
     maps_other we omit None values.
 
@@ -71,8 +72,8 @@ def intersect_single(decomp, other, merge_tol = 1e-10):
     save_tol = decomp.tolerance
     decomp.tolerance = merge_tol
 
-    maps_self = [ {}, {}, {}]
-    maps_other = [ {}, {}, {}]
+    maps_self = [{}, {}, {}]
+    maps_other = [{}, {}, {}]
     # for dim in range(3):
     #     maps_self[dim] = {obj.id: obj.id for obj in decomp.decomp.shapes[dim].values()}
     #     maps_other[dim] = {obj.id: None for obj in decomp.decomp.shapes[dim].values()}
@@ -86,12 +87,12 @@ def intersect_single(decomp, other, merge_tol = 1e-10):
         if seg is not None and n_points < len(decomp.points):
             prev_seg, prev_side = seg.next[out_vtx]
             assert prev_seg.next[in_vtx][0] == seg
-            #assert seg.id not in maps_self[1]
+            # assert seg.id not in maps_self[1]
             maps_self[1][seg.id] = maps_self[1].setdefault(prev_seg.id, prev_seg.id)
-            #maps_other[1].setdefault(seg.id, None)
+            # maps_other[1].setdefault(seg.id, None)
         maps_other[0][new_pt.id] = pt.id
         other_point_map[pt.id] = new_pt.id
-        #maps_self[0].setdefault(new_pt.id, new_pt.id)
+        # maps_self[0].setdefault(new_pt.id, new_pt.id)
 
     for seg in other.segments.values():
         new_a_pt, new_b_pt = [decomp.points[other_point_map[pt.id]] for pt in seg.vtxs]
@@ -106,11 +107,11 @@ def intersect_single(decomp, other, merge_tol = 1e-10):
         for t, (mid_pt, seg_a, seg_b) in line_div.items():
             maps_self[1][seg_b.id] = maps_self[1].get(seg_a.id, seg_a.id)
             assert seg_a.id not in maps_other[1]
-            #maps_other[1][seg_b.id] = maps_other[1].get(seg_a.id, None)  # Should still be None, unless there is common edge
+            # maps_other[1][seg_b.id] = maps_other[1].get(seg_a.id, None)  # Should still be None, unless there is common edge
 
         for new_seg, change, side in decomp._add_line_new_segments(new_a_pt, new_b_pt, line_div, 1):
             maps_other[1][new_seg.id] = seg.id
-            #maps_self[1].setdefault(new_seg.id, None)
+            # maps_self[1].setdefault(new_seg.id, None)
 
             # Update polygon maps for a segment which is part of segment in other decomposition.
             change_type, orig_poly, new_poly = change
@@ -153,12 +154,7 @@ def intersect_single(decomp, other, merge_tol = 1e-10):
     return (decomp, maps_self, maps_other)
 
 
-
-
-
-
-
-def intersect_decompositions(decomps, merge_tol = 1e-10):
+def intersect_decompositions(decomps, merge_tol=1e-10):
     """
     Intersection of a list of decompositions. Segments and polygons are subdivided.
 
@@ -170,14 +166,14 @@ def intersect_decompositions(decomps, merge_tol = 1e-10):
     map_Nd - is a dict mapping IDs of common_decomp objects to IDs of decomp objects.
     Objects of common_decomp that have no preimage in decomp are omitted.
 
-    TODO: For larger number of intersectiong decompositions, it would be better to
+    TODO: For larger number of intersecting decompositions, it would be better to
     use a binary tree reduction instead of linear pass to have n log(n) complexity of map updating.
     """
     if len(decomps) == 1:
         common_decomp = decomps[0]
         all_maps = [[{pt.id: pt.id for pt in common_decomp.points.values()},
                      {seg.id: seg.id for seg in common_decomp.segments.values()},
-                     {poly.id: poly.id for poly in  common_decomp.polygons.values()}]]
+                     {poly.id: poly.id for poly in common_decomp.polygons.values()}]]
         return common_decomp, all_maps
     common_decomp = polygons.PolygonDecomposition()
     all_maps = []
@@ -189,7 +185,7 @@ def intersect_decompositions(decomps, merge_tol = 1e-10):
             len(common_decomp.decomp.wires),
             len(common_decomp.polygons)))
         common_decomp, common_maps, decomp_maps = intersect_single(common_decomp, decomp, merge_tol)
-        decomp_maps = [ { key: val for key,val in map.items() if val is not None} for map in decomp_maps ]
+        decomp_maps = [{key: val for key, val in map.items() if val is not None} for map in decomp_maps]
         for one_decomp_maps in all_maps:
             for one_dim_map, common_map in zip(one_decomp_maps, common_maps):
                 for new_id, orig_id in common_map.items():
@@ -201,7 +197,7 @@ def intersect_decompositions(decomps, merge_tol = 1e-10):
 
         # check
         for dim in range(3):
-            orig_id_set = { val for val in decomp_maps[dim].values()}
+            orig_id_set = {val for val in decomp_maps[dim].values()}
             for obj_id in decomp.decomp.shapes[dim].keys():
                 assert obj_id in orig_id_set, "dim:{} id:{}".format(dim, obj_id)
 

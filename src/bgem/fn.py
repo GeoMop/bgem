@@ -5,6 +5,7 @@ Various function programming tools.
 # Various functional imports
 from functools import cached_property
 
+
 def compose(*functions):
     """
     Return composition of functions:
@@ -12,6 +13,7 @@ def compose(*functions):
 
     Useful for functional programming and dependency injection.
     """
+
     def composed_function(*args, **kwargs):
         # Start by applying the rightmost function with all arguments
         result = functions[-1](*args, **kwargs)
@@ -19,4 +21,5 @@ def compose(*functions):
         for f in reversed(functions[:-1]):
             result = f(result)
         return result
+
     return composed_function

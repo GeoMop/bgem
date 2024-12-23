@@ -1,8 +1,7 @@
-
 import numpy as np
 import numpy.linalg as la
 
-from . import curve_point as CP, surface_point as SP, isec_curv_surf_point as ICSP
+from . import curve_point as CP, surface_point as SP, isec_curve_surf_point as ICSP
 
 
 class IsecCurveSurf:
@@ -10,13 +9,13 @@ class IsecCurveSurf:
     Class which provides intersection of the given surface and curve
     """
 
-    def __init__(self, surf, curv):
+    def __init__(self, surf, curve):
         self.surf = surf
-        self.curv = curv
+        self.curve = curve
 
     def _compute_jacobian_and_coordinates(self, uvt, iuvt):
         """
-        Computes Jacobian matrix and xyz coordinates, for given local parameters uvt
+        Computes the Jacobian matrix and xyz coordinates, for given local parameters uvt
         and corresponding surface and curve
         :param uvt: vector of local coordinates [u,v,t] (array 3x1)
         :param iuvt: index of the knot intervals for uvt point (array 3x1)
@@ -24,24 +23,24 @@ class IsecCurveSurf:
         """
 
         surf = self.surf
-        curv = self.curv
+        curve = self.curve
         iu, iv, it = iuvt
         surf_poles = surf.poles[iu:iu + 3, iv:iv + 3, :]
-        t_poles = curv.poles[it:it + 3, :]
+        t_poles = curve.poles[it:it + 3, :]
 
         uf = surf.u_basis.eval_vector(iu, uvt[0])
         vf = surf.v_basis.eval_vector(iv, uvt[1])
         ufd = surf.u_basis.eval_diff_vector(iu, uvt[0])
         vfd = surf.v_basis.eval_diff_vector(iv, uvt[1])
-        tf = curv.basis.eval_vector(it, uvt[2])
-        tfd = curv.basis.eval_diff_vector(it, uvt[2])
+        tf = curve.basis.eval_vector(it, uvt[2])
+        tfd = curve.basis.eval_diff_vector(it, uvt[2])
 
         dxyz2t = t_poles.T @ tfd
         # surf_poles have shape (Nu, Nv, 3)
         dxyz1u = surf_poles.T @ ufd @ vf
         dxyz1v = surf_poles.T @ uf @ vfd
         J = np.column_stack((dxyz1u, dxyz1v, -dxyz2t))
-        xyz1 = surf_poles.T  @ uf @ vf
+        xyz1 = surf_poles.T @ uf @ vf
         xyz2 = t_poles.T @ tf
 
         return J, xyz1, xyz2
@@ -66,15 +65,17 @@ class IsecCurveSurf:
                         where "-1" corresponds to the intersection inside local interval
         """
 
-        min_bounds = np.array([self.surf.u_basis.knots[iu + 2], self.surf.v_basis.knots[iv + 2], self.curv.basis.knots[it + 2]])
-        max_bounds = np.array([self.surf.u_basis.knots[iu + 3], self.surf.v_basis.knots[iv + 3], self.curv.basis.knots[it + 3]])
-        uvt = (min_bounds + max_bounds)/2
+        min_bounds = np.array(
+            [self.surf.u_basis.knots[iu + 2], self.surf.v_basis.knots[iv + 2], self.curve.basis.knots[it + 2]])
+        max_bounds = np.array(
+            [self.surf.u_basis.knots[iu + 3], self.surf.v_basis.knots[iv + 3], self.curve.basis.knots[it + 3]])
+        uvt = (min_bounds + max_bounds) / 2
 
         iuvt = (iu, iv, it)
-        #uvt_basis = [self.surf.u_basis, self.surf.v_basis, self.curv.basis]
-        #bounds = [basis.knot_interval_bounds(iuvt[axis]) for axis, basis in enumerate(uvt_basis)]
-        #bounds = np.array(bounds).T  # shape (2, 3)
-        #uvt = np.average(bounds, axis=0)
+        # uvt_basis = [self.surf.u_basis, self.surf.v_basis, self.curve.basis]
+        # bounds = [basis.knot_interval_bounds(iuvt[axis]) for axis, basis in enumerate(uvt_basis)]
+        # bounds = np.array(bounds).T  # shape (2, 3)
+        # uvt = np.average(bounds, axis=0)
 
         for i in range(max_it):
             J, xyz1, xyz2 = self._compute_jacobian_and_coordinates(uvt, iuvt)
@@ -91,7 +92,6 @@ class IsecCurveSurf:
         xyz = (xyz1 + xyz2) / 2
 
         return uvt, conv, xyz
-
 
     def get_intersections(self, surf, curv, tree):
         """
@@ -110,10 +110,10 @@ class IsecCurveSurf:
             if self._already_found(crossing, it) == 1:  # ?
                 print('continue')
                 continue
-            intersectioned_patches2 = tree.find_box(curv.boxes[it])
-            for ipatch2 in intersectioned_patches2:
+            intersected_patches2 = tree.find_box(curv.boxes[it])
+            for ipatch2 in intersected_patches2:
                 iu2, iv2 = surf.patch_id2pos(ipatch2)
-                uvt,  conv, xyz = self.get_intersection(iu2, iv2, it, self.max_it, self.rel_tol, self.abs_tol)
+                uvt, conv, xyz = self.get_intersection(iu2, iv2, it, self.max_it, self.rel_tol, self.abs_tol)
                 if conv == 1:
                     # Point A
                     t_a = uvt[2]
@@ -125,7 +125,7 @@ class IsecCurveSurf:
                     iuv_b = np.array([iu2, iv2])
                     surf_point = SP.SurfacePoint(surf, iuv_b, uv_b)
 
-                    point = ICSP.IsecCurvSurfPoint(curv_point, surf_point, xyz)
+                    point = ICSP.IsecCurveSurfPoint(curv_point, surf_point, xyz)
                     point_list.append(point)
 
                     if curv_point.interface_flag != 0:
@@ -138,6 +138,6 @@ class IsecCurveSurf:
     def _already_found(crossing, it):
 
         found = 0
-        if np.logical_or(crossing[it] == 1, crossing[it +1] == 1):
+        if np.logical_or(crossing[it] == 1, crossing[it + 1] == 1):
             found = 1
         return found

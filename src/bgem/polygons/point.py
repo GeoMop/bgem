@@ -1,5 +1,5 @@
 from . import idmap
-from .segment import right_side, left_side, out_vtx, in_vtx
+from .segment import left_side, in_vtx
 import numpy as np
 
 
@@ -60,7 +60,7 @@ class Point(idmap.IdObject):
         Previous segment side, and next segment side relative from inserted vector and the
         wire separated by the vector.
         """
-        assert abs(vector[0])  > 1e-10 or abs(vector[1])  > 1e-10
+        assert abs(vector[0]) > 1e-10 or abs(vector[1]) > 1e-10
 
         if self.segment[0] is None:
             return None
