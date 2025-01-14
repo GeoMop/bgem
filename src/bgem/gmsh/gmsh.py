@@ -940,6 +940,59 @@ class ObjectSet:
         self.regions = regions
         return self
 
+    def dt_equal(self, other: 'ObjectSet'):
+        """ Tests two ObjectSets equality over dimtags.
+            Dimtags does not need to be sorted.
+         """
+        assert other
+        return sorted(self.dim_tags) == sorted(other.dim_tags)
+
+    def dt_intersection(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
+        """
+        Create intersection self and given list of  ObjectSets (its dimtags) over dimtags.
+        :param obj_list: List of ObjectSets to be intersected.
+        :return: new ObjectSet
+        """
+        assert obj_list
+        result = ObjectSet(factory=self.factory, dim_tags=[], regions=[])
+        for item in obj_list:
+            if isinstance(item, ObjectSet):
+                for dt in item.dim_tags:
+                    try:
+                        idx = self.dim_tags.index(dt)
+                        result.dim_tags.append(self.dim_tags[idx])
+                        result.regions.append(self.regions[idx])
+                        result.mesh_step_size.append(self.mesh_step_size[idx])
+                    except ValueError as err:
+                        message = "Intersection skip dimtag: {} - not in self object.".format(dt)
+                        # print(message)
+            else:
+                raise Exception(f"group: Wrong argument of type {type(item)}, expecting ObjectSet..")
+        return result
+
+    def dt_drop(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
+        """
+        Drop any number of ObjectSets (its dimtags) from the self object.
+        If dimtags not found, it is skipped.
+        :param obj_list: List of ObjectSets which dimtags should be dropped.
+        :return: self
+        """
+        assert obj_list
+        for item in obj_list:
+            if isinstance(item, ObjectSet):
+                for dt in item.dim_tags:
+                    try:
+                        idx = self.dim_tags.index(dt)
+                        self.dim_tags.pop(idx)
+                        self.regions.pop(idx)
+                        self.mesh_step_size.pop(idx)
+                    except ValueError as err:
+                        message = "Drop skip dimtag: {} - not in self object.".format(dt)
+                        print(message)
+            else:
+                raise Exception(f"group: Wrong argument of type {type(item)}, expecting ObjectSet..")
+        return self
+
     def translate(self, vector):
         self.factory.model.translate(self.dim_tags, *vector)
         self.factory._need_synchronize = True
