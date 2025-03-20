@@ -8,6 +8,7 @@ import gmsh
 import re
 import warnings
 import inspect
+import pathlib
 
 from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
@@ -486,6 +487,9 @@ class GeometryOCC:
         :param highestDimOnly:
 
         """
+        file_path = pathlib.Path(fileName)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Error: The file '{file_path}' does not exist!")
         shapes = self.model.importShapes(fileName, highestDimOnly=highestDimOnly)
         self._need_synchronize = True
         return ObjectSet(self, shapes, [Region.default_region[dim] for dim, _ in shapes])
