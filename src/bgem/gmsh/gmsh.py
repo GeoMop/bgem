@@ -951,6 +951,17 @@ class ObjectSet:
         assert other
         return sorted(self.dim_tags) == sorted(other.dim_tags)
 
+    def dt_copy(self) -> 'ObjectSet':
+        """
+        Create intersection self and given list of  ObjectSets (its dimtags) over dimtags.
+        :param obj_list: List of ObjectSets to be intersected.
+        :return: new ObjectSet
+        """
+        result = ObjectSet(factory=self.factory, dim_tags=self.dim_tags, regions=self.regions)
+        result.mesh_step_size = self.mesh_step_size
+        return result
+
+
     def dt_intersection(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
         """
         Create intersection self and given list of  ObjectSets (its dimtags) over dimtags.
