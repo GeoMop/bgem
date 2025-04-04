@@ -877,7 +877,7 @@ class Population:
 
     @property
     def volume(self):
-        return np.product([l if l>0 else 1.0 for l in self.domain])
+        return np.prod([l if l>0 else 1.0 for l in self.domain])
 
     @classmethod
     def initialize_3d(cls, families: List[Dict[str, Any]], box):
