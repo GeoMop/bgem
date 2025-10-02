@@ -80,6 +80,9 @@ def test_base_shapes(base_shape):
     area_estimate = N_in / N * aabb_area
     assert abs(area_estimate - 1.0) < 0.01
 
+    # test vertices method
+
+
 
 def check_ortogonal_columns(mat):
     product = mat.T @ mat
@@ -186,6 +189,11 @@ def test_transform_mat():
     [stochastic.EllipseShape(), stochastic.RectangleShape(), stochastic.PolygonShape(6), stochastic.PolygonShape(8)]
 )
 def test_fracture_set_AABB(base_shape):
+    """
+    Test that the AABB of the fractures is correct.
+    We only test that AABB is an upper bound.
+    The relative volume
+    """
     fractures = fixtures.get_dfn_sample()
     base_polygon = base_shape.vertices(256*256)
     tight=0

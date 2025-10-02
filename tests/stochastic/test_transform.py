@@ -14,9 +14,12 @@ def test_trans():
     """
     faces = []
     square_id = fr_set.RectangleShape().id
-    frac_X1= fr_set.Fracture(square_id, 1.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, -2.0, 1.0]])/np.linalg.norm(np.array([[1.0, -2.0, 1.0]])),math.pi/4)
-    frac_X2= fr_set.Fracture(square_id, 2.0, np.array([1.0, 5.0, 3.0]), np.array([[1.0, 1.0, 2.0]])/np.linalg.norm(np.array([[1.0, 1.0, 2.0]])),math.pi/3)
-    frac_X3= fr_set.Fracture(square_id, 5.0, np.array([1.0, 5.0, 3.0]), np.array([[3.0, 2.0, 1.0]])/np.linalg.norm(np.array([[3.0, 2.0, 1.0]])),math.pi/6)
+    frac_fn = lambda r, normal, shape_angle: fr_set.Fracture(
+                    square_id, r, np.array([1.0, 5.0, 3.0]), normal / np.linalg.norm(normal),
+                    shape_angle)
+    frac_X1= frac_fn(1.0, [1.0, -2.0, 1.0], math.pi/4)
+    frac_X2= frac_fn(2.0, [1.0, 1.0, 2.0], math.pi/3)
+    frac_X3= frac_fn(5.0, [1.0, 5.0, 3.0], math.pi/6)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)
