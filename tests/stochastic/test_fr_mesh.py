@@ -1,9 +1,14 @@
 import os
 import numpy as np
-from bgem.stochastic import fr_set
+from bgem.stochastic import Population, UniformBoxPosition, geometry_gmsh, geometry_brep_writer, FractureSet
 from bgem.gmsh import gmsh, options as gmsh_options, field as gmsh_field
+from fixtures import sandbox_fname
+from fixtures import fracture_stats
 
-def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
+#script_dir = os.path.dirname(os.path.realpath(__file__))
+
+
+def make_mesh(geometry_dict, fractures: FractureSet, mesh_name: str):
     """
     Create the GMSH mesh from a list of fractures using the bgem.gmsh interface.
     """
@@ -48,9 +53,7 @@ def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
     b_left_well = left_well.get_boundary()
 
     print("n fractures:", len(fractures))
-    fractures = create_fractures_rectangles(factory, fractures, factory.rectangle())
-    # fractures = create_fractures_polygons(factory, fractures)
-    fractures_group = factory.group(*fractures)
+    fractures_group, region_map = geometry_gmsh(fractures, factory)
     # fractures_group = fractures_group.remove_small_mass(fracture_mesh_step * fracture_mesh_step / 10)
 
     # drilled box and its boundary
@@ -90,9 +93,7 @@ def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
     fracture_el_size = np.max(dimensions) / 20
     max_el_size = np.max(dimensions) / 8
 
-    fracture_el_size = gmsh_field.constant(fracture_mesh_step, 10000)
-    frac_el_size_only = gmsh_field.restrict(fracture_el_size, fractures_fr, add_boundary=True)
-    gmsh_field.set_mesh_step_field(frac_el_size_only)
+    fractures_fr.mesh_step(fracture_mesh_step)
 
     mesh = gmsh_options.Mesh()
     # mesh.Algorithm = options.Algorithm2d.MeshAdapt # produce some degenerated 2d elements on fracture boundaries ??
@@ -114,7 +115,7 @@ def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
     factory.make_mesh(mesh_groups)
     factory.write_mesh(format=gmsh.MeshFormat.msh2)
     os.rename(mesh_name + ".msh2", mesh_name + ".msh")
-    factory.show()
+    #factory.show()
 
 
 # def find_fracture_neigh(mesh, fract_regions, n_levels=1):
@@ -266,21 +267,48 @@ def make_mesh(geometry_dict, fractures: fr_set.Fracture, mesh_name: str):
 #         mesh.write_element_data(fout, ele_ids, 'data', data)
 
 
-# def test_gmsh_dfn():
-#    np.random.seed()
-#    fractures = generate_fractures(geometry_dict, fracture_stats)
-#    factory, mesh = make_mesh(geometry_dict, fractures, "geothermal_dnf")
+def test_gmsh_dfn():
+    np.random.seed(123)
+    n_fr_max = 50
+    geometry_dict = dict(
+        fracture_mesh_step=10,
+        box_dimensions = [30, 30, 30],
+        well_openning = [-10, 10],
+        well_effective_radius = 2,
+        well_distance = 10
+    )
+    fractures = generate_uniform(fracture_stats, n_fr_max)
+    make_mesh(geometry_dict, fractures, "geothermal_dnf")
+
+
+def generate_uniform(statistics, n_frac_limit):
+    # generate fracture set
+    box_size = 100
+    fracture_box = 3 * [box_size]
+    pop = Population.from_cfg(statistics, fracture_box)
+    pop = pop.set_range_from_size(n_frac_limit)
+    print("total mean size: ", pop.mean_size())
+    pos_gen = UniformBoxPosition(fracture_box)
+    fractures = pop.sample(pos_distr=pos_gen, keep_nonempty=True)
+    # fracture.fr_intersect(fractures)
+    return fractures
+
 
 
 #@pytest.mark.skip
-def test_brep_dfn():
+def test_brep_dfn_3d():
+    """
+    Test 3D dfn using GMSH meshing.
+    :return:
+    """
     np.random.seed(123)
     fractures = generate_uniform(fracture_stats, n_frac_limit=50)
-    for i, f in enumerate(fractures):
-        f.id = i
-    make_brep(geometry_dict, fractures, sandbox_fname("test_dfn", "brep"))
+    #fractures = [f for f in fractures]
+    #for i, f in enumerate(fractures):
+    #    f.id = i
+    brep_file = geometry_brep_writer(fractures, sandbox_fname("test_dfn", "brep"))
 
-    ipps = compute_intersections(fractures)
+    # ipps = compute_intersections(fractures)
     #resolve_fractures_intersection(ipss)
 
     print('brep_test_done')
@@ -291,4 +319,21 @@ def test_brep_dfn():
     # brep = dfn_simplified.make_brep()
 
 
-#def resolve_fractures_intersection(ipss):
+
+
+# def test_brep_dfn_3d_brep_writer():
+#     np.random.seed(123)
+#     fractures = generate_uniform(fracture_stats, n_frac_limit=50)
+#     ipps = compute_intersections(fractures)
+#     resolve_fractures_intersection(ipss)
+#
+#     print('brep_test_done')
+#
+#     # TODO:
+#     dfn = dfn.DFN(fractures)
+#     dfn_simplified = dfn.simplify()
+#     brep = dfn_simplified.make_brep()
+
+
+
+

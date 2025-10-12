@@ -5,6 +5,20 @@ It provides appropriate statistical models as well as practical sampling methods
 TODO:
 - move pos_distr into Population configuration as well
 - shape modification as separate fn,, or part of other population reconfiguration functions (common range)
+- some concept of correlation within and between families:
+    - define generation of next fracture conditioned by the previously generated set
+      define conditional probability as a |weighted) superposition of conditional probablilities from individual generated fractures.
+    - considering a multiscale nature of the fractures the largest fractures can not be sampled since we have just single
+      sample, for smaller scales we can consider observations at distinct locations independent, but still affected by
+      "semi deterministic" large scale. Generating from large deterministic structures down to the smaller scales using
+      conditional probablilities. Caould possibly bridge gap between deterministic and completerly random.
+      view generation as a process with  next fracture depends on previously generated set
+    - Consider much simpler 2D cases for developing a suitable model allowint transition from deterministic large scale features
+      to fully stochastic small scale.
+      A. Random placemnt of discs (or circles) with power law size distribution and nonstationary density.
+      B. Same but with spatial correlation of positions.
+      C. 2D lines.
+      The 2d models are good for development even if has low applicability (?? other random processes
 """
 
 from typing import *
@@ -676,7 +690,7 @@ class Population:
         return {k:FrFamily.project_cfg(v, plane_normal) for k,v in families.items()}
 
     @classmethod
-    def from_cfg(cls, families: PopulationDict, box, shape=fr_set.RectangleShape):
+    def from_cfg(cls, families: PopulationDict, box, shape=fr_set.RectangleShape()):
         """
         Load families from a list of dict, with keywords: [ name, trend, plunge, concentration, power, r_min, r_max, p_32 ]
         Assuming fixed statistical model: Fischer, Uniform, PowerLaw Poisson
@@ -926,12 +940,6 @@ class Population:
 #
 
 
-def unit_square_vtxs():
-    return np.array([
-        [-0.5, -0.5, 0],
-        [0.5, -0.5, 0],
-        [0.5, 0.5, 0],
-        [-0.5, 0.5, 0]])
 
 
 

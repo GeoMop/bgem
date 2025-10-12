@@ -80,19 +80,19 @@ def test_angle():
     r1 = 7.0
     offset = np.array([5.0, 5.0, 0.0])
     center1 = np.array([0.0, 0.0, 0.0])+offset
-    normal1 = np.array([[0.0, 0.0, 1.0]])
+    normal1 = np.array([0.0, 0.0, 1.0])
     normal1 = normal1 / np.linalg.norm(normal1)
     angle1 = 0.0
 
     r2 = 2.0
     center2 = np.array([0.0, 0.0, r2/2 + eps])+offset
-    normal2 = np.array([[0.0, math.cos(phi), math.sin(phi)]])
+    normal2 = np.array([0.0, math.cos(phi), math.sin(phi)])
     normal2 = normal2 / np.linalg.norm(normal2)
     angle2 = 0.0
 
     family = 0
-    frac_X1= Fracture(SquareShape, r1, center1 , normal1 ,angle1)
-    frac_X2= Fracture(SquareShape, r2, center2 , normal2 ,angle2)
+    frac_X1= Fracture(RectangleShape.id, r1, center1 , normal1 ,angle1)
+    frac_X2= Fracture(RectangleShape.id, r2, center2 , normal2 ,angle2)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)
@@ -152,18 +152,18 @@ def test_cross():
     eps = 0.01
     r1 = 5.0
     center1 = np.array([0.0, 0.0, 0.0])
-    normal1 = np.array([[math.sin(phi), 0.0, math.cos(phi)]])
+    normal1 = np.array([math.sin(phi), 0.0, math.cos(phi)])
     normal1 = normal1 / np.linalg.norm(normal1)
     angle1 = 0.0
 
     r2 = 8.0
     center2 = np.array([r2/2 + r1/2 + eps,0.0 , 0 ])
-    normal2 = np.array([[0.0,1.0, 0.0]])  #
+    normal2 = np.array([0.0,1.0, 0.0])  #
     normal2 = normal2 / np.linalg.norm(normal2)
     angle2 = 0.0
 
-    frac_X1= Fracture(SquareShape,r1, center1 , normal1 ,angle1)
-    frac_X2= Fracture(SquareShape,r2, center2 , normal2 ,angle2)
+    frac_X1= Fracture(RectangleShape.id,r1, center1 , normal1 ,angle1)
+    frac_X2= Fracture(RectangleShape.id,r2, center2 , normal2 ,angle2)
 
     X1_vert = frac_X1.transform(frac_X1.ref_vertices)
     X2_vert = frac_X2.transform(frac_X2.ref_vertices)

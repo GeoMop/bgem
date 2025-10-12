@@ -46,6 +46,8 @@ Placed in XY plane and with isotropic shape.
 Different shapes should have the surface area same as the unit disc 
 in order to be comparable in density (not necesarily in the connectivity).
 """
+_shape_for_id = {
+}
 class BaseShape:
     """
     Abstract class.
@@ -55,15 +57,10 @@ class BaseShape:
 
     @staticmethod
     def shape_for_id(id: int):
-        if id == 0:
-            return EllipseShape()
-        elif id == 1 or id == 4:
-            return RectangleShape()
-        elif id == 2:
-            return LineShape()
+        if id in _shape_for_id:
+            return _shape_for_id[id]
         else:
             return PolygonShape(id)
-
 
     @property
     def aabb(self):
@@ -155,6 +152,9 @@ class LineShape(BaseShape):
     def gmsh_base_shape(self, gmsh_geom: 'GeometryOCC'):
         return gmsh_geom.line([-0.5, 0, 0], [0.5, 0, 0])
 
+_shape_for_id[LineShape.id] = LineShape()
+
+
 class EllipseShape(BaseShape):
     """
     Disc base fracture shape.
@@ -187,12 +187,13 @@ class EllipseShape(BaseShape):
         """
         return PolygonShape(n_sides).vertices()
 
+_shape_for_id[EllipseShape.id] = EllipseShape()
 
 class RectangleShape(BaseShape):
     """
     Reference square shape with area 1.0 and center at origin.
     """
-    id = 1
+    id = 4
 
     def __init__(self):
         """
@@ -243,6 +244,9 @@ class RectangleShape(BaseShape):
         :return: ndarray (n_sides, 3)
         """
         return self.r * np.array([[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]] )
+
+_shape_for_id[RectangleShape.id] = RectangleShape()
+#_shape_for_id[4] = _shape_for_id[RectangleShape.id]
 
 
 class PolygonShape(BaseShape):
@@ -428,13 +432,16 @@ class Fracture:
     """
     shape_idx: int
     # Basic fracture shape idx.
-    radius: Tuple[float, float]
+    radius: Tuple[float, float] = attrs.field(converter=lambda v: (float(v[0]), float(v[1])) if hasattr(v, "__getitem__") else (float(v), float(v)))
+
     # Fracture diameter, laying in XY plane
     center: np.array
     # location of the barycentre of the fracture
     normal: np.array
     # fracture normal
-    shape_axis: np.array = np.array([1, 0])
+    shape_axis: np.array = attrs.field(
+        converter=lambda v: (float(v[0]), float(v[1])) if hasattr(v, "__getitem__") else (np.cos(v), np.sin(v)),
+        default = np.array([1, 0]))
     # angle to rotate the unit shape around z-axis; rotate anti-clockwise
     #region_id: int # Union[str, int] = "fracture"
     # Family index in population. Could be used to identify group of fractures even for population = None
@@ -481,13 +488,14 @@ class Fracture:
     @property
     def vertices(self):
         if self._vertices is None:
-            _vertices = self.transform(self.shape._points)
+            _vertices = self.transform(self.ref_vertices)
         return _vertices
 
     @property
     def ref_vertices(self):
         if self._ref_vertices is None:
-            _ref_vertices = self.shape._points
+            n_approx_sides = 8
+            _ref_vertices = self.shape.vertices(n_approx_sides)
         return _ref_vertices
 
     @property
@@ -527,7 +535,7 @@ class Fracture:
     @property
     def distance(self):
         if self._distance is None:
-            _distance = -np.dot(self.center, self.normal[0, :])
+            _distance = -np.dot(self.center, self.normal)
         return _distance
 
     @property
@@ -578,7 +586,7 @@ class Fracture:
         :return: distance as double
         """
 
-     dist = self.normal[0,0] * point[0] + self.normal[0,1] * point[1] + self.normal[0,2] * point[2] + self.distance
+     dist = self.normal[0] * point[0] + self.normal[1] * point[1] + self.normal[2] * point[2] + self.distance
      return dist
 
 
@@ -597,16 +605,18 @@ class Fracture:
         x_isec_false = []
         x_isec_start_vert_ind = []
 
-        bound_vec = np.zeros(self.shape._points.shape)
-        x_0_b = np.zeros(self.shape._points.shape)
+        n_approx_sides = 8
+        shape_points = self.shape.vertices(n_approx_sides)
+        bound_vec = np.zeros(shape_points.shape)
+        x_0_b = np.zeros(shape_points.shape)
 
         aspect = np.array([self.r, self.aspect * self.r, 1], dtype=float) # 0.5 *
-        points = self.shape._points #* aspect[None, :]  # self.shape_class._points
+        points = shape_points #* aspect[None, :]  # self.shape_class._points
 
 
 
-        col2 = loc_direct[0]
-        for i in range(0, self.shape._points.shape[0] - 1):
+        col2 = loc_direct
+        for i in range(0, shape_points.shape[0] - 1):
             col1 = points[i]  - points[i-1]
             rhs = (x_0 - points[i-1])[0]
             det = col1[0] * col2[1] - col1[1] * col2[0]
@@ -873,12 +883,13 @@ class FractureSet:
         corners = self.center[:,None, :] + np.stack([-max_radii, +max_radii], axis=1)[:, :, None]
         return corners
 
-
-    @fn.cached_property
-    def rotation_mat(self):
+    @staticmethod
+    def rotation_matrix_from_normals(normal, shape_axis):
         """
-        Rotate and scale matrices for the fractures. The full transform involves 'self.center' as well:
-        ambient_space_points = self.center + self.transform_mat @ local_fr_points[:, None, :]
+        Compute rotation matrices for the fractures:
+        normal - shape (n_fr, 3); normal vectors of fractures, assumed normalized.
+        shape_axis - shape (n_fr, 2); the fracture shape is first rotated in XY plane by a X axis -> shape_axis rotation.
+
 
         The Z- local axis is transformed to normal N (assumed unit).
         The shape_axis S = [sx, sy, 0] must be rotated  to SS by the rotation that rotates Z -> N.
@@ -907,21 +918,21 @@ class FractureSet:
         TODO: find a better vector representation of the rotations, allowing faster construction of the transfrom matrix
         :return: Shape (N, 3, 3).
         """
-        N = self.normal
-        assert np.allclose(np.linalg.norm(N, axis=1), 1)
-        Nxy = np.stack([-N[:, 1], N[:, 0]], axis=1)
+
+        assert np.allclose(np.linalg.norm(normal, axis=1), 1)
+        Nxy = np.stack([-normal[:, 1], normal[:, 0]], axis=1)
         norm_Nxy = np.linalg.norm(Nxy, axis=1)
         K = Nxy / norm_Nxy[:, None]
         arg_small = np.argwhere(norm_Nxy < 1e-13)[:, 0]
         K[arg_small, :] = np.array([1, 0], dtype=float)
-        K_dot_S = self.shape_axis[:, None, :] @ K[:, :, None]
+        K_dot_S = shape_axis[:, None, :] @ K[:, :, None]
         S_p = K_dot_S[:, 0, :] * K
-        S_o = self.shape_axis - S_p
-        cos_th = N[:, 2:3]
+        S_o = shape_axis - S_p
+        cos_th = normal[:, 2:3]
         SS_xy = S_p + cos_th * S_o
         # ?? th is in (0, pi) -> sin(th) always positive
-        #pos_nx = np.logical_xor(N[:, 0] > 0, N[:, 2] < 0)
-        pos_nx = (N[:, None, 0:2] @ self.shape_axis[:, :, None])[:, 0, 0] > 0
+        # pos_nx = np.logical_xor(N[:, 0] > 0, N[:, 2] < 0)
+        pos_nx = (normal[:, None, 0:2] @ shape_axis[:, :, None])[:, 0, 0] > 0
         sin_th = norm_Nxy
         sin_th[pos_nx] = - sin_th[pos_nx]
         SS_z = np.linalg.norm(S_o, axis=1) * sin_th
@@ -931,96 +942,21 @@ class FractureSet:
             SS_xy,
             SS_z[:, None]
         ], axis=1)
-        scaled_trans_x = SS     #* self.radius[:, 0:1]
-        scaled_trans_y = np.cross(N, SS, axis=1)    #* self.radius[:, 1:2]
-        trans_z = N
+        scaled_trans_x = SS  # * self.radius[:, 0:1]
+        scaled_trans_y = np.cross(normal, SS, axis=1)  # * self.radius[:, 1:2]
+        trans_z = normal
         rot_mat = np.stack([scaled_trans_x, scaled_trans_y, trans_z], axis=2)
         return rot_mat
 
+    @fn.cached_property
+    def rotation_mat(self):
+        """
+        The full transform involves 'self.center' as well:
+        ambient_space_points = self.center + scale_mat @ self.transform_mat @ local_fr_points[:, None, :]
 
-    # @fn.cached_property
-    # def rotation_mat(self):
-    #     """
-    #     Rotate and scale matrices for the fractures. The full transform involves 'self.center' as well:
-    #     ambient_space_points = self.center + self.transform_mat @ local_fr_points[:, None, :]
-    #
-    #     The Z- local axis is transformed to normal N (assumed unit).
-    #     The shape_axis S = [sx, sy, 0] must be rotated  to SS by the rotation that rotates Z -> N.
-    #     Then SS is transformation of the local X axis.
-    #     The transformation of the Y axis is then computed by the corss product.
-    #
-    #     Let's compute S':
-    #     1. Z -> N rotation unit axis K = [-Ny, Nx, 0] / Nxy
-    #     2. K . S = Sx Ny - Sy Nx
-    #     3. follow Rodriguez formula proof, split S into part parallel (p) with K and ortogonal (o) to K
-    #        Sp = (K.S) K
-    #        So = S - Sp
-    #     4. In the plane perpendicular to K,
-    #        we have vertical component giving: cos(th) = Nz
-    #        and horizontal component giving sin(th) = Nxy = sqrt(Nx^2 + Ny^2)
-    #     5. We rotate So by angle th:
-    #        SSo[z] = -|So| Nxy *sng(Nx)
-    #        SSo[x,y] = (So [x,y]) Nz
-    #     6. SSp = Sp
-    #     7. Sum:
-    #        SS = SSo + SSp :
-    #        SSx = Spx + (Nz)Sox
-    #        SSy = Spy + (Nz)Soy
-    #        SSz = -|So| Nxy *sng(Nx)
-    #     Finally, the third vector of the rotated bases is   cross(N, S')
-    #     TODO: find a better vector representation of the rotations, allowing faster construction of the transfrom matrix
-    #     :return: Shape (N, 3, 3).
-    #     """
-    #     N = self.normal
-    #     assert np.allclose(np.linalg.norm(N, axis=1), 1)
-    #     Nxy = N[:, 0:2]
-    #     norm_Nxy = np.linalg.norm(Nxy, axis=1)
-    #     Nxy_norm = Nxy / norm_Nxy
-    #     arg_small = np.argwhere(Nxy_norm < 1e-13)[:, 0]
-    #     Nxy_norm[arg_small, :] = np.array([1, 0], dtype=float)
-    #
-    #     #Nxy_ort = np.stack([-N[:, 1], N[:, 0]], axis=1)
-    #     #norm_Nxy_ort = np.linalg.norm(Nxy_ort, axis=1)
-    #     # axis of rotation (0, 0, 1) -> normal
-    #     #K = Nxy_ort / norm_Nxy_ort[:, None]
-    #     #arg_small = np.argwhere(norm_Nxy_ort < 1e-13)[:, 0]
-    #     #K[arg_small, :] = np.array([1, 0], dtype=float)
-    #     #K_dot_S = self.shape_axis[:, None, :] @ K[:, :, None]
-    #
-    #     S_dot_Nxy = (self.shape_axis[:, None, :] @ Nxy_norm[:, :, None])[:, 0, :]
-    #
-    #     # component of shape_axis parallel with axis L
-    #     #S_p = K_dot_S[:, 0, :] * K
-    #     # component of shape_axis ortogonal to axis
-    #     #S_o = self.shape_axis - S_p
-    #
-    #     S_o_ = S_dot_Nxy * Nxy_norm
-    #     S_p_ = self.shape_axis - S_o_
-    #
-    #     # We compute sin and cos of the rotation angle theta
-    #     cos_th = N[:, 2:3]
-    #     SS_xy = S_p_ + cos_th * S_o_
-    #     # S_o is in direction of Nxy, but sign may differ
-    #     # sin_th is negative iff sign(S_o) == Nxy
-    #     # sin_th is positive iff sign(S_o) != Nxy
-    #     ## ?? th is in (0, pi) -> sin(th) always positive
-    #     ## pos_nx = np.logical_xor(N[:, 0] > 0, N[:, 2] < 0)
-    #
-    #     neg_sin = S_dot_Nxy[:, 0] > 0
-    #     sin_th = norm_Nxy
-    #     sin_th[neg_sin] = - sin_th[neg_sin]
-    #     SS_z = np.linalg.norm(S_o_, axis=1) * sin_th
-    #
-    #     # Construct the rotated X axis SS vector, shape (N, 3)
-    #     SS = np.concatenate([
-    #         SS_xy,
-    #         SS_z[:, None]
-    #     ], axis=1)
-    #     scaled_trans_x = SS     #* self.radius[:, 0:1]
-    #     scaled_trans_y = np.cross(N, SS, axis=1)    #* self.radius[:, 1:2]
-    #     trans_z = N
-    #     rot_mat = np.stack([scaled_trans_x, scaled_trans_y, trans_z], axis=2)
-    #     return rot_mat
+        :return:
+        """
+        return self.rotation_matrix_from_normals(self.normal, self.shape_axis)
 
     @fn.cached_property
     def transform_mat(self):
@@ -1170,73 +1106,6 @@ class FractureSet:
         inv_trans_mat[:, 1, :] /=  (self.radius[:, 1])[:, None]
         return inv_trans_mat
 
-    def make_fractures_gmsh(self, gmsh_geom: 'GeometryOCC', transform=None):
-        """
-
-        :param gmsh_geom:
-        :param fractures:
-        :param base_shape:
-        :param shift:
-        :return:
-        """
-        # From given fracture date list 'fractures'.
-        # transform the base_shape to fracture objects
-        # fragment fractures by their intersections
-        # return dict: fracture.region -> GMSHobject with corresponding fracture fragments
-        if len(self) == 0:
-            return []
-        base_shape = self.base_shape.gmsh_base_shape(gmsh_geom)
-        shapes = []
-        region_map = {}
-        for i, fr in enumerate(self):
-            shape = base_shape.copy()
-            #print("fr: ", i, "tag: ", shape.dim_tags)
-            region_name = f"fam_{fr.family}_{i:03d}"
-            shape = shape.scale([fr.rx, fr.ry, 1]) \
-                .rotate(axis=[0, 0, 1], angle=fr.shape_angle) \
-                .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
-                .translate(fr.center + shift) \
-                .set_region(region_name)
-            region_map[region_name] = i
-            shapes.append(shape)
-
-        fracture_fragments = gmsh_geom.fragment(*shapes)
-        return fracture_fragments, region_map
-
-    def make_fractures_brep(self, brep_name: Union[str, pathlib.Path]):
-        """
-        Create the BREP file from a list of fractures using the brep writer interface.
-        """
-        # fracture_mesh_step = geometry_dict['fracture_mesh_step']
-        # dimensions = geometry_dict["box_dimensions"]
-
-        #print("n fractures:", len(self))
-        if isinstance(brep_name, str):
-            brep_name = pathlib.Path(brep_name)
-        brep_name = brep_name.with_suffix(".brep")
-        faces = []
-        base_vertices = self.base_shape.vertices(8)
-
-        # Legacy transform
-        fr_vtxs = lambda fr : fr.transform(base_vertices) # fr.center
-        fractures_vertices = np.array([fr_vtxs(fr) for fr in self])
-
-        #fractures_vertices = self.transform_mat @ (base_vertices.T)[None, :, :]   # (n_fr, 3, 3) @ (1, 3, n_points) -> (n_fr, 3, n_points)
-        #fractures_vertices = fractures_vertices.transpose((0, 2, 1))
-        #fractures_vertices = fractures_vertices + self.center[:, None, :] # (n_fr, 3, n_points) -> (n_fr, n_points, 3)
-
-
-        for i, fr_vertices in enumerate(fractures_vertices):
-            vtxs = [bw.Vertex(p) for p in fr_vertices]
-            edges = [bw.Edge(a, b) for a, b in zip(vtxs[:-1], vtxs[1:])]
-            edges.append(bw.Edge(vtxs[-1], vtxs[0]))
-            face = bw.Face(edges)
-            faces.append(face)
-
-        comp = bw.Compound(faces)
-        with open(brep_name, "w") as f:
-            bw.write_model(f, comp)
-        return brep_name
 
 
     def __getitem__(self, item):
@@ -1251,11 +1120,12 @@ class FractureSet:
             population=self.population
         )
 
-def fr_conductivity_cubic(dfn:FractureSet, tensor:bool=False):
-    scalar
 
 
-
+"""
+Following is work in progress. Don not use it.
+TODO: move to appropriate feature branch.
+"""
 
 @attrs.define
 class FractureValues:
@@ -1305,264 +1175,4 @@ class FractureMesh:
        - fr_center
        Fields could be constructed by first evaluate the bulk elements and then the fracture elements using fracture fields.
     """
-
-class Fractures:
-    """
-    Stub of the class for fracture network simplification.
-    New approach should be:
-    - 2D meshing by GMSH
-    - Healing with specific processing to deal properties of merged fractures.
-    """
-    # regularization of 2d fractures
-    def __init__(self, fractures, epsilon):
-        self.epsilon = epsilon
-        self.fractures = fractures
-        self.points = []
-        self.lines = []
-        self.pt_boxes = []
-        self.line_boxes = []
-        self.pt_bih = None
-        self.line_bih = None
-        self.fracture_ids = []
-        # Maps line to its fracture.
-
-        self.make_lines()
-        self.make_bihs()
-
-    def make_lines(self):
-        # sort from large to small fractures
-        self.fractures.sort(key=lambda fr:fr.rx, reverse=True)
-        base_line = np.array([[-0.5, 0, 0], [0.5, 0, 0]])
-        for i_fr, fr in enumerate(self.fractures):
-            line = FisherOrientation.rotate(base_line * fr.rx, np.array([0, 0, 1]), fr.shape_angle)
-            line += fr.center
-            i_pt = len(self.points)
-            self.points.append(line[0])
-            self.points.append(line[1])
-            self.lines.append((i_pt, i_pt+1))
-            self.fracture_ids.append(i_fr)
-
-    def get_lines(self, fr_range):
-        lines = {}
-        fr_min, fr_max = fr_range
-        for i, (line, fr) in enumerate(zip(self.lines, self.fractures)):
-            if fr_min <= fr.rx < fr_max:
-                lines[i] = [self.points[p][:2] for p in line]
-        return lines
-
-    def make_bihs(self):
-        import bih
-        shift = np.array([self.epsilon, self.epsilon, 0])
-        for line in self.lines:
-            pt0, pt1 = self.points[line[0]], self.points[line[1]]
-            b0 = [(pt0 - shift).tolist(), (pt0 + shift).tolist()]
-            b1 = [(pt1 - shift).tolist(), (pt1 + shift).tolist()]
-            box_pt0 = bih.AABB(b0)
-            box_pt1 = bih.AABB(b1)
-            line_box = bih.AABB(b0 + b1)
-            self.pt_boxes.extend([box_pt0, box_pt1])
-            self.line_boxes.append(line_box)
-        self.pt_bih = bih.BIH()
-        self.pt_bih.add_boxes(self.pt_boxes)
-        self.line_bih = bih.BIH()
-        self.line_bih.add_boxes(self.line_boxes)
-        self.pt_bih.construct()
-        self.line_bih.construct()
-
-    def find_root(self, i_pt):
-        i = i_pt
-        while self.pt_map[i] != i:
-            i = self.pt_map[i]
-        root = i
-        i = i_pt
-        while self.pt_map[i] != i:
-            j = self.pt_map[i]
-            self.pt_map[i] = root
-            i = j
-        return root
-
-    def snap_to_line(self, pt, pt0, pt1):
-        v = pt1 - pt0
-        v /= np.linalg.norm(v)
-        t = v @ (pt - pt0)
-        if 0 < t < 1:
-            projected = pt0 + t * v
-            if np.linalg.norm(projected - pt) < self.epsilon:
-                return projected
-        return pt
-
-
-
-    def simplify(self):
-        """
-        Kruskal algorithm is somehow used to avoid loops in line createion.
-        :return:
-        """
-        self.pt_map = list(range(len(self.points)))
-        for i_pt, point in enumerate(self.points):
-            pt = point.tolist()
-            for j_pt_box in  self.pt_bih.find_point(pt):
-                if i_pt != j_pt_box and j_pt_box == self.pt_map[j_pt_box] and self.pt_boxes[j_pt_box].contains_point(pt):
-                    self.pt_map[i_pt] = self.find_root(j_pt_box)
-                    break
-        new_lines = []
-        new_fr_ids = []
-        for i_ln, ln in enumerate(self.lines):
-            pt0, pt1 = ln
-            pt0, pt1 = self.find_root(pt0), self.find_root(pt1)
-            if pt0 != pt1:
-                new_lines.append((pt0, pt1))
-                new_fr_ids.append(self.fracture_ids[i_ln])
-        self.lines = new_lines
-        self.fracture_ids = new_fr_ids
-
-        for i_pt, point in enumerate(self.points):
-            if self.pt_map[i_pt] == i_pt:
-                pt = point.tolist()
-                for j_line in self.line_bih.find_point(pt):
-                    line = self.lines[j_line]
-                    if i_pt != line[0] and i_pt != line[1] and self.line_boxes[j_line].contains_point(pt):
-                        pt0, pt1 = self.points[line[0]], self.points[line[1]]
-                        self.points[i_pt] = self.snap_to_line(point, pt0, pt1)
-                        break
-
-    def line_fragment(self, i_ln, j_ln):
-        """
-        Compute intersection of the two lines and if its position is well in interior
-        of both lines, benote it as the fragmen point for both lines.
-        """
-        pt0i, pt1i = (self.points[ipt] for ipt in self.lines[i_ln])
-        pt0j, pt1j = (self.points[ipt] for ipt in self.lines[j_ln])
-        A = np.stack([pt1i - pt0i, -pt1j + pt0j], axis=1)
-        b = -pt0i + pt0j
-        ti, tj = np.linalg.solve(A, b)
-        if self.epsilon <= ti <= 1 - self.epsilon and self.epsilon <= tj <= 1 - self.epsilon:
-            X = pt0i + ti * (pt1i - pt0i)
-            ix = len(self.points)
-            self.points.append(X)
-            self._fragment_points[i_ln].append((ti, ix))
-            self._fragment_points[j_ln].append((tj, ix))
-
-    def fragment(self):
-        """
-        Fragment fracture lines, update map from new line IDs to original fracture IDs.
-        :return:
-        """
-        new_lines = []
-        new_fracture_ids = []
-        self._fragment_points = [[] for l in self.lines]
-        for i_ln, line in enumerate(self.lines):
-            for j_ln in self.line_bih.find_box(self.line_boxes[i_ln]):
-                if j_ln > i_ln:
-                    self.line_fragment(i_ln, j_ln)
-            # i_ln line is complete, we can fragment it
-            last_pt = self.lines[i_ln][0]
-            fr_id = self.fracture_ids[i_ln]
-            for t, ix in sorted(self._fragment_points[i_ln]):
-                new_lines.append(last_pt, ix)
-                new_fracture_ids.append(fr_id)
-                last_pt = ix
-            new_lines.append(last_pt, self.lines[i_ln][1])
-            new_fracture_ids.append(fr_id)
-        self.lines = new_lines
-        self.fracture_ids = new_fracture_ids
-
-
-
-
-
-    # def compute_transformed_shapes(self):
-    #     n_frac = len(self.fractures)
-    #
-    #     unit_square = unit_square_vtxs()
-    #     z_axis = np.array([0, 0, 1])
-    #     squares = np.tile(unit_square[None, :, :], (n_frac, 1, 1))
-    #     center = np.empty((n_frac, 3))
-    #     trans_matrix = np.empty((n_frac, 3, 3))
-    #     for i, fr in enumerate(self.fractures):
-    #         vtxs = squares[i, :, :]
-    #         vtxs[:, 1] *= fr.aspect
-    #         vtxs[:, :] *= fr.r
-    #         vtxs = FisherOrientation.rotate(vtxs, z_axis, fr.shape_angle)
-    #         vtxs = FisherOrientation.rotate(vtxs, fr.rotation_axis, fr.rotation_angle)
-    #         vtxs += fr.centre
-    #         squares[i, :, :] = vtxs
-    #
-    #         center[i, :] = fr.centre
-    #         u_vec = vtxs[1] - vtxs[0]
-    #         u_vec /= (u_vec @ u_vec)
-    #         v_vec = vtxs[2] - vtxs[0]
-    #         u_vec /= (v_vec @ v_vec)
-    #         w_vec = FisherOrientation.rotate(z_axis, fr.rotation_axis, fr.rotation_angle)
-    #         trans_matrix[i, :, 0] = u_vec
-    #         trans_matrix[i, :, 1] = v_vec
-    #         trans_matrix[i, :, 2] = w_vec
-    #     self.squares = squares
-    #     self.center = center
-    #     self.trans_matrix = trans_matrix
-    #
-    # def snap_vertices_and_edges(self):
-    #     n_frac = len(self.fractures)
-    #     epsilon = 0.05  # relaitve to the fracture
-    #     min_unit_fr = np.array([0 - epsilon, 0 - epsilon, 0 - epsilon])
-    #     max_unit_fr = np.array([1 + epsilon, 1 + epsilon, 0 + epsilon])
-    #     cos_limit = 1 / np.sqrt(1 + (epsilon / 2) ** 2)
-    #
-    #     all_points = self.squares.reshape(-1, 3)
-    #
-    #     isec_condidates = []
-    #     wrong_angle = np.zeros(n_frac)
-    #     for i, fr in enumerate(self.fractures):
-    #         if wrong_angle[i] > 0:
-    #             isec_condidates.append(None)
-    #             continue
-    #         projected = all_points - self.center[i, :][None, :]
-    #         projected = np.reshape(projected @ self.trans_matrix[i, :, :], (-1, 4, 3))
-    #
-    #         # get bounding boxes in the loc system
-    #         min_projected = np.min(projected, axis=1)  # shape (N, 3)
-    #         max_projected = np.max(projected, axis=1)
-    #         # flag fractures that are out of the box
-    #         flag = np.any(np.logical_or(min_projected > max_unit_fr[None, :], max_projected < min_unit_fr[None, :]),
-    #                       axis=1)
-    #         flag[i] = 1  # omit self
-    #         candidates = np.nonzero(flag == 0)[0]  # indices of fractures close to 'fr'
-    #         isec_condidates.append(candidates)
-    #         # print("fr: ", i, candidates)
-    #         for i_fr in candidates:
-    #             if i_fr > i:
-    #                 cos_angle_of_normals = self.trans_matrix[i, :, 2] @ self.trans_matrix[i_fr, :, 2]
-    #                 if cos_angle_of_normals > cos_limit:
-    #                     wrong_angle[i_fr] = 1----
-    #                     print("wrong_angle: ", i, i_fr)
-    #
-    #                 # atract vertices
-    #                 fr = projected[i_fr]
-    #                 flag = np.any(np.logical_or(fr > max_unit_fr[None, :], fr < min_unit_fr[None, :]), axis=1)
-    #                 print(np.nonzero(flag == 0))
-
-
-def fr_intersect(fractures):
-    """
-    1. create fracture shape vertices (rotated, translated) square
-        - create vertices of the unit shape
-        - use FisherOrientation.rotate
-    2. intersection of a line with plane/square
-    3. intersection of two squares:
-        - length of the intersection
-        - angle
-        -
-    :param fractures:
-    :return:
-    """
-
-    # project all points to all fractures (getting local coordinates on the fracture system)
-    # fracture system axis:
-    # u_vec = vtxs[1] - vtxs[0]
-    # v_vec = vtxs[2] - vtxs[0]
-    # w_vec ... unit normal
-    # fractures with angle that their max distance in the case of intersection
-    # is not greater the 'epsilon'
-
-
 
