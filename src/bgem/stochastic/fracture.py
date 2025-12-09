@@ -528,7 +528,7 @@ class PowerLawSize:
     @classmethod
     def from_mean_area(cls, power, diam_range, p32, p32_power=None):
         """
-        Construct the distribution using the mean arrea (P32) instead of intensity.
+        Construct the distribution using the mean area (P32) instead of intensity.
         :param p32: mean area of the fractures in given `diam_range`.
         :param p32_power: if the mean area is given for different power parameter.
         :return: PowerLawSize instance.
@@ -843,20 +843,29 @@ class FrFamily:
     shape_angle: VonMisesOrientation
 
     @staticmethod
+    def _create_power_law_size(family):
+        size_range = (family["r_min"], family["r_max"])
+        if "p_32" in family:
+            power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
+            assert np.isclose(family["p_32"], power_law_size.mean_area())
+            return power_law_size
+        elif "p_30" in family:
+            power_law_size = PowerLawSize(family["power"], size_range, family["p_30"])
+            return power_law_size
+        else:
+            raise Exception("Found no existing fracture power intensity (p_30/p_32)")
+
+    @staticmethod
     def from_cfg_3d(family):
         fisher_orientation = FisherOrientation(family["trend"], family["plunge"], family["concentration"])
-        size_range = (family["r_min"], family["r_max"])
-        power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
-        assert np.isclose(family["p_32"], power_law_size.mean_area())
+        power_law_size = FrFamily._create_power_law_size(family)
         shape_angle = VonMisesOrientation(trend=0, concentration=0)
         return FrFamily(family["name"], fisher_orientation, power_law_size, shape_angle)
 
     @staticmethod
     def from_cfg_2d(family):
         orientation = FisherOrientation(0, 90, np.inf)
-        size_range = (family["r_min"], family["r_max"])
-        power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
-        assert np.isclose(family["p_32"], power_law_size.mean_area())
+        power_law_size = FrFamily._create_power_law_size(family)
         shape_angle = VonMisesOrientation(family["trend"], family["concentration"])
         return FrFamily(family["name"], orientation, power_law_size, shape_angle)
 
