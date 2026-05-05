@@ -953,12 +953,11 @@ class ObjectSet:
 
     def dt_copy(self) -> 'ObjectSet':
         """
-        Create intersection self and given list of  ObjectSets (its dimtags) over dimtags.
-        :param obj_list: List of ObjectSets to be intersected.
-        :return: new ObjectSet
+        Create a shallow copy of this ObjectSet with independent data lists.
+        :return: new ObjectSet.
         """
-        result = ObjectSet(factory=self.factory, dim_tags=self.dim_tags, regions=self.regions)
-        result.mesh_step_size = self.mesh_step_size
+        result = ObjectSet(factory=self.factory, dim_tags=list(self.dim_tags), regions=list(self.regions))
+        result.mesh_step_size = list(self.mesh_step_size)
         return result
 
 
@@ -969,20 +968,26 @@ class ObjectSet:
         :return: new ObjectSet
         """
         assert obj_list
-        result = ObjectSet(factory=self.factory, dim_tags=[], regions=[])
+        dim_tags = set()
         for item in obj_list:
             if isinstance(item, ObjectSet):
-                for dt in item.dim_tags:
-                    try:
-                        idx = self.dim_tags.index(dt)
-                        result.dim_tags.append(self.dim_tags[idx])
-                        result.regions.append(self.regions[idx])
-                        result.mesh_step_size.append(self.mesh_step_size[idx])
-                    except ValueError as err:
-                        message = "Intersection skip dimtag: {} - not in self object.".format(dt)
-                        # print(message)
+                dim_tags.update(item.dim_tags)
+                # for dt in item.dim_tags:
+                #     if dt in self.dim_tags:
+                #         dim_tags.add(dt)
+                #     # debug output:
+                #     else:
+                #         message = "Intersection skip dimtag: {} - not in self object.".format(dt)
+                #         print(message)
             else:
                 raise Exception(f"group: Wrong argument of type {type(item)}, expecting ObjectSet..")
+
+        result = ObjectSet(factory=self.factory, dim_tags=[], regions=[])
+        for idx, dt in enumerate(self.dim_tags):
+            if dt in dim_tags:
+                result.dim_tags.append(dt)
+                result.regions.append(self.regions[idx])
+                result.mesh_step_size.append(self.mesh_step_size[idx])
         return result
 
     def dt_drop(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
