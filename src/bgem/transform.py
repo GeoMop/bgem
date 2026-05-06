@@ -2,6 +2,7 @@
 Linear transformation in 3d space.
 """
 import copy
+import numbers
 from typing import *
 import numpy as np
 from bgem import ParamError
@@ -21,7 +22,7 @@ def check_matrix(mat, shape, values, idx=()):
     try:
 
         if len(shape) == 0:
-            if not isinstance(mat, values):
+            if not issubclass(type(mat), values):
                 raise ParamError("Element at index {} of type {}, expected instance of {}.".format(idx, type(mat), values))
         else:
 
@@ -81,12 +82,18 @@ class Transform:
         Constructor for elementary afine transformation.
         :param matrix: Transformation matrix 3x4. First three columns forms the linear transformation matrix.
         Last column is the translation vector.
+        The full affine transform matrix is available through the full_affine_matrix property.
+        TODO: allow passing the full affine transfrom
         """
         self._composition = []
         if matrix is None:
             self._matrix = None
         else:
-            check_matrix(matrix, [3, 4], (int, float))
+            matrix = np.array(matrix)
+            if matrix.shape == (4, 4):
+                assert np.allclose(matrix[3],   [0, 0, 0, 1])
+                matrix = matrix[:3]
+            check_matrix(matrix, [3, 4], (numbers.Real,))
             self._matrix = np.array(matrix, dtype=float)
 
     def is_composed(self) -> bool :
@@ -105,6 +112,9 @@ class Transform:
         else:
             return self._matrix
 
+    @property
+    def affine_matrix(self):
+        return np.concatenate((self._matrix, np.array([[0,0,0,1]])))
 
     def __call__(self, points:np.array) -> np.array:
         """
@@ -175,18 +185,19 @@ class Transform:
         rotate, and then shift back.
         """
         matrix = Transform._identity_matrix()
-        center = np.array(center, dtype=float)
-        axis = np.array(axis, dtype=float)
-        axis /= np.linalg.norm(axis)
+        if angle != 0.0:
+            center = np.array(center, dtype=float)
+            axis = np.array(axis, dtype=float)
+            axis /= np.linalg.norm(axis)
 
-        W = np.array(
-            [[0, -axis[2], axis[1]],
-             [axis[2], 0, -axis[0]],
-             [-axis[1], axis[0], 0]])
-        M = np.eye(3) +  np.sin(angle) * W + 2 * np.sin(angle/2) ** 2 * W @ W
-        matrix[:, 3] -= center
-        matrix = M @ matrix
-        matrix[:, 3] += center
+            W = np.array(
+                [[0, -axis[2], axis[1]],
+                 [axis[2], 0, -axis[0]],
+                 [-axis[1], axis[0], 0]])
+            M = np.eye(3) +  np.sin(angle) * W + 2 * np.sin(angle/2) ** 2 * W @ W
+            matrix[:, 3] -= center
+            matrix = M @ matrix
+            matrix[:, 3] += center
         return Transform(matrix) @ self
 
     def scale(self, scale_vector, center=(0, 0, 0)):

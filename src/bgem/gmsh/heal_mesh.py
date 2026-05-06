@@ -1,8 +1,9 @@
+import logging
 import os
 import collections
 import numpy as np
 from typing import Tuple
-import attr
+import attrs
 
 
 class ShapeBase:
@@ -205,7 +206,7 @@ class Point:
 
 
 
-@attr.s(auto_attribs=True)
+@attrs.define(auto_attribs=True)
 class Element:
     eid: int
     type: int
@@ -508,7 +509,6 @@ class HealMesh:
 
 
     def heal_mesh(self, gamma_tol=0.02, fraction_of_new_els=2):
-
         self.gamma_tol = gamma_tol
         orig_n_el = self.max_ele_id
         el_to_check = collections.deque(self.mesh.elements.keys())

@@ -2,7 +2,7 @@ import itertools
 from typing import *
 from collections import defaultdict
 import enum
-import attr
+import attrs
 import numpy as np
 import gmsh
 import re
@@ -10,6 +10,7 @@ import warnings
 import inspect
 import pathlib
 
+from bgem import Transform
 from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
 from bgem.gmsh import gmsh_io
@@ -55,17 +56,34 @@ gmsh_api, issues:
 - seems that occ.copy() doesn't preserve boundaries, so boundary dim tags are copied twice
   (It does exactly what it is asked for just copy the given shapes)
 (Problem resolved by introduction of select_by_intersection)
+
+Proposed functional apporach:
+
+Rationale:
+- ObjectSet keeps set of dimtags, which may become invalid, ObjectSets could become invalid because of  operation of larger ObjectSet that includes it.
+  
+  Resoluion: We would rather refactor ObjectSets into handles to the particular geometry part referenced by the complete tree of operations leading to it.
+   The whole geometry would be first constructed in terms of a DAG of operations and then applied to GMSH just before meshing. 
+   The application would treat each operation as global, properly mapping dimtags to the new ons and mange properties associated with the 
+   dimtags.
+- Getting boundary is not associative, bool opertations provides mapping only to dimtags explicitely provided as arguments. 
+  Probably no way to map boundaries. Need to treat boundary operations in lazy way apply them more times using orig
+    
+
 """
 
 
 
-@attr.s(auto_attribs=True)
+@attrs.define(auto_attribs=True, frozen=False)
 class Region:
     dim: Optional[int]
     id: int
     name: str
     _boundary_region: 'Region' = None
+    _gmsh_id: int = None
+    # Physical domain ID in GMSH mesh
     _max_reg_id = 99999
+
 
     @classmethod
     def get_region_id(cls):
@@ -125,6 +143,21 @@ DimTag = Tuple[int, int]
 
 
 
+class Mesh:
+    """
+    Interface to the GMSH mesh object with access to suitable mesh processing for
+    Flow123d simulation.
+    - mesh healing (with allowed small corruption of internal interfaces)
+    - region/physical domain  association based on element entities
+    - region/physical domain association assigned after meshing, elements need not to respect interfaces
+    # - reading and writing field data on the mesh
+
+    GMSH model use global variables and could not be simply
+    interfaced using a functional approach.
+    Thus we rather want to copy mesh data to our own structures.
+
+
+    """
 
 
 class GeometryOCC:
@@ -437,6 +470,14 @@ class GeometryOCC:
         return self.object(3, cylinder_tag)
 
     def disc_discrete(self, radius=1, center=[0, 0, 0], n_points=6, axis=[0, 0, 1]):
+        """
+        Create a regular polygon with n_points vertices.
+        :param radius: Radius of
+        :param center:
+        :param n_points:
+        :param axis:
+        :return:
+        """
         points = []
         v = [1, 0, 0]  # take a random vector
         # test if v and axis are coplanar
@@ -525,8 +566,7 @@ class GeometryOCC:
         for i, fr in enumerate(fractures):
             shape = base_shape.copy()
             print("fr: ", i, "tag: ", shape.dim_tags)
-            shape = shape.scale([fr.rx, fr.ry, 1]) \
-                .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
+            shape = shape.transfrom(fr.transform_mat) \
                 .translate(fr.center) \
                 .set_region(fr.region)
 
@@ -1017,6 +1057,9 @@ class ObjectSet:
         self.factory.model.translate(self.dim_tags, *vector)
         self.factory._need_synchronize = True
         return self
+
+    def transform(self, transform:Transform):
+        self.factory.model.affineTransform(self.dim_tags, transform.full_affine_matrix)
 
     def rotate(self, axis, angle, center=[0, 0, 0]):
         self.factory.model.rotate(self.dim_tags, *center, *axis, angle)

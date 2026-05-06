@@ -45,7 +45,7 @@ class IsecConflict:
             dist = []
             A_vert = fracture_A.vertices[points_init_ind_A[i]]
 
-            if points_false_A[i] != []:
+            if len(points_false_A[i]) > 0:
                 A_points_false = fracture_A.transform(points_false_A[i])
                 loc_B_points_false = fracture_B.back_transform(A_points_false)
                 ind_points_false = fracture_B.internal_point_2d(loc_B_points_false)
