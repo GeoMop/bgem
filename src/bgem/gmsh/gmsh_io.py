@@ -9,7 +9,9 @@ import gmsh
 
 
 def gmsh_finalize():
-    # Prevent error when setting signal out of the mian thread
+    # Prevent error when setting signal out of the main thread
+    if not gmsh.isInitialized():
+        return
     gmsh.clear()
     if threading.current_thread() is not threading.main_thread():
         gmsh.oldsig = None

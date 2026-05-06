@@ -260,6 +260,7 @@ class GeometryOCC:
         gmsh.model.add(model_name)
         print("GMSH initialized")
 
+        self._gmsh_initialized = True
         self._region_names = {}
         self._need_synchronize = False
         self.mesh_options = gmsh_options.Mesh()
@@ -850,8 +851,14 @@ class GeometryOCC:
     def show(self):
         gmsh.fltk.run()
 
-    def __del__(self):
+    def close(self):
+        if not getattr(self, "_gmsh_initialized", False):
+            return
         gmsh_io.gmsh_finalize()
+        self._gmsh_initialized = False
+
+    def __del__(self):
+        self.close()
 
 
     def group(self, *obj_list: Union['ObjectSet', List['ObjectSet']]) -> 'ObjectSet':
