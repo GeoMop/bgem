@@ -327,7 +327,7 @@ class PowerLawSize:
         :return: Array of fracture sizes.
         """
         if size is None:
-            size = np.random.poisson(lam=self.mean_size(volume), size=1)
+            size = np.random.poisson(lam=self.mean_size(volume))
             if force_nonempty:
                 size = max(1, size)
         #print("PowerLaw sample: ", force_nonempty, size)

@@ -40,6 +40,12 @@ def test_PowerLawSize():
     #dfn.PowerLawSize.from_mean_area()
     pass
 
+
+def test_PowerLawSize_sample_force_nonempty():
+    size = dfn.PowerLawSize(power=2.5, diam_range=(0.1, 1.0), intensity=0.0)
+    sample = size.sample(volume=1.0, force_nonempty=True)
+    assert len(sample) == 1
+
 def test_UniformBoxPosition():
     center = [-10, -20, -40]
     dimensions = [20, 30, 40]
