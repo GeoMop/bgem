@@ -1,21 +1,11 @@
 """Module containing an expanded python gmsh class"""
 from __future__ import print_function
-import threading
 import os.path
 import struct
 import numpy as np
 import enum
 import gmsh
-
-
-def gmsh_finalize():
-    # Prevent error when setting signal out of the main thread
-    if not gmsh.isInitialized():
-        return
-    gmsh.clear()
-    if threading.current_thread() is not threading.main_thread():
-        gmsh.oldsig = None
-    gmsh.finalize()
+from bgem.gmsh.gmsh import gmsh_finalize
 
 
 # class ElementType(enum.IntEnum):

@@ -8,11 +8,11 @@ import gmsh
 import re
 import warnings
 import pathlib
+import threading
 
 from bgem import Transform
 from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
-from bgem.gmsh import gmsh_io
 
 
 
@@ -71,6 +71,18 @@ Rationale:
 
 """
 
+
+def gmsh_finalize():
+    """
+    Clean finalizing GMSH API.
+    Prevent error when setting signal out of the main thread.
+    """
+    if not gmsh.isInitialized():
+        return
+    gmsh.clear()
+    if threading.current_thread() is not threading.main_thread():
+        gmsh.oldsig = None
+    gmsh.finalize()
 
 
 @attrs.define(auto_attribs=True, frozen=False)
@@ -779,7 +791,7 @@ class GeometryOCC:
     def close(self):
         if not getattr(self, "_gmsh_initialized", False):
             return
-        gmsh_io.gmsh_finalize()
+        gmsh_finalize()
         self._gmsh_initialized = False
 
     def __del__(self):
