@@ -20,14 +20,14 @@ def assert_object_set_data(obj, dim_tags, regions, mesh_step_size):
     assert obj.mesh_step_size == mesh_step_size
 
 
-def test_dt_equal_compares_unsorted_dimtags():
+def test_dim_tag_set_compares_unsorted_dimtags():
     factory = object()
     obj = make_object_set(factory, [(2, 20), (1, 10), (3, 30)])
     same_dimtags = make_object_set(factory, [(3, 30), (2, 20), (1, 10)])
     different_dimtags = make_object_set(factory, [(3, 30), (2, 20), (0, 1)])
 
-    assert obj.dt_equal(same_dimtags)
-    assert not obj.dt_equal(different_dimtags)
+    assert obj.dim_tags_set == same_dimtags.dim_tags_set
+    assert obj.dim_tags_set != different_dimtags.dim_tags_set
 
 
 def test_dt_copy_preserves_data_without_sharing_lists():

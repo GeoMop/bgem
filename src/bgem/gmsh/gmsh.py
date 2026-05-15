@@ -878,6 +878,10 @@ class ObjectSet:
         return [tag for dim, tag in self.dim_tags]
 
     @property
+    def dim_tags_set(self):
+        return set(self.dim_tags)
+
+    @property
     def size(self):
         return len(self.dim_tags)
 
@@ -912,13 +916,6 @@ class ObjectSet:
             regions.append(new_region)
         self.regions = regions
         return self
-
-    def dt_equal(self, other: 'ObjectSet'):
-        """ Tests two ObjectSets equality over dimtags.
-            Dimtags does not need to be sorted.
-         """
-        assert other
-        return sorted(self.dim_tags) == sorted(other.dim_tags)
 
     def dt_copy(self) -> 'ObjectSet':
         """
