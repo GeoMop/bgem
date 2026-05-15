@@ -13,6 +13,21 @@ def test_line():
     l = gen.line([0,0,0], [1,1,1])
     print(l)
 
+
+def test_get_mass():
+    gen = gmsh.GeometryOCC("test_get_mass")
+    point = gen.point([0, 0, 0])
+    line_x = gen.line([0, 0, 0], [3, 0, 0])
+    line_y = gen.line([0, 0, 0], [0, 4, 0])
+    rect1 = gen.rectangle([2, 5])
+    rect2 = gen.rectangle([3, 4])
+    box1 = gen.box([2, 3, 4])
+    box2 = gen.box([2, 3, 1.5])
+    obj = gen.group(point, line_x, line_y, rect1, rect2, box1, box2)
+
+    assert obj.get_mass() == pytest.approx([0, 3+4, 10+12, 24+9])
+
+
 @pytest.mark.skip
 def test_exceptions():
     """

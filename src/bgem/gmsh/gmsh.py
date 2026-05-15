@@ -917,6 +917,16 @@ class ObjectSet:
         self.regions = regions
         return self
 
+    def get_mass(self):
+        """
+        Return total mass of object dim tags per dimension.
+        :return: list of masses [point_mass, line_mass, plane_mass, volume_mass]
+        """
+        masses = [0, 0, 0, 0]
+        for dim, tag in self.dim_tags:
+            masses[dim] += self.factory.model.getMass(dim, tag)
+        return masses
+
     def copy(self) -> 'ObjectSet':
         """
         Create a shallow copy of this ObjectSet.
