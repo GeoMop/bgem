@@ -85,21 +85,21 @@ def test_empty_mesh():
     tunnel_end = np.array(geom['tunnel_2']["end"])
     side_y = gen.rectangle([box_size[0], box_size[2]]).rotate([-1, 0, 0], np.pi / 2)
     tunnel_split = dict(
-        start=side_y.copy().translate([0, tunnel_start[1], 0]),
-        mid=side_y.copy().translate([0, tunnel_mid[1], 0]),
-        end=side_y.copy().translate([0, tunnel_end[1], 0])
+        start=side_y.deepcopy().translate([0, tunnel_start[1], 0]),
+        mid=side_y.deepcopy().translate([0, tunnel_mid[1], 0]),
+        end=side_y.deepcopy().translate([0, tunnel_end[1], 0])
     )
 
     tunnel_1_c, tunnel_box_1 = create_cylinder(gen, geom['tunnel_1'], 0.2)
-    tunnel_1_x = tunnel_1_c.copy().intersect(tunnel_box_1)
+    tunnel_1_x = tunnel_1_c.deepcopy().intersect(tunnel_box_1)
 
     tunnel_2_c, tunnel_box_2 = create_cylinder(gen, geom['tunnel_2'], 0.2)
-    tunnel_2_x = tunnel_2_c.copy().intersect(tunnel_box_2)
+    tunnel_2_x = tunnel_2_c.deepcopy().intersect(tunnel_box_2)
 
-    tunnel_1_s, tunnel_2_s, s1, s3 = gen.fragment(tunnel_1_c.copy(), tunnel_2_c.copy(),
-                                                  tunnel_split["start"].copy(),
-                                                  # tunnel_split["mid"].copy(),
-                                                  tunnel_split["end"].copy())
+    tunnel_1_s, tunnel_2_s, s1, s3 = gen.fragment(tunnel_1_c.deepcopy(), tunnel_2_c.deepcopy(),
+                                                  tunnel_split["start"].deepcopy(),
+                                                  # tunnel_split["mid"].deepcopy(),
+                                                  tunnel_split["end"].deepcopy())
 
     tunnel_1 = tunnel_1_s.select_by_intersect(tunnel_1_x)
     tunnel_2 = tunnel_2_s.select_by_intersect(tunnel_2_x)
@@ -211,19 +211,19 @@ def test_greet_no_volume():
     tunnel_end = np.array(geom['tunnel_2']["end"])
     side_y = gen.rectangle([box_size[0], box_size[2]]).rotate([-1, 0, 0], np.pi / 2)
     tunnel_split = dict(
-        start=side_y.copy().translate([0, tunnel_start[1], 0]),
-        mid=side_y.copy().translate([0, tunnel_mid[1], 0]),
-        end=side_y.copy().translate([0, tunnel_end[1], 0])
+        start=side_y.deepcopy().translate([0, tunnel_start[1], 0]),
+        mid=side_y.deepcopy().translate([0, tunnel_mid[1], 0]),
+        end=side_y.deepcopy().translate([0, tunnel_end[1], 0])
     )
 
     tunnel_1_c, tunnel_box_1 = create_cylinder(gen, geom['tunnel_1'], 0.2)
-    tunnel_1_x = tunnel_1_c.copy().intersect(tunnel_box_1)
+    tunnel_1_x = tunnel_1_c.deepcopy().intersect(tunnel_box_1)
 
     tunnel_2_c, tunnel_box_2 = create_cylinder(gen, geom['tunnel_2'], 0.2)
-    tunnel_2_x = tunnel_2_c.copy().intersect(tunnel_box_2)
+    tunnel_2_x = tunnel_2_c.deepcopy().intersect(tunnel_box_2)
 
-    splits = [tunnel_split["start"].copy(), tunnel_split["end"].copy()]
-    frag = gen.fragment(box_inner.copy(), tunnel_1_c, tunnel_2_c, *splits)
+    splits = [tunnel_split["start"].deepcopy(), tunnel_split["end"].deepcopy()]
+    frag = gen.fragment(box_inner.deepcopy(), tunnel_1_c, tunnel_2_c, *splits)
 
     tunnel_1_f = frag[1].select_by_intersect(tunnel_1_x)
     tunnel_2_f = frag[2].select_by_intersect(tunnel_2_x)
@@ -398,7 +398,7 @@ def test_fuse_tunnel_2():
 
 
     print("fuse...")
-    # tunnel = tunnel_1.copy().fuse(tunnel_2.copy())
+    # tunnel = tunnel_1.deepcopy().fuse(tunnel_2.deepcopy())
     tunnel = tunnel_1.fuse(tunnel_2)
     # tunnel = tunnel_2_x.fuse(tunnel_1_x)
     mesh_step = 1.0

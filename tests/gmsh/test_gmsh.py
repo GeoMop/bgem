@@ -1,4 +1,5 @@
 from gmsh import model as gmsh_model
+import copy
 import pytest
 import sys
 import numpy as np
@@ -256,12 +257,12 @@ def test_splitting():
 
     split_pos = tunnel_start + length_part*u_t
     for i in range(n_parts-1):
-        split = split_plane.copy().translate(split_pos)
+        split = split_plane.deepcopy().translate(split_pos)
         splits.append(split)
         split_pos = split_pos + length_part*u_t
 
     # tunnel_f = tunnel.fragment(*splits)
-    tunnel_f = tunnel.fragment(*[s.copy() for s in splits])
+    tunnel_f = tunnel.fragment(*[s.deepcopy() for s in splits])
 
     # split fragmented ObjectSet into list of ObjectSets by dimtags
     tunnel_parts = []
@@ -314,15 +315,15 @@ def test_2D_tunnel_cut():
     box = gen.rectangle(dimensions).set_region("box")
     side = gen.line([-dimensions[0] / 2, 0, 0], [dimensions[0] / 2, 0, 0])
     sides = dict(
-        bottom=side.copy().translate([0, -dimensions[1] / 2, 0]),
-        top=side.copy().translate([0, +dimensions[1] / 2, 0]),
-        left=side.copy().translate([0, +dimensions[0] / 2, 0]).rotate([0, 0, 1], np.pi / 2),
-        right=side.copy().translate([0, -dimensions[0] / 2, 0]).rotate([0, 0, 1], np.pi / 2)
+        bottom=side.deepcopy().translate([0, -dimensions[1] / 2, 0]),
+        top=side.deepcopy().translate([0, +dimensions[1] / 2, 0]),
+        left=side.deepcopy().translate([0, +dimensions[0] / 2, 0]).rotate([0, 0, 1], np.pi / 2),
+        right=side.deepcopy().translate([0, -dimensions[0] / 2, 0]).rotate([0, 0, 1], np.pi / 2)
     )
 
     # ellipse of the tunnel cross-section
     tunnel_disc = gen.disc(tunnel_center, *tunnel_dims)
-    tunnel_select = tunnel_disc.copy()
+    tunnel_select = tunnel_disc.deepcopy()
 
     box_drilled = box.cut(tunnel_disc)
     box_fr, tunnel_fr = gen.fragment(box_drilled, tunnel_disc)
@@ -426,7 +427,7 @@ def check_min_mesh_step(dim, step_size, tolerance):
 
 def test_copy():
     """
-    Test ObjectSet.copy of dimtags.
+    Test ObjectSet geometry deepcopy of dimtags.
     """
     dimensions = [10, 20, 30]
 
@@ -439,6 +440,6 @@ def test_copy():
     box = gen.box(dimensions).set_region("box")
     dimtags = box.dim_tags
     boundary = box.get_boundary()
-    boundary_copy = boundary.copy()
+    boundary_copy = copy.deepcopy(boundary)
     print(boundary)
     print(boundary_copy)

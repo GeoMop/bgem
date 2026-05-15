@@ -25,7 +25,7 @@ def create_fractures_rectangles(gmsh_geom, fractures, base_shape: 'ObjectSet'):
 
     # shapes = []
     # for i, fr in enumerate(fractures):
-    #     shape = base_shape.copy()
+    #     shape = base_shape.deepcopy()
     #     print("fr: ", i, "tag: ", shape.dim_tags)
     #     shape = shape.scale([fr.rx, fr.ry, 1]) \
     #         .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
@@ -73,7 +73,7 @@ def geometry_gmsh(fr_set, gmsh_geom: 'GeometryOCC'):
     shapes = []
     region_map = {}
     for i, fr in enumerate(fr_set):
-        shape = base_shape.copy()
+        shape = base_shape.deepcopy()
         #print("fr: ", i, "tag: ", shape.dim_tags)
         region_name = f"fam_{fr.family}_{i:03d}"
         shape = shape.scale([fr.rx, fr.ry, 1]) \

@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 
 from bgem.gmsh.gmsh import ObjectSet, Region
@@ -30,13 +32,14 @@ def test_dim_tag_set_compares_unsorted_dimtags():
     assert obj.dim_tags_set != different_dimtags.dim_tags_set
 
 
-def test_dt_copy_preserves_data_without_sharing_lists():
+def test_copy_preserves_data_without_sharing_lists():
     factory = object()
     obj = make_object_set(factory, [(2, 20), (1, 10), (3, 30)])
 
-    copied = obj.dt_copy()
+    copied = obj.copy()
 
     assert copied is not obj
+    assert copied.factory is obj.factory
     assert_object_set_data(copied, obj.dim_tags, obj.regions, obj.mesh_step_size)
 
     copied.dim_tags.pop()
@@ -46,6 +49,18 @@ def test_dt_copy_preserves_data_without_sharing_lists():
     assert obj.dim_tags == [(2, 20), (1, 10), (3, 30)]
     assert len(obj.regions) == 3
     assert obj.mesh_step_size == [10, 11, 12]
+
+
+def test_copy_module_uses_object_set_shallow_copy():
+    obj = make_object_set(object(), [(2, 20), (1, 10), (3, 30)])
+
+    copied = copy.copy(obj)
+
+    assert copied is not obj
+    assert copied.factory is obj.factory
+    assert copied.dim_tags == obj.dim_tags
+    copied.dim_tags.pop()
+    assert obj.dim_tags == [(2, 20), (1, 10), (3, 30)]
 
 
 def test_dt_intersection_filters_self_by_other_dimtags_preserving_self_data():

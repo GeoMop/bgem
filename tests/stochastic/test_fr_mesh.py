@@ -30,17 +30,17 @@ def make_mesh(geometry_dict, fractures: FractureSet, mesh_name: str):
     side_y = factory.rectangle([dimensions[0], dimensions[2]])
     side_x = factory.rectangle([dimensions[2], dimensions[1]])
     sides = dict(
-        side_z0=side_z.copy().translate([0, 0, -dimensions[2] / 2]),
-        side_z1=side_z.copy().translate([0, 0, +dimensions[2] / 2]),
-        side_y0=side_y.copy().translate([0, 0, -dimensions[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
-        side_y1=side_y.copy().translate([0, 0, +dimensions[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
-        side_x0=side_x.copy().translate([0, 0, -dimensions[0] / 2]).rotate([0, 1, 0], np.pi / 2),
-        side_x1=side_x.copy().translate([0, 0, +dimensions[0] / 2]).rotate([0, 1, 0], np.pi / 2)
+        side_z0=side_z.deepcopy().translate([0, 0, -dimensions[2] / 2]),
+        side_z1=side_z.deepcopy().translate([0, 0, +dimensions[2] / 2]),
+        side_y0=side_y.deepcopy().translate([0, 0, -dimensions[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        side_y1=side_y.deepcopy().translate([0, 0, +dimensions[1] / 2]).rotate([-1, 0, 0], np.pi / 2),
+        side_x0=side_x.deepcopy().translate([0, 0, -dimensions[0] / 2]).rotate([0, 1, 0], np.pi / 2),
+        side_x1=side_x.deepcopy().translate([0, 0, +dimensions[0] / 2]).rotate([0, 1, 0], np.pi / 2)
     )
     for name, side in sides.items():
         side.modify_regions(name)
 
-    b_box = box.get_boundary().copy()
+    b_box = box.get_boundary().deepcopy()
 
     # two vertical cut-off wells, just permeable part
     left_center = [-well_dist / 2, 0, 0]
@@ -61,7 +61,7 @@ def make_mesh(geometry_dict, fractures: FractureSet, mesh_name: str):
 
     # fractures, fragmented, fractures boundary
     print("cut fractures by box without wells")
-    fractures_group = fractures_group.intersect(box_drilled.copy())
+    fractures_group = fractures_group.intersect(box_drilled.deepcopy())
     print("fragment fractures")
     box_fr, fractures_fr = factory.fragment(box_drilled, fractures_group)
     print("finish geometry")

@@ -576,7 +576,7 @@ class GeometryOCC:
         # return dict: fracture.region -> GMSHobject with corresponding fracture fragments
         shapes = []
         for i, fr in enumerate(fractures):
-            shape = base_shape.copy()
+            shape = base_shape.deepcopy()
             print("fr: ", i, "tag: ", shape.dim_tags)
             shape = shape.transfrom(fr.transform_mat) \
                 .translate(fr.center) \
@@ -597,7 +597,7 @@ class GeometryOCC:
 
         cumulsizes = list(itertools.accumulate((o.size for o in object_sets)))
         all_dimtags = list(itertools.chain(*[o.dim_tags for o in object_sets]))
-        # copy_all_dimtags = ObjectSet(self, all_dimtags).copy()
+        # copy_all_dimtags = ObjectSet(self, all_dimtags).deepcopy()
         if len(all_dimtags) == 1:
             new_tags, tags_map = all_dimtags, [all_dimtags  ]
         else:
@@ -917,14 +917,21 @@ class ObjectSet:
         self.regions = regions
         return self
 
-    def dt_copy(self) -> 'ObjectSet':
+    def copy(self) -> 'ObjectSet':
         """
-        Create a shallow copy of this ObjectSet with independent data lists.
+        Create a shallow copy of this ObjectSet.
         :return: new ObjectSet.
         """
-        result = ObjectSet(factory=self.factory, dim_tags=list(self.dim_tags), regions=list(self.regions))
-        result.mesh_step_size = list(self.mesh_step_size)
+        result = object.__new__(type(self))
+        result.__dict__ = {}
+        for key, value in self.__dict__.items():
+            if isinstance(value, (list, dict, set)):
+                value = value.copy()
+            result.__dict__[key] = value
         return result
+
+    def __copy__(self):
+        return self.copy()
 
 
     def dt_intersection(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
@@ -1041,7 +1048,7 @@ class ObjectSet:
         # split the Objectset by dimtags
         return all_obj.split_by_dimension()
 
-    def copy(self) -> 'ObjectSet':
+    def deepcopy(self) -> 'ObjectSet':
         """
         Problem: gmsh.model.occ.copy fails to copy boundary dimtags.
         """
@@ -1050,6 +1057,11 @@ class ObjectSet:
         copy_obj = ObjectSet(self.factory, copy_tags, self.regions)
         copy_obj.mesh_step_size = self.mesh_step_size.copy()
         return copy_obj
+
+    def __deepcopy__(self, memo):
+        if id(self) not in memo:
+            memo[id(self)] = self.deepcopy()
+        return memo[id(self)]
 
     def get_boundary(self, combined=False):
         """
@@ -1190,8 +1202,8 @@ class ObjectSet:
         :param tool_objects:
         :return:
         """
-        sc = self.copy()
-        tool = self.factory.group(*tool_objects).copy()
+        sc = self.deepcopy()
+        tool = self.factory.group(*tool_objects).deepcopy()
         objs, map = self.factory.model.intersect(sc.dim_tags, tool.dim_tags)
         tool.invalidate()
         sc.invalidate()
@@ -1246,7 +1258,7 @@ class ObjectSet:
         self.regions = regions
 
     def _apply_operation(self, tool_objects, operation):
-        tool_objects = self.factory.group(*tool_objects).copy()
+        tool_objects = self.factory.group(*tool_objects).deepcopy()
         try:
             new_tags, old_tags_map = operation(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
         except ValueError as err :
@@ -1306,7 +1318,7 @@ class ObjectSet:
         Default regions are prescribed to all resulting dimtags.
         """
         # return self._apply_operation(tool_objects, self.factory.model.fuse)
-        # tool_objects = self.factory.group(*tool_objects).copy()
+        # tool_objects = self.factory.group(*tool_objects).deepcopy()
         tool_objects = self.factory.group(*tool_objects)
         try:
             new_tags, old_tags_map = self.factory.model.fuse(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
