@@ -169,6 +169,8 @@ class Mesh(OptionsBase):
         self.RandomFactor = 1e-9
         # Random factor used in the 2D meshing algorithm (should be increased if RandomFactor * size(triangle)/size(model) approaches machine accuracy)
         self.RandomFactor3D = 1e-12
+        # Seed of pseudo-random number generator
+        self.RandomSeed = 1
         # Random factor used in the 3D meshing algorithm
         self.finish_init()
 

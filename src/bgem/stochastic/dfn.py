@@ -227,7 +227,7 @@ class PowerLawSize:
     @classmethod
     def from_mean_area(cls, power, diam_range, p32, p32_power=None):
         """
-        Construct the distribution using the mean arrea (P32) instead of intensity.
+        Construct the distribution using the mean area (P32) instead of intensity.
         :param power: power law exponent
         :param dim_range: size range for which p32 mean area is given
         :param p32: mean area of the fractures in given `diam_range`.
@@ -327,7 +327,7 @@ class PowerLawSize:
         :return: Array of fracture sizes.
         """
         if size is None:
-            size = np.random.poisson(lam=self.mean_size(volume), size=1)
+            size = np.random.poisson(lam=self.mean_size(volume))
             if force_nonempty:
                 size = max(1, size)
         #print("PowerLaw sample: ", force_nonempty, size)
@@ -679,7 +679,7 @@ class Population:
 
     @property
     def volume(self):
-        return np.product([l if l>0 else 1.0 for l in self.domain])
+        return np.prod([l if l>0 else 1.0 for l in self.domain])
 
     @staticmethod
     def project_list_to_2d(families: PopulationDict, plane_normal=[0, 0, 1]):

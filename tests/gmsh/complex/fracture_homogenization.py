@@ -103,12 +103,12 @@ class Realization:
 
         # axial rotation
         normal_angle = 2 * np.pi * np.random.uniform()
-        fr = fracture.copy().rotate([0, 0, 1], normal_angle).rotate(axis, angle).translate(center)
+        fr = fracture.deepcopy().rotate([0, 0, 1], normal_angle).rotate(axis, angle).translate(center)
 
         fr = fr.intersect(simplex)
         b_fr = fr.get_boundary()
         b_simplex = simplex.get_boundary()
-        bb = b_fr.copy().intersect(b_simplex)
+        bb = b_fr.deepcopy().intersect(b_simplex)
         if len(bb.dim_tags) == len(b_fr.dim_tags):
             self.sample.is_through = True
 
@@ -118,16 +118,16 @@ class Realization:
         else:
             self.sample.mass = mass
             self.sample.center_of_mass = center.tolist()
-            simpl, fr = self.geo.fragment(simplex.copy(), fr)
+            simpl, fr = self.geo.fragment(simplex.deepcopy(), fr)
             sf_group = self.geo.group(simpl, fr)
             self.instance = sf_group
             return True
 
     def make_rotations(self, shape):
-        xyz_instance = shape.copy().translate([2, 0, 0]).modify_regions("{}_xyz")
-        yzx_instance = shape.copy().rotate([1, 1, 1], -2 * np.pi / 3) \
+        xyz_instance = shape.deepcopy().translate([2, 0, 0]).modify_regions("{}_xyz")
+        yzx_instance = shape.deepcopy().rotate([1, 1, 1], -2 * np.pi / 3) \
             .translate([4, 0, 0]).modify_regions("{}_yzx")
-        zxy_instance = shape.copy().rotate([1, 1, 1], -4 * np.pi / 3) \
+        zxy_instance = shape.deepcopy().rotate([1, 1, 1], -4 * np.pi / 3) \
             .translate([6, 0, 0]).modify_regions("{}_zxy")
         return [xyz_instance, yzx_instance, zxy_instance]
 

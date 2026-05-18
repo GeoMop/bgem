@@ -103,8 +103,13 @@ class Tetrahedron(ShapeBase):
             a,b,c,A,B,C = self.edge_lens
             x_area = (a*A + b*B + c*C)*(a*A + b*B - c*C)*(a*A - b*B + c*C)*(-a*A + b*B + c*C)
             # assert x_area > 0, x_area
-            R = np.sqrt(x_area) / 24 / max(1e-300, V)
-            self._gamma = 3 * r/max(1e-300, R)
+            double_lim = 1e-300
+            if x_area < double_lim or V < double_lim:
+                print(f"gamma=0: z_area={x_area}, V={V}, double_lim={double_lim} (test 'x_area < double_lim or V < double_lim')")
+                self._gamma = 0
+            else:
+                R = np.sqrt(x_area) / 24 / max(double_lim, V)
+                self._gamma = 3 * r/max(double_lim, R)
         return self._gamma
 
 
