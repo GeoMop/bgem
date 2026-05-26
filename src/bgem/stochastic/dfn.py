@@ -593,11 +593,12 @@ class FrFamily:
         size_range = (family["r_min"], family["r_max"])
         if "p_32" in family:
             power_law_size = PowerLawSize.from_mean_area(family["power"], size_range, family["p_32"])
+            assert np.isclose(family["p_32"], power_law_size.mean_area())
         elif "p_30" in family:
             power_law_size = PowerLawSize(family["power"], size_range, family["p_30"])
+            assert np.isclose(family["p_30"], power_law_size.intensity)
         else:
             raise KeyError("Missing p_32 or p_30 key in FrFamily config dictionary.")
-        assert np.isclose(family["p_32"], power_law_size.mean_area())
         shape_angle = VonMisesOrientation(trend=0, concentration=0)
         return cls(fisher_orientation, power_law_size, shape_angle, name=name)
 

@@ -46,6 +46,43 @@ def test_PowerLawSize_sample_force_nonempty():
     sample = size.sample(volume=1.0, force_nonempty=True)
     assert len(sample) == 1
 
+
+def test_FrFamily_from_cfg_accepts_p_30():
+    family_cfg = {
+        "trend": 292,
+        "plunge": 1,
+        "concentration": 17.8,
+        "power": 2.5,
+        "r_min": 0.038,
+        "r_max": 564,
+        "p_30": 0.42,
+    }
+
+    family = dfn.FrFamily.from_cfg(family_cfg, name="NS")
+
+    assert family.name == "NS"
+    assert family.size.diam_range == (family_cfg["r_min"], family_cfg["r_max"])
+    assert np.isclose(family.size.intensity, family_cfg["p_30"])
+
+
+def test_FrFamily_from_cfg_accepts_p_32():
+    family_cfg = {
+        "trend": 292,
+        "plunge": 1,
+        "concentration": 17.8,
+        "power": 2.5,
+        "r_min": 0.038,
+        "r_max": 564,
+        "p_32": 0.094,
+    }
+
+    family = dfn.FrFamily.from_cfg(family_cfg, name="NS")
+
+    assert family.name == "NS"
+    assert family.size.diam_range == (family_cfg["r_min"], family_cfg["r_max"])
+    assert np.isclose(family.size.mean_area(), family_cfg["p_32"])
+
+
 def test_UniformBoxPosition():
     center = [-10, -20, -40]
     dimensions = [20, 30, 40]
