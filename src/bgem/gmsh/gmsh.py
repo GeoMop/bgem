@@ -2,15 +2,17 @@ import itertools
 from typing import *
 from collections import defaultdict
 import enum
-import attr
+import attrs
 import numpy as np
 import gmsh
 import re
 import warnings
+import pathlib
+import threading
 
+from bgem import Transform
 from bgem.gmsh import gmsh_exceptions
 from bgem.gmsh import options as gmsh_options
-from bgem.gmsh import gmsh_io
 
 
 
@@ -53,17 +55,46 @@ gmsh_api, issues:
 - seems that occ.copy() doesn't preserve boundaries, so boundary dim tags are copied twice
   (It does exactly what it is asked for just copy the given shapes)
 (Problem resolved by introduction of select_by_intersection)
+
+Proposed functional apporach:
+
+Rationale:
+- ObjectSet keeps set of dimtags, which may become invalid, ObjectSets could become invalid because of  operation of larger ObjectSet that includes it.
+  
+  Resoluion: We would rather refactor ObjectSets into handles to the particular geometry part referenced by the complete tree of operations leading to it.
+   The whole geometry would be first constructed in terms of a DAG of operations and then applied to GMSH just before meshing. 
+   The application would treat each operation as global, properly mapping dimtags to the new ons and mange properties associated with the 
+   dimtags.
+- Getting boundary is not associative, bool opertations provides mapping only to dimtags explicitely provided as arguments. 
+  Probably no way to map boundaries. Need to treat boundary operations in lazy way apply them more times using orig
+    
+
 """
 
 
+def gmsh_finalize():
+    """
+    Clean finalizing GMSH API.
+    Prevent error when setting signal out of the main thread.
+    """
+    if not gmsh.isInitialized():
+        return
+    gmsh.clear()
+    if threading.current_thread() is not threading.main_thread():
+        gmsh.oldsig = None
+    gmsh.finalize()
 
-@attr.s(auto_attribs=True)
+
+@attrs.define(auto_attribs=True, frozen=False)
 class Region:
     dim: Optional[int]
     id: int
     name: str
     _boundary_region: 'Region' = None
+    _gmsh_id: int = None
+    # Physical domain ID in GMSH mesh
     _max_reg_id = 99999
+
 
     @classmethod
     def get_region_id(cls):
@@ -123,6 +154,21 @@ DimTag = Tuple[int, int]
 
 
 
+class Mesh:
+    """
+    Interface to the GMSH mesh object with access to suitable mesh processing for
+    Flow123d simulation.
+    - mesh healing (with allowed small corruption of internal interfaces)
+    - region/physical domain  association based on element entities
+    - region/physical domain association assigned after meshing, elements need not to respect interfaces
+    # - reading and writing field data on the mesh
+
+    GMSH model use global variables and could not be simply
+    interfaced using a functional approach.
+    Thus we rather want to copy mesh data to our own structures.
+
+
+    """
 
 
 class GeometryOCC:
@@ -225,6 +271,7 @@ class GeometryOCC:
         gmsh.model.add(model_name)
         print("GMSH initialized")
 
+        self._gmsh_initialized = True
         self._region_names = {}
         self._need_synchronize = False
         self.mesh_options = gmsh_options.Mesh()
@@ -435,6 +482,14 @@ class GeometryOCC:
         return self.object(3, cylinder_tag)
 
     def disc_discrete(self, radius=1, center=[0, 0, 0], n_points=6, axis=[0, 0, 1]):
+        """
+        Create a regular polygon with n_points vertices.
+        :param radius: Radius of
+        :param center:
+        :param n_points:
+        :param axis:
+        :return:
+        """
         points = []
         v = [1, 0, 0]  # take a random vector
         # test if v and axis are coplanar
@@ -485,6 +540,9 @@ class GeometryOCC:
         :param highestDimOnly:
 
         """
+        file_path = pathlib.Path(fileName)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Error: The file '{file_path}' does not exist!")
         shapes = self.model.importShapes(fileName, highestDimOnly=highestDimOnly)
         self._need_synchronize = True
         return ObjectSet(self, shapes, [Region.default_region[dim] for dim, _ in shapes])
@@ -518,10 +576,9 @@ class GeometryOCC:
         # return dict: fracture.region -> GMSHobject with corresponding fracture fragments
         shapes = []
         for i, fr in enumerate(fractures):
-            shape = base_shape.copy()
+            shape = base_shape.deepcopy()
             print("fr: ", i, "tag: ", shape.dim_tags)
-            shape = shape.scale([fr.rx, fr.ry, 1]) \
-                .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
+            shape = shape.transfrom(fr.transform_mat) \
                 .translate(fr.center) \
                 .set_region(fr.region)
 
@@ -540,7 +597,7 @@ class GeometryOCC:
 
         cumulsizes = list(itertools.accumulate((o.size for o in object_sets)))
         all_dimtags = list(itertools.chain(*[o.dim_tags for o in object_sets]))
-        # copy_all_dimtags = ObjectSet(self, all_dimtags).copy()
+        # copy_all_dimtags = ObjectSet(self, all_dimtags).deepcopy()
         if len(all_dimtags) == 1:
             new_tags, tags_map = all_dimtags, [all_dimtags  ]
         else:
@@ -731,8 +788,14 @@ class GeometryOCC:
     def show(self):
         gmsh.fltk.run()
 
+    def close(self):
+        if not getattr(self, "_gmsh_initialized", False):
+            return
+        gmsh_finalize()
+        self._gmsh_initialized = False
+
     def __del__(self):
-        gmsh_io.gmsh_finalize()
+        self.close()
 
 
     def group(self, *obj_list: Union['ObjectSet', List['ObjectSet']]) -> 'ObjectSet':
@@ -815,6 +878,10 @@ class ObjectSet:
         return [tag for dim, tag in self.dim_tags]
 
     @property
+    def dim_tags_set(self):
+        return set(self.dim_tags)
+
+    @property
     def size(self):
         return len(self.dim_tags)
 
@@ -850,10 +917,92 @@ class ObjectSet:
         self.regions = regions
         return self
 
+    def get_mass(self):
+        """
+        Return total mass of object dim tags per dimension.
+        :return: list of masses [point_mass, line_mass, plane_mass, volume_mass]
+        """
+        masses = [0, 0, 0, 0]
+        for dim, tag in self.dim_tags:
+            masses[dim] += self.factory.model.getMass(dim, tag)
+        return masses
+
+    def copy(self) -> 'ObjectSet':
+        """
+        Create a shallow copy of this ObjectSet.
+        :return: new ObjectSet.
+        """
+        result = object.__new__(type(self))
+        result.__dict__ = {}
+        for key, value in self.__dict__.items():
+            if isinstance(value, (list, dict, set)):
+                value = value.copy()
+            result.__dict__[key] = value
+        return result
+
+    def __copy__(self):
+        return self.copy()
+
+
+    def dt_intersection(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
+        """
+        Create intersection self and given list of  ObjectSets (its dimtags) over dimtags.
+        :param obj_list: List of ObjectSets to be intersected.
+        :return: new ObjectSet
+        """
+        assert obj_list
+        dim_tags = set()
+        for item in obj_list:
+            if isinstance(item, ObjectSet):
+                dim_tags.update(item.dim_tags)
+                # for dt in item.dim_tags:
+                #     if dt in self.dim_tags:
+                #         dim_tags.add(dt)
+                #     # debug output:
+                #     else:
+                #         message = "Intersection skip dimtag: {} - not in self object.".format(dt)
+                #         print(message)
+            else:
+                raise Exception(f"group: Wrong argument of type {type(item)}, expecting ObjectSet..")
+
+        result = ObjectSet(factory=self.factory, dim_tags=[], regions=[])
+        for idx, dt in enumerate(self.dim_tags):
+            if dt in dim_tags:
+                result.dim_tags.append(dt)
+                result.regions.append(self.regions[idx])
+                result.mesh_step_size.append(self.mesh_step_size[idx])
+        return result
+
+    def dt_drop(self, *obj_list: 'ObjectSet') -> 'ObjectSet':
+        """
+        Drop any number of ObjectSets (its dimtags) from the self object.
+        If dimtags not found, it is skipped.
+        :param obj_list: List of ObjectSets which dimtags should be dropped.
+        :return: self
+        """
+        assert obj_list
+        for item in obj_list:
+            if isinstance(item, ObjectSet):
+                for dt in item.dim_tags:
+                    try:
+                        idx = self.dim_tags.index(dt)
+                        self.dim_tags.pop(idx)
+                        self.regions.pop(idx)
+                        self.mesh_step_size.pop(idx)
+                    except ValueError as err:
+                        message = "Drop skip dimtag: {} - not in self object.".format(dt)
+                        print(message)
+            else:
+                raise Exception(f"group: Wrong argument of type {type(item)}, expecting ObjectSet..")
+        return self
+
     def translate(self, vector):
         self.factory.model.translate(self.dim_tags, *vector)
         self.factory._need_synchronize = True
         return self
+
+    def transform(self, transform:Transform):
+        self.factory.model.affineTransform(self.dim_tags, transform.full_affine_matrix)
 
     def rotate(self, axis, angle, center=[0, 0, 0]):
         self.factory.model.rotate(self.dim_tags, *center, *axis, angle)
@@ -909,7 +1058,7 @@ class ObjectSet:
         # split the Objectset by dimtags
         return all_obj.split_by_dimension()
 
-    def copy(self) -> 'ObjectSet':
+    def deepcopy(self) -> 'ObjectSet':
         """
         Problem: gmsh.model.occ.copy fails to copy boundary dimtags.
         """
@@ -918,6 +1067,11 @@ class ObjectSet:
         copy_obj = ObjectSet(self.factory, copy_tags, self.regions)
         copy_obj.mesh_step_size = self.mesh_step_size.copy()
         return copy_obj
+
+    def __deepcopy__(self, memo):
+        if id(self) not in memo:
+            memo[id(self)] = self.deepcopy()
+        return memo[id(self)]
 
     def get_boundary(self, combined=False):
         """
@@ -1058,8 +1212,8 @@ class ObjectSet:
         :param tool_objects:
         :return:
         """
-        sc = self.copy()
-        tool = self.factory.group(*tool_objects).copy()
+        sc = self.deepcopy()
+        tool = self.factory.group(*tool_objects).deepcopy()
         objs, map = self.factory.model.intersect(sc.dim_tags, tool.dim_tags)
         tool.invalidate()
         sc.invalidate()
@@ -1114,7 +1268,7 @@ class ObjectSet:
         self.regions = regions
 
     def _apply_operation(self, tool_objects, operation):
-        tool_objects = self.factory.group(*tool_objects).copy()
+        tool_objects = self.factory.group(*tool_objects).deepcopy()
         try:
             new_tags, old_tags_map = operation(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)
         except ValueError as err :
@@ -1174,7 +1328,7 @@ class ObjectSet:
         Default regions are prescribed to all resulting dimtags.
         """
         # return self._apply_operation(tool_objects, self.factory.model.fuse)
-        # tool_objects = self.factory.group(*tool_objects).copy()
+        # tool_objects = self.factory.group(*tool_objects).deepcopy()
         tool_objects = self.factory.group(*tool_objects)
         try:
             new_tags, old_tags_map = self.factory.model.fuse(self.dim_tags, tool_objects.dim_tags, removeObject=True, removeTool=True)

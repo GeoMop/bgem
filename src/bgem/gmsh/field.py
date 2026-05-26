@@ -347,6 +347,21 @@ class FieldExpr(Field):
         # creata MathEval
 
 
+# def constant(value):
+#     """
+#     Define constant field.
+#     Unfortunately much slower then the Box field alternative.
+#     Seems that MathExpr evaluation time is proportional to the string length, i.e. it is parsed every time.
+#     :param value:
+#     :return:
+#     """
+#     return FieldExpr(str(value), [])
+
+def constant(value):
+    """
+    Make a field with constant value = value.
+    """
+    return box((-1, -1, -1), (1, 1, 1), v_in=value, v_out=value)
 
 """
 Predefined coordinate fields.
@@ -414,11 +429,6 @@ def box(pt_min: Point, pt_max: Point, v_in:float, v_out:float=1e300) -> Field:
 
 
 
-def constant(value):
-    """
-    Make a field with constant value = value.
-    """
-    return box((-1, -1, -1), (1, 1, 1), v_in=value, v_out=value)
 
 
 
@@ -549,30 +559,41 @@ def minimum(*fields: Field) -> Field:
 # Structured
 
 
+
+
+def linear(x_field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
+    """
+    Linear transformation of the scalar field given by two points.
+    Prescribed mapping a[0] to a[1], and b[0] to b[1].
+    """
+    x0, y0 = a
+    x1, y1 = b
+    a = (y1 - y0) / (x1 - x0)
+    #x_avg = (y1 * x0 - y0 * x1) / (y1 - y0)
+    x_avg = (x0 + x1) / 2.0
+    y_avg = (y0 + y1) / 2.0
+
+    if a > 1e10:
+        # Following formula could provide more stable results
+        # but needs one more scalar addition
+        # that makes the test 3D meshing about 2% slower.
+        return a * (x_field - x_avg) + y_avg
+    else:
+        # Just two field operations.
+        add = - (a * x0 - y0)
+        return a * x_field + add
+
+
 def geometric(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
     """
     Geometric interpolation between points a = (x0, y0) and b = (x1, y1).
+
     """
     x = field
     x0, y0 = a
     x1, y1 = b
     l0, l1 = math.log(y0), math.log(y1)
-    a = (l1 - l0) / (x1 - x0)
-    x_avg = (l1 * x0 - l0 * x1) / (l1 - l0)
-    return current_module.exp(a * (x - x_avg))
-
-
-def linear(field:Field, a:Tuple[float, float], b:Tuple[float, float]) -> Field:
-    """
-    Linear transformation of the scalar field given by two points.
-    Prescribed mapping a[0] to a[1], and b[0] to b[1].
-    """
-    x = field
-    x0, y0 = a
-    x1, y1 = b
-    a = (y1 - y0) / (x1 - x0)
-    x_avg = (y1 * x0 - y0 * x1) / (y1 - y0)
-    return a * (x - x_avg)
+    return current_module.exp(linear(field, (x0, l0), (x1, l1)))
 
 def polynomial(field:Field, a:Tuple[float, float], b:Tuple[float, float], q: float = 1) -> Field:
     """
@@ -583,9 +604,7 @@ def polynomial(field:Field, a:Tuple[float, float], b:Tuple[float, float], q: flo
     x0, y0 = a
     x1, y1 = b
     l0, l1 = y0 ** (1/q), y1 ** (1/q)
-    a = (l1 - l0) / (x1 - x0)
-    x_avg = (l1 * x0 - l0 * x1) / (l1 - l0)
-    return (a * (x - x_avg)) ** q
+    return linear(field, (x0, l0), (x1, l1)) ** q
 
 def threshold(field:Field, lower_bound:Tuple[float, float],
               upper_bound:Tuple[float, float]=None, sigmoid:bool=False) -> Field:
