@@ -41,7 +41,7 @@ setuptools.setup(
     keywords=[
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
-    
+
     packages=['bgem', 'bgem.polygons', 'bgem.bspline', 'bgem.gmsh', 'bgem.external', 'bgem.geometry', 'bgem.stochastic',
               'bgem.core', 'bgem.upscale'], #setuptools.find_packages(where='src'),
     package_dir={'': 'src'},

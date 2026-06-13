@@ -547,8 +547,6 @@ class GeometryOCC:
         self._need_synchronize = True
         return ObjectSet(self, shapes, [Region.default_region[dim] for dim, _ in shapes])
 
-
-
     def synchronize(self):
         """
         Not clear which actions requires synchronization. Seems that it should be called after calculation of
@@ -648,8 +646,8 @@ class GeometryOCC:
 
         # set physical groups
         for reg, tags in reg_to_tags.values():
-            reg._gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
-            gmsh.model.setPhysicalName(reg.dim, reg._gmsh_id, reg.name)
+            gmsh_id = gmsh.model.addPhysicalGroup(reg.dim, tags, tag=-1)
+            gmsh.model.setPhysicalName(reg.dim, gmsh_id, reg.name)
 
 
     def _set_mesh_step(self, obj: 'ObjectSet'):

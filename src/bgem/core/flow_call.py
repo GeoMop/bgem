@@ -57,12 +57,12 @@ class FlowOutput:
         self.process = process
         self.stdout = stdout
         self.stderr = stderr
-        with workdir(output_dir):
-            self.log = File("flow123.0.log")
-            # TODO: flow ver 4.0 unify output file names
-            self.hydro = EquationOutput("flow", "water")
-            self.solute = EquationOutput("solute", "mass")
-            self.mechanic = EquationOutput("mechanics", "mechanics")
+        #with workdir(output_dir):
+        self.log = File("flow123.0.log")
+        # TODO: flow ver 4.0 unify output file names
+        self.hydro = EquationOutput("flow", "water")
+        self.solute = EquationOutput("solute", "mass")
+        self.mechanic = EquationOutput("mechanics", "mechanics")
 
     @property
     def success(self):
@@ -88,10 +88,20 @@ class FlowOutput:
                     continue
         return True
 
+
 #@memoize
 def _prepare_inputs(file_in, params):
+    import pathlib
     in_dir, template = os.path.split(file_in)
-    root = template.removesuffix(".yaml").removesuffix("_tmpl")
+
+    root = pathlib.Path(template).with_suffix(".yaml")
+    try:
+        root = pathlib.Path(root).with_suffix("_tmpl")
+    except:
+        pass
+
+    root = str(root)
+    #root = template.removesuffix(".yaml").removesuffix("_tmpl")
     template_path = Path(file_in).rename(Path(in_dir) / (root + "_tmpl.yaml"))
     #suffix = "_tmpl.yaml"
     #assert template[-len(suffix):] == suffix
@@ -99,6 +109,7 @@ def _prepare_inputs(file_in, params):
     main_input = Path(in_dir) / (root + ".yaml")
     main_input, used_params =  substitute_placeholders(str(template_path), str(main_input), params)
     return main_input
+
 
 #@memoize
 def _flow_subprocess(arguments, main_input):

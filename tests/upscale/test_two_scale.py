@@ -44,24 +44,28 @@ from joblib import Memory
 memory = Memory(workdir, verbose=0)
 
 
-
-def fracture_random_set(seed, size_range, max_frac = 1e21):
+def fracture_random_set(seed, size_range, max_frac=1e21):
     rmin, rmax = size_range
     box_dimensions = (rmax, rmax, rmax)
     fr_cfg_path = script_dir/"fractures_conf.yaml"
+    print("fr_cfg_path ", fr_cfg_path)
+
     #with open() as f:
     #    pop_cfg = yaml.load(f, Loader=yaml.SafeLoader)
     fr_pop = stochastic.Population.from_cfg(fr_cfg_path, box_dimensions, shape=stochastic.EllipseShape())
     if fr_pop.mean_size() > max_frac:
         common_range = fr_pop.common_range_for_sample_size(sample_size=max_frac)
+        print("common range ", common_range)
         fr_pop = fr_pop.set_sample_range(common_range)
     print(f"fr set range: {[rmin, rmax]}, fr_lim: {max_frac}, mean population size: {fr_pop.mean_size()}")
     pos_gen = stochastic.UniformBoxPosition(fr_pop.domain)
     np.random.seed(seed)
     fractures = fr_pop.sample(pos_distr=pos_gen, keep_nonempty=True)
+
     #for fr in fractures:
     #    fr.region = gmsh.Region.get("fr", 2)
     return fractures
+
 
 def fracture_fixed_set():
     rmin, rmax = size_range
@@ -83,6 +87,39 @@ def fracture_fixed_set():
     return fractures
 
 
+def create_fractures_rectangles(gmsh_geom, fractures:FrozenSet, base_shape: gmsh.ObjectSet,
+                                shift = np.array([0,0,0])):
+    """
+
+    :param gmsh_geom:
+    :param fractures:
+    :param base_shape:
+    :param shift:
+    :return:
+    """
+    # From given fracture date list 'fractures'.
+    # transform the base_shape to fracture objects
+    # fragment fractures by their intersections
+    # return dict: fracture.region -> GMSHobject with corresponding fracture fragments
+    if len(fractures) == 0:
+        return []
+
+    shapes = []
+    region_map = {}
+    print("len fractures ", len(fractures))
+    for i, fr in enumerate(fractures):
+        shape = base_shape.copy()
+        region_name = f"fam_{fr.family}_{i:03d}"
+        shape = shape.scale([fr.rx, fr.ry, 1]) \
+            .rotate(axis=[0,0,1], angle=fr.shape_angle) \
+            .rotate(axis=fr.rotation_axis, angle=fr.rotation_angle) \
+            .translate(fr.center + shift) \
+            .set_region(region_name)
+        region_map[region_name] = i
+        shapes.append(shape)
+
+    fracture_fragments = gmsh_geom.fragment(*shapes)
+    return fracture_fragments, region_map
 
 
 def ref_solution_mesh(work_dir, domain_dimensions, fractures, fr_step, bulk_step):
@@ -91,6 +128,7 @@ def ref_solution_mesh(work_dir, domain_dimensions, fractures, fr_step, bulk_step
     gopt.Tolerance = 0.0001
     gopt.ToleranceBoolean = 0.001
     box = factory.box(domain_dimensions)
+
 
     # TODO: use shape from fractures
     fractures, fr_region_map = create_fractures_rectangles(factory, fractures, factory.rectangle())
@@ -120,9 +158,12 @@ def ref_solution_mesh(work_dir, domain_dimensions, fractures, fr_step, bulk_step
     #factory.remove_duplicate_entities()
     factory.make_mesh(objects, dim=3)
     #factory.write_mesh(me gmsh.MeshFormat.msh2) # unfortunately GMSH only write in version 2 format for the extension 'msh2'
+    print("work dir type ", type(work_dir))
     f_name = work_dir / (factory.model_name + ".msh2")
+    print("f name ", type(f_name))
     factory.write_mesh(str(f_name), format=gmsh.MeshFormat.msh2)
     return f_name, fr_region_map
+
 
 def fr_cross_section(fractures, cross_to_r):
     return [cross_to_r * fr.r for fr in fractures]
@@ -145,8 +186,6 @@ def fr_field(mesh, dfn, reg_id_to_fr, fr_values, bulk_value):
     return field_vals
 
 
-
-
 # def velocity_p0(grid_step, min_corner, max_corner, mesh, values):
 #     """
 #     Pressure P1 field projection
@@ -164,16 +203,19 @@ def fr_field(mesh, dfn, reg_id_to_fr, fr_values, bulk_value):
 #     """
 #     pass
 
-@memory.cache
-def reference_solution(fr_media: FracturedMedia, dimensions, bc_gradient):
+#@memory.cache
+
+def reference_solution(fr_media: FracturedMedia, dimensions, bc_gradient, mesh_step):
     dfn = fr_media.dfn
     bulk_conductivity = fr_media.conductivity
+
+    print("bulk condictivity ", bulk_conductivity)
 
     workdir = script_dir / "sandbox"
     workdir.mkdir(parents=True, exist_ok=True)
 
     # Input crssection and conductivity
-    mesh_file, fr_region_map = ref_solution_mesh(workdir, dimensions, dfn, fr_step=7, bulk_step=7)
+    mesh_file, fr_region_map = ref_solution_mesh(workdir, dimensions, dfn, fr_step=mesh_step, bulk_step=mesh_step)
     full_mesh = Mesh.load_mesh(mesh_file, heal_tol = 0.001) # gamma
     fields = dict(
         conductivity=fr_field(full_mesh, dfn, fr_region_map, fr_media.fr_conductivity, bulk_conductivity),
@@ -183,16 +225,37 @@ def reference_solution(fr_media: FracturedMedia, dimensions, bc_gradient):
     cond_file = Path(cond_file)
     cond_file =  cond_file.rename(cond_file.with_suffix(".msh"))
     # solution
+#     flow_cfg = dotdict(
+#         flow_executable=[
+#          "/home/jb/workspace/flow123d/bin/fterm",
+#          "--no-term",
+# #        - flow123d/endorse_ci:a785dd
+# #        - flow123d/ci-gnu:4.0.0a_d61969
+#          "dbg",
+#          "run",
+#          "--profiler_path",
+#          "profile"
+#         ],
+#         mesh_file=cond_file,
+#         pressure_grad=bc_gradient
+#     )
+
+    import os
+
     flow_cfg = dotdict(
         flow_executable=[
-         "/home/jb/workspace/flow123d/bin/fterm",
-         "--no-term",
-#        - flow123d/endorse_ci:a785dd
-#        - flow123d/ci-gnu:4.0.0a_d61969
-         "dbg",
-         "run",
-         "--profiler_path",
-         "profile"
+            "docker",
+            "run",
+            "-v",
+            "{}:{}".format(os.getcwd(), os.getcwd()),
+            "flow123d/ci-gnu:4.0.0a01_94c428",
+            "flow123d",
+            #        - flow123d/endorse_ci:a785dd
+            #        - flow123d/ci-gnu:4.0.0a_d61969
+            #"dbg",
+            #"run",
+            "--output_dir",
+            os.getcwd()
         ],
         mesh_file=cond_file,
         pressure_grad=bc_gradient
@@ -239,6 +302,7 @@ def project_ref_solution_(flow_out, grid: fem.Grid):
 
     return grid_velocities.reshape((*grid.shape, 3))
 
+
 def det33(mat):
     """
     mat: (N, 3, 3)
@@ -250,7 +314,8 @@ def det33(mat):
         for row in [0, 1, 2] for step in [1,2]
     )
 
-@memory.cache
+
+#@memory.cache
 def refine_barycenters(element, level):
     """
     Produce refinement of given element (triangle or tetrahedra), shape (N, n_vertices, 3)
@@ -258,7 +323,8 @@ def refine_barycenters(element, level):
     """
     return np.mean(refine_element(element, level), axis=1)
 
-@memory.cache
+
+#@memory.cache
 def project_adaptive_source_quad(flow_out, grid: fem.Grid):
     grid_cell_volume = np.prod(grid.step)/27
 
@@ -545,51 +611,75 @@ def homo_decovalex(fr_media: FracturedMedia, grid:fem.Grid):
     ellipses = [dmap.Ellipse(fr.normal, fr.center, fr.scale) for fr in fr_media.dfn]
     d_grid = dmap.Grid.make_grid(grid.origin, grid.step, grid.dimensions)
     fractures = dmap.map_dfn(d_grid, ellipses)
+    print("fractures ", fractures)
     fr_transmissivity = fr_media.fr_conductivity * fr_media.fr_cross_section
     k_iso_zyx = dmap.permIso(d_grid, fractures, fr_transmissivity, fr_media.conductivity)
     k_iso_xyz = grid.cell_field_C_like(k_iso_zyx)
     k_voigt = k_iso_xyz[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
     return k_voigt
 
+
 #@pytest.mark.skip
 def test_two_scale():
     # Fracture set
-    domain_size = 100
+    domain_size = 15 #15  # 100
+    fr_domain_size = 100
     #fr_range = (30, domain_size)
-    fr_range = (50, domain_size)
+    #fr_range = (50, domain_size)
+    fr_range = (5, fr_domain_size)
 
     # Random fractures
-    # dfn = fracture_random_set(123, fr_range, max_frac=10)
+    dfn = fracture_random_set(12345, fr_range, max_frac=1000)
+
+    reduced_dfn = []
+
+    print("len dfn ", len(dfn))
+    print("type dfn ", type(dfn))
+
+    for fr in dfn:
+        #print("fr r:{},  scale: {}, center: {}".format(fr.r, fr.scale, fr.center))
+        if fr.r <= 10:
+            reduced_dfn.append(fr)
+
+    print("removed larger ")
+    print("len dfn ", len(dfn))
+    print("len reduced dfn ", len(reduced_dfn))
+    # for fr in reduced_dfn:
+    #     print("fr r:{},  scale: {}, center: {}".format(fr.r, fr.scale, fr.center))
+
+    dfn = reduced_dfn
 
     # Fixed fracture set
-    shape_id = stochastic.EllipseShape.id
-    fr  = lambda c, n : stochastic.Fracture(shape_id, [100, 100], c, n)
-    fractures = [
-        #fr([30,-10, 10], [0, 1, 0]),
-        fr([0,0,0], [1, 1, 0]),
-        #fr([-30,10,-10], [0, 1, 0])
-    ]
-    dfn = stochastic.FractureSet.from_list(fractures)
+    # shape_id = stochastic.EllipseShape.id
+    # fr  = lambda c, n : stochastic.Fracture(shape_id, [10, 10], c, n)
+    # fractures = [
+    #     #fr([30,-10, 10], [0, 1, 0]),
+    #     fr([0,0,0], [1, 1, 0]),
+    #     #fr([-30,10,-10], [0, 1, 0])
+    # ]
+    # dfn = stochastic.FractureSet.from_list(fractures)
+
     # Cubic law transmissvity
     fr_media = FracturedMedia.fracture_cond_params(dfn, 1e-4, 0.001)
 
     # Fractures and properties from DFNWorks
     #fr_media = FracturedMedia.from_dfn_works("", bulk_conductivity)
 
-
     # Coarse Problem
     #steps = (50, 60, 70)
-    steps = (9, 10, 11)
+    #steps = (9, 10, 11)
+    steps = (5, 5, 5)
     #steps = (50, 60, 70)
     #steps = (3, 4, 5)
     fem_grid = fem.fem_grid(domain_size, steps, fem.Fe.Q(dim=3), origin=-domain_size / 2)
     bc_pressure_gradient = [1, 0, 0]
     grid_cond = homo_decovalex(fr_media, fem_grid.grid)
+
     #grid_cond = np.ones(grid.n_elements)[:, None] * np.array([1, 1, 1, 0, 0, 0])[None, :]
     pressure = fem_grid.solve_sparse(grid_cond, np.array(bc_pressure_gradient)[None, :])
     assert not np.any(np.isnan(pressure))
 
-    flow_out = reference_solution(fr_media, fem_grid.grid.dimensions, bc_pressure_gradient)
+    flow_out = reference_solution(fr_media, fem_grid.grid.dimensions, bc_pressure_gradient, mesh_step=steps[0])
     project_fn = project_adaptive_source_quad
     #project_fn = project_ref_solution
     #ref_velocity_grid = grid.cell_field_F_like(project_fn(flow_out, grid).reshape((-1, 3)))
@@ -630,3 +720,6 @@ def test_two_scale():
 
     #pv_grid.save(str(workdir / "test_result.vtk"))
 
+
+
+test_two_scale()

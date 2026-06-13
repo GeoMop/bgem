@@ -992,8 +992,110 @@ class FractureSet:
         :return: Shape (N, 3, 3).
         """
         trans_mat = (self.rotation_mat[:, :, :]).copy()
-        trans_mat[:, :, 0] *=  (self.radius[:, 0])[:, None]
-        trans_mat[:, :, 1] *=  (self.radius[:, 1])[:, None]
+        trans_mat[:, :, 0] *= (self.radius[:, 0])[:, None]
+        trans_mat[:, :, 1] *= (self.radius[:, 1])[:, None]
+        return trans_mat
+
+    @staticmethod
+    def get_rotation_mat(normal, shape_axis):
+        """
+        Rotate and scale matrices for the fractures. The full transform involves 'self.center' as well:
+        ambient_space_points = self.center + self.transform_mat @ local_fr_points[:, None, :]
+
+        The Z- local axis is transformed to normal N (assumed unit).
+        The shape_axis S = [sx, sy, 0] must be rotated  to SS by the rotation that rotates Z -> N.
+        Then SS is transformation of the local X axis.
+        The transformation of the Y axis is then computed by the corss product.
+
+        Let's compute S':
+        1. Z -> N rotation unit axis K = [-Ny, Nx, 0] / Nxy
+        2. K . S = Sx Ny - Sy Nx
+        3. follow Rodriguez formula proof, split S into part parallel (p) with K and ortogonal (o) to K
+           Sp = (K.S) K
+           So = S - Sp
+        4. In the plane perpendicular to K,
+           we have vertical component giving: cos(th) = Nz
+           and horizontal component giving sin(th) = Nxy = sqrt(Nx^2 + Ny^2)
+        5. We rotate So by angle th:
+           SSo[z] = -|So| Nxy *sng(Nx)
+           SSo[x,y] = (So [x,y]) Nz
+        6. SSp = Sp
+        7. Sum:
+           SS = SSo + SSp :
+           SSx = Spx + (Nz)Sox
+           SSy = Spy + (Nz)Soy
+           SSz = -|So| Nxy *sng(Nx)
+        Finally, the third vector of the rotated bases is   cross(N, S')
+        TODO: find a better vector representation of the rotations, allowing faster construction of the transfrom matrix
+        :return: Shape (N, 3, 3).
+        """
+        N = normal
+        assert np.allclose(np.linalg.norm(N, axis=1), 1)
+        Nxy = np.stack([-N[:, 1], N[:, 0]], axis=1)
+        norm_Nxy = np.linalg.norm(Nxy, axis=1)
+        K = Nxy / norm_Nxy[:, None]
+        arg_small = np.argwhere(norm_Nxy < 1e-13)[:, 0]
+        K[arg_small, :] = np.array([1, 0], dtype=float)
+        K_dot_S = shape_axis[:, None, :] @ K[:, :, None]
+        S_p = K_dot_S[:, 0, :] * K
+        S_o = shape_axis - S_p
+        cos_th = N[:, 2:3]
+        SS_xy = S_p + cos_th * S_o
+        # ?? th is in (0, pi) -> sin(th) always positive
+        #pos_nx = np.logical_xor(N[:, 0] > 0, N[:, 2] < 0)
+        pos_nx = (N[:, None, 0:2] @ shape_axis[:, :, None])[:, 0, 0] > 0
+        sin_th = norm_Nxy
+        sin_th[pos_nx] = - sin_th[pos_nx]
+        SS_z = np.linalg.norm(S_o, axis=1) * sin_th
+
+        # Construct the rotated X axis SS vector, shape (N, 3)
+        SS = np.concatenate([
+            SS_xy,
+            SS_z[:, None]
+        ], axis=1)
+        scaled_trans_x = SS     #* self.radius[:, 0:1]
+        scaled_trans_y = np.cross(N, SS, axis=1)    #* self.radius[:, 1:2]
+        trans_z = N
+        rot_mat = np.stack([scaled_trans_x, scaled_trans_y, trans_z], axis=2)
+        return rot_mat
+
+    @staticmethod
+    def transform_mat_static(normal, shape_axis, radius):
+        """
+        Rotate and scale matrices for the fractures. The full transform involves 'self.center' as well:
+        ambient_space_points = self.center + self.transform_mat @ local_fr_points[:, None, :]
+
+        The Z- local axis is transformed to normal N (assumed unit).
+        The shape_axis S = [sx, sy, 0] must be rotated  to SS by the rotation that rotates Z -> N.
+        Then SS is transformation of the local X axis.
+        The transformation of the Y axis is then computed by the corss product.
+
+        Let's compute S':
+        1. Z -> N rotation unit axis K = [-Ny, Nx, 0] / Nxy
+        2. K . S = Sx Ny - Sy Nx
+        3. follow Rodriguez formula proof, split S into part parallel (p) with K and ortogonal (o) to K
+           Sp = (K.S) K
+           So = S - Sp
+        4. In the plane perpendicular to K,
+           we have vertical component giving: cos(th) = Nz
+           and horizontal component giving sin(th) = Nxy = sqrt(Nx^2 + Ny^2)
+        5. We rotate So by angle th:
+           SSo[z] = -|So| Nxy *sng(Nx)
+           SSo[x,y] = (So [x,y]) Nz
+        6. SSp = Sp
+        7. Sum:
+           SS = SSo + SSp :
+           SSx = Spx + (Nz)Sox
+           SSy = Spy + (Nz)Soy
+           SSz = -|So| Nxy *sng(Nx)
+        Finally, the third vector of the rotated bases is   cross(N, S')
+        TODO: find a better vector representation of the rotations, allowing faster construction of the transfrom matrix
+        :return: Shape (N, 3, 3).
+        """
+        rotation_mat = FractureSet.get_rotation_mat(normal, shape_axis)
+        trans_mat = (rotation_mat[:, :, :]).copy()
+        trans_mat[:, :, 0] *= (radius[:, 0])[:, None]
+        trans_mat[:, :, 1] *= (radius[:, 1])[:, None]
         return trans_mat
 
     @fn.cached_property
