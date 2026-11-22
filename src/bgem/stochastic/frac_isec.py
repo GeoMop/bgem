@@ -114,15 +114,11 @@ class FracIsec:
         normal_A = self.fracture_A.normal
         normal_B = self.fracture_B.normal
 
-        a_1 = normal_A[0, 0]
-        a_2 = normal_A[0, 1]
-        a_3 = normal_A[0, 2]
+        a_1, a_2, a_3 = normal_A
+        b_1, b_2, b_3 = normal_B
 
-        b_1 = normal_B[0,0]
-        b_2 = normal_B[0,1]
-        b_3 = normal_B[0,2]
-
-        self.direct_C = np.array([[a_2 * b_3 - a_3 * b_2, a_3 * b_1 - a_1 * b_3, a_1 * b_2 - a_2 * b_1 ]])
+        self.direct_C = np.array([a_2 * b_3 - a_3 * b_2, a_3 * b_1 - a_1 * b_3, a_1 * b_2 - a_2 * b_1 ])
+        assert np.allclose(self.direct_C, np.cross(normal_A, normal_B))
         self.direct_C = self.direct_C/np.linalg.norm(self.direct_C)
         # np.cross(normal_A,normal_B)#
         # Unit direction vector of the intersection line.
@@ -131,23 +127,22 @@ class FracIsec:
         b_4 = self.fracture_B.distance
         # Distance terms of the normal equations
 
-        # rhs = np.array([[-a_4, -b_4, 0]])
+        rhs = np.array([-a_4, -b_4, 0])
 
-        c_1 = self.direct_C[0,0]
-        c_2 = self.direct_C[0,1]
-        c_3 = self.direct_C[0,2]
+        c_1, c_2, c_3 = self.direct_C
 
         # Solving system with RHS using Crammer's rule.
         x0 = a_4 * (b_3 * c_2 - b_2 * c_3) + b_4 * (a_2 * c_3 - a_3 * c_2)
         y0 = b_4 * (a_3 * c_1 - a_1 * c_3) + a_4 * (b_1 * c_3 - b_3 * c_1)
         z0 = a_4 * (b_2 * c_1  - b_1 * c_2) + b_4 * (a_1 * c_2 - a_2 * c_1)
 
-        mat = np.array([normal_A[0,:].T,normal_B[0,:].T,self.direct_C[0,:].T])
+        mat = np.stack([normal_A, normal_B, self.direct_C], axis=0) # vectors in rows
         dt = np.linalg.det(mat)
 
-        self.x_0 = np.array([[x0, y0, z0]])/dt
+        self.x_0 = np.array([x0, y0, z0])/dt
 
-
+        x0 = np.linalg.solve(mat, rhs)
+        assert np.allclose(self.x_0, x0)
         #testao = self.fracture_A.normal @ self.fracture_A.centre.T + self.fracture_A.distance
         #testbo = self.fracture_B.normal @  self.fracture_B.centre.T + self.fracture_B.distance
         #testa = self.fracture_A.normal @ self.x_0.T + self.fracture_A.distance
@@ -159,10 +154,10 @@ class FracIsec:
         #self.loc_x0_B, self.loc_direct_C_B = self._transform_to_local(self.x_0,self.direct_C, self.fracture_B)
 
         self.loc_x0_A = self.fracture_A.back_transform(self.x_0)
-        self.loc_direct_C_A = self.fracture_A.back_transform_clear(self.direct_C)
+        self.loc_direct_C_A = self.fracture_A.back_transform_clear([self.direct_C])[0]
 
         self.loc_x0_B = self.fracture_B.back_transform(self.x_0)
-        self.loc_direct_C_B = self.fracture_B.back_transform_clear(self.direct_C)
+        self.loc_direct_C_B = self.fracture_B.back_transform_clear([self.direct_C])[0]
 
     # def _transform_to_local(self,x0,direct,fracture):
     #     x0 -= fracture.centre

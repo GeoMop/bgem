@@ -70,20 +70,20 @@ def generate_mesh():
     # Main box
     box = factory.box(3 * [box_size]).set_region("box")
     side = factory.rectangle(2 * [box_size])
-    side_z0 = side.copy().translate([0, 0, -box_size / 2])
-    side_z1 = side.copy().translate([0, 0, +box_size / 2])
+    side_z0 = side.deepcopy().translate([0, 0, -box_size / 2])
+    side_z1 = side.deepcopy().translate([0, 0, +box_size / 2])
     sides = dict(
-        side_z0 = side.copy().translate([0, 0, -box_size / 2]),
-        side_z1 = side.copy().translate([0, 0, +box_size / 2]),
-        side_y0 = side_z0.copy().rotate([-1, 0, 0], np.pi / 2),
-        side_y1 = side_z1.copy().rotate([-1, 0, 0], np.pi / 2),
-        side_x0 = side_z0.copy().rotate([0, 1, 0], np.pi / 2),
-        side_x1 = side_z1.copy().rotate([0, 1, 0], np.pi / 2)
+        side_z0 = side.deepcopy().translate([0, 0, -box_size / 2]),
+        side_z1 = side.deepcopy().translate([0, 0, +box_size / 2]),
+        side_y0 = side_z0.deepcopy().rotate([-1, 0, 0], np.pi / 2),
+        side_y1 = side_z1.deepcopy().rotate([-1, 0, 0], np.pi / 2),
+        side_x0 = side_z0.deepcopy().rotate([0, 1, 0], np.pi / 2),
+        side_x1 = side_z1.deepcopy().rotate([0, 1, 0], np.pi / 2)
     )
     for name, side in sides.items():
         side.modify_regions(name)
 
-    b_box = box.get_boundary().copy()
+    b_box = box.get_boundary().deepcopy()
 
     # two vertical cut-off wells, just permeable part
     well_z_shift = -well_length/2
@@ -115,7 +115,7 @@ def generate_mesh():
     box_drilled = box.cut(left_well, right_well)
 
     # fractures, fragmented, fractures boundary
-    fractures_group = fractures_group.intersect(box_drilled.copy())
+    fractures_group = fractures_group.intersect(box_drilled.deepcopy())
     box_fr, fractures_fr = factory.fragment(box_drilled, fractures_group)
     b_box_fr = box_fr.get_boundary()
     b_left_r = b_box_fr.select_by_intersect(b_left_well).set_region(".left_well")

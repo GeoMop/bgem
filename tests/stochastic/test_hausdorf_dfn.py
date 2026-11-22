@@ -14,7 +14,7 @@ from PIL import ImageDraw
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import collections  as mc
-from bgem.stochastic import fracture
+from bgem.stochastic import dfn
 
 
 def boxcount(Z, k):
@@ -93,26 +93,29 @@ def plot_dfn(power):
 
     fracture_box = [1, 1, 0]
     sample_range = (0.001, 1)
-    pop = fracture.Population(fracture_box[0] * fracture_box[1])
     power = 2.1
     conf_range = [0.001, 1]
     p_32 = 100
     #p_32 = 0.094
-    size = fracture.PowerLawSize.from_mean_area(power-1, conf_range, p_32, power)
-    pop.add_family("all",
-                   orientation=fracture.FisherOrientation(0, 90, 0),
-                   shape=size,
-                   shape_angle=fracture.VonMisesOrientation(0, 0)
-                   )
+    size = dfn.PowerLawSize.from_mean_area(power-1, conf_range, p_32, power)
+    family = dfn.FrFamily(
+                orientation=dfn.FisherOrientation(0, 90, 0),
+                size=size,
+                shape_angle=dfn.VonMisesOrientation(0, 0)
+               )
+    pop = dfn.Population(
+            domain=(fracture_box[0], fracture_box[1], 0),
+            families=[family]
+    )
     pop.set_sample_range(sample_range)
-    pos_gen = fracture.UniformBoxPosition(fracture_box)
+    pos_gen = dfn.UniformBoxPosition(fracture_box)
     print("total mean size: ", pop.mean_size())
 
     fractures = pop.sample(pos_distr=pos_gen, keep_nonempty=True)
     print("N frac:", len(fractures))
     sizes = []
     for fr in fractures:
-        t = 0.5 * fr.r * np.array([-fr.normal[0][2], fr.normal[0][1], 0])
+        t = 0.5 * fr.r * np.array([-fr.normal[2], fr.normal[1], 0])
         a = scale_cut(0.5 + fr.center - t, s)
         b = scale_cut(0.5 + fr.center + t, s)
         draw.line((a, b), fill=(0,0,0), width=1)

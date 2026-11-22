@@ -21,6 +21,6 @@ def test_on_mesh_samples(mesh, tol):
     hm = heal_mesh.HealMesh.read_mesh(mesh_path, node_tol=tol*0.01)
     hm.heal_mesh(gamma_tol=tol)
     hist, bins, bad_els = hm.quality_statistics(bad_el_tol=tol)
-    for name, h in hist.items():
-        hm.print_stats(h, bins, name)
-        print("# bad els: ", len(bad_els[name]))
+    #for name, h in hist.items():
+    hm.print_stats(hist, bins, "gamma")
+    print("# bad els (gamma): ", len(bad_els))

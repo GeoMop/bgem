@@ -49,7 +49,7 @@ for i in range(n_fractures):
     print(i, size, pt_x, pt_y, pt_z)
     # axial rotation
     normal_angle = 2 * np.pi * np.random.uniform()
-    fr = fr_base.copy().scale([size, size, size])
+    fr = fr_base.deepcopy().scale([size, size, size])
     fr = fr.rotate([0, 0, 1], normal_angle).rotate(axis, angle).translate([pt_x, pt_y, pt_z])
     fr = fr.intersect(box)
     fractures.append(fr)

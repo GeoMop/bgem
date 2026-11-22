@@ -1,3 +1,4 @@
+tests/upscale/2d_flow_homo_samples
 # Merge
 *.py.orig
 

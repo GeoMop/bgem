@@ -1,8 +1,9 @@
+import logging
 import os
 import collections
 import numpy as np
 from typing import Tuple
-import attr
+import attrs
 
 
 class ShapeBase:
@@ -101,9 +102,14 @@ class Tetrahedron(ShapeBase):
             # circum radius
             a,b,c,A,B,C = self.edge_lens
             x_area = (a*A + b*B + c*C)*(a*A + b*B - c*C)*(a*A - b*B + c*C)*(-a*A + b*B + c*C)
-            assert x_area > 0, x_area
-            R = np.sqrt(x_area) / 24 / max(1e-300, V)
-            self._gamma = 3 * r/max(1e-300, R)
+            # assert x_area > 0, x_area
+            double_lim = 1e-300
+            if x_area < double_lim or V < double_lim:
+                print(f"gamma=0: z_area={x_area}, V={V}, double_lim={double_lim} (test 'x_area < double_lim or V < double_lim')")
+                self._gamma = 0
+            else:
+                R = np.sqrt(x_area) / 24 / max(double_lim, V)
+                self._gamma = 3 * r/max(double_lim, R)
         return self._gamma
 
 
@@ -200,7 +206,7 @@ class Point:
 
 
 
-@attr.s(auto_attribs=True)
+@attrs.define(auto_attribs=True)
 class Element:
     eid: int
     type: int
@@ -503,7 +509,6 @@ class HealMesh:
 
 
     def heal_mesh(self, gamma_tol=0.02, fraction_of_new_els=2):
-
         self.gamma_tol = gamma_tol
         orig_n_el = self.max_ele_id
         el_to_check = collections.deque(self.mesh.elements.keys())
@@ -831,29 +836,16 @@ class HealMesh:
         # add intersection node
         new_node_id = self.add_node(isec_point)
 
-        # split attached elements
-        node_perm = pos_edge + neg_edge # canonical nodes to real nodes
-        canonical_faces = [[0, 1, 2], [0, 1, 3], [2, 3, 0], [2, 3, 1]] # first two nodes
-        for c_face in canonical_faces:
-            face = [node_perm[vtx] for vtx in c_face]
-            # split elements connected to the face
-            # intersection splits the first edge of the face
-            edge_n0_id = ele.node_ids[face[0]]
-            edge_n1_id = ele.node_ids[face[1]]
-            #print("edge nids: ", edge_n0_id, edge_n1_id)
-
-            # active elements connected to the face
-            for el_id in self.common_elements([ele.node_ids[loc_node] for loc_node in face], max=2):
+        # Both diagonals are subdivided at the intersection. Split their
+        # complete stars, including lower-dimensional physical elements.
+        for edge in (pos_edge, neg_edge):
+            edge_n0_id, edge_n1_id = ele.node_ids[edge]
+            for el_id in self.common_elements([edge_n0_id, edge_n1_id]):
                 el_type, el_tags, el_node_ids = self.mesh.elements[el_id]
-                if edge_n0_id not in el_node_ids or edge_n1_id not in el_node_ids:
-                    print("  Warn: ", "Missing edge", "el_id: ", el_id, el_node_ids)
-                    continue
                 self.remove_element(el_id)
-                loc_n0 = el_node_ids.index(edge_n0_id)
-                loc_n1 = el_node_ids.index(edge_n1_id)
-                for pos_new in [loc_n0, loc_n1]:
+                for nid in (edge_n0_id, edge_n1_id):
                     new_node_ids = el_node_ids.copy()
-                    new_node_ids[pos_new] = new_node_id
+                    new_node_ids[el_node_ids.index(nid)] = new_node_id
                     self.add_element((el_type, el_tags, new_node_ids))
 
         return self.reset_modified()
